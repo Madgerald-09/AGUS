@@ -1,0 +1,240 @@
+import { z } from "zod";
+import { AppError, audit, digest, now } from "@/lib/domain";
+import { config } from "@/lib/config";
+import {
+  operator,
+  sameOrigin,
+  login,
+  logout,
+  sessionCookie,
+  checkPassword,
+} from "@/lib/auth";
+import { mutate, readState } from "@/lib/db";
+import { provider, fixtureBeneficiaries } from "@/lib/paystack";
+import {
+  approveBatch,
+  editBatch,
+  executeBatch,
+  finalizeOTP,
+  preparePaymentBatch,
+  reconcileBatch,
+  verifyBeneficiaries,
+  webhook,
+} from "@/lib/payments";
+import {
+  analyzeSpending,
+  chat,
+  exportPaymentReport,
+  extractImage,
+} from "@/lib/intelligence";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+const reply = (data: unknown, status = 200, headers?: HeadersInit) =>
+  Response.json(data, { status, headers });
+async function boundedBody(req: Request, limit: number) {
+  const reader = req.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw new AppError("Request too large", 413);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+async function json(req: Request) {
+  return JSON.parse((await boundedBody(req, 65536)).toString("utf8"));
+}
+async function handle(req: Request) {
+  try {
+    const path = new URL(req.url).pathname.replace(/^\/api\//, "").split("/");
+    const action = path[0];
+    if (
+      action === "webhooks" &&
+      path[1] === "paystack" &&
+      req.method === "POST"
+    ) {
+      const raw = (await boundedBody(req, 1024 * 1024)).toString("utf8");
+      return reply(await webhook(raw, req.headers.get("x-paystack-signature")));
+    }
+    if (req.method !== "GET") sameOrigin(req);
+    if (action === "session" && req.method === "POST") {
+      const input = z
+        .object({ password: z.string().min(1).max(256) })
+        .parse(await json(req));
+      const token = await login(input.password);
+      return reply({ authenticated: true }, 200, {
+        "Set-Cookie": sessionCookie(token),
+      });
+    }
+    if (action === "session" && req.method === "DELETE") {
+      await logout(req);
+      return reply({ authenticated: false }, 200, {
+        "Set-Cookie": sessionCookie(""),
+      });
+    }
+    const actor = await operator(req);
+    if (action === "state" && req.method === "GET") {
+      const s = await readState();
+      const c = config();
+      return reply({
+        operator: actor,
+        mode: c.mode,
+        aiEnabled:
+          !!process.env.AI_API_KEY &&
+          ["openai", "gemini"].includes(process.env.AI_PROVIDER ?? ""),
+        emergencyDisabled:
+          s.emergencyDisabled ||
+          process.env.PAYMENTS_EMERGENCY_DISABLED === "true",
+        liveEnabled:
+          c.mode === "live" && process.env.LIVE_TRANSFERS_ENABLED === "true",
+        maxPaymentKobo: c.maxPayment,
+        maxBatchKobo: c.maxBatch,
+        feeReserveKobo: c.feeReserve,
+        batches: s.batches
+          .filter((b) => b.owner === actor)
+          .map((b) => ({ ...b, reviewDigest: digest(b) })),
+        messages: s.messages,
+        ledger: s.ledger,
+        insights: analyzeSpending(s.ledger),
+        audit: s.audit
+          .filter((e) => e.actor === actor || e.actor === "paystack")
+          .slice(-100),
+        fixtureBeneficiaries: c.mode === "fixture" ? fixtureBeneficiaries : [],
+      });
+    }
+    if (action === "banks" && req.method === "GET")
+      return reply(await provider().banks());
+    if (action === "balance" && req.method === "GET") {
+      const r = await provider().balance();
+      return reply({ availableKobo: r.data, mode: config().mode, at: now() });
+    }
+    if (action === "reports" && req.method === "GET")
+      return new Response(exportPaymentReport(await readState(), actor), {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="payment-report.csv"',
+          "Cache-Control": "no-store",
+        },
+      });
+    if (action === "emergency" && req.method === "POST") {
+      const { disabled } = z
+        .object({ disabled: z.boolean() })
+        .parse(await json(req));
+      return reply(
+        await mutate((s) => {
+          s.emergencyDisabled = disabled;
+          audit(s, actor, "emergency.changed", { disabled });
+          return { disabled };
+        }),
+      );
+    }
+    if (action === "chat" && req.method === "POST") {
+      const { message } = z
+        .object({ message: z.string().trim().min(1).max(4000) })
+        .parse(await json(req));
+      return reply(await chat(actor, message));
+    }
+    if (action === "extract" && req.method === "POST") {
+      if (Number(req.headers.get("content-length") ?? 0) > 6 * 1024 * 1024)
+        throw new AppError("Upload too large", 413);
+      const bytes = await boundedBody(req, 6 * 1024 * 1024);
+      const form = await new Response(new Uint8Array(bytes), {
+        headers: { "Content-Type": req.headers.get("content-type") ?? "" },
+      }).formData();
+      const file = form.get("image");
+      if (!(file instanceof File)) throw new AppError("Image file required");
+      return reply(
+        await extractImage(Buffer.from(await file.arrayBuffer()), file.type),
+      );
+    }
+    if (action === "batches" && req.method === "POST") {
+      const body = await json(req);
+      const batchId = path[1];
+      const operation = path[2];
+      if (!batchId)
+        return reply(
+          await preparePaymentBatch(
+            actor,
+            z.object({ payments: z.unknown() }).parse(body).payments,
+          ),
+          201,
+        );
+      if (operation === "edit")
+        return reply(
+          await editBatch(
+            actor,
+            batchId,
+            z.object({ payments: z.unknown() }).parse(body).payments,
+          ),
+        );
+      if (operation === "verify")
+        return reply(await verifyBeneficiaries(actor, batchId));
+      if (operation === "approve") {
+        const { password, reviewDigest } = z
+          .object({
+            password: z.string().max(256),
+            reviewDigest: z.string().length(64),
+          })
+          .parse(body); // Reuse rate-limited password authentication; immediately revoke the extra session.
+        const token = await login(password);
+        await logout(
+          new Request(req.url, { headers: { cookie: `ha_session=${token}` } }),
+        );
+        if (!checkPassword(password, process.env.OPERATOR_PASSWORD_HASH ?? ""))
+          throw new AppError("Reauthentication required", 401);
+        return reply(await approveBatch(actor, batchId, reviewDigest));
+      }
+      if (operation === "execute") {
+        const { nonce } = z.object({ nonce: z.string().uuid() }).parse(body);
+        return reply(await executeBatch(actor, batchId, nonce));
+      }
+      if (operation === "reconcile")
+        return reply(await reconcileBatch(actor, batchId));
+      if (operation === "otp") {
+        const { paymentId, otp, password } = z
+          .object({
+            paymentId: z.string().uuid(),
+            otp: z.string().regex(/^\d{4,10}$/),
+            password: z.string().max(256),
+          })
+          .parse(body);
+        const token = await login(password);
+        await logout(
+          new Request(req.url, { headers: { cookie: `ha_session=${token}` } }),
+        );
+        return reply(await finalizeOTP(actor, batchId, paymentId, otp));
+      }
+    }
+    throw new AppError("Route not found", 404);
+  } catch (e) {
+    if (e instanceof AppError) return reply({ error: e.message }, e.status);
+    if (e instanceof z.ZodError)
+      return reply(
+        {
+          error: "Invalid request parameters",
+          issues: e.issues.map((i) => ({ path: i.path, message: i.message })),
+        },
+        400,
+      );
+    if (e instanceof SyntaxError) return reply({ error: "Invalid JSON" }, 400);
+    console.error(
+      "Request failed:",
+      e instanceof Error ? e.name : "UnknownError",
+    );
+    return reply(
+      {
+        error:
+          "Service unavailable. Check server configuration and retry read-only verification.",
+      },
+      503,
+    );
+  }
+}
+export { handle as GET, handle as POST, handle as DELETE };
