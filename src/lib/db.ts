@@ -5,7 +5,7 @@ import { pgTable, integer, jsonb, text, timestamp } from "drizzle-orm/pg-core";
 import { and, eq, sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { mkdir } from "node:fs/promises";
-import { seedState, type State, AppError } from "./domain";
+import { seedState, type State, AppError, batchStatus } from "./domain";
 export const workflow = pgTable("workflow_state", {
   id: integer("id").primaryKey(),
   revision: integer("revision").notNull(),
@@ -51,17 +51,75 @@ export function db() {
     return d;
   }));
 }
+function upgradeState(s: State): State {
+  s.webhookWork ??= [];
+  // Recover old receipt-only work and consumed OTP claims from retained audits.
+  // Re-verification is read-only; a receipt alone never proves processing.
+  for (const entry of s.audit) {
+    const details = entry.details as {
+      eventId?: string;
+      paymentId?: string;
+      payload?: { event?: string; data?: { reference?: string } };
+    } | null;
+    if (
+      entry.action === "webhook.received" &&
+      details?.eventId &&
+      ["transfer.success", "transfer.failed", "transfer.reversed"].includes(
+        details.payload?.event ?? "",
+      ) &&
+      !s.webhookWork.some((w) => w.eventId === details.eventId)
+    ) {
+      const b = s.batches.find(
+        (b) =>
+          b.approval?.consumedAt &&
+          b.payments.some(
+            (p) => p.reference === details.payload?.data?.reference,
+          ),
+      );
+      const p = b?.payments.find(
+        (p) => p.reference === details.payload?.data?.reference,
+      );
+      if (b && p)
+        s.webhookWork.push({
+          eventId: details.eventId,
+          batchId: b.id,
+          paymentId: p.id,
+          event: details.payload!
+            .event as State["webhookWork"][number]["event"],
+          receivedAt: entry.at,
+          attempts: 0,
+        });
+    }
+    if (entry.action === "transfer.otp_submitted" && details?.paymentId) {
+      const b = s.batches.find((b) => b.id === entry.batchId);
+      const p = b?.payments.find((p) => p.id === details.paymentId);
+      if (b && p && !p.otpFinalization) {
+        p.otpFinalization = {
+          claimId: `legacy:${entry.id}`,
+          claimedAt: entry.at,
+          generation: p.operationGeneration ?? 0,
+          outcome: "uncertain",
+        };
+        if (p.status === "awaiting_otp") {
+          p.status = "unknown";
+          b.status = batchStatus(b);
+        }
+      }
+    }
+  }
+  return s;
+}
 export async function readState() {
   const d = await db();
   const [r] = await d.select().from(workflow).where(eq(workflow.id, 1));
-  return r.payload;
+  return upgradeState(r.payload);
 }
 // Pure synchronous reducers may be replayed on CAS contention. Never call a provider in a reducer.
 export async function mutate<T>(fn: (s: State) => T): Promise<T> {
   const d = await db();
   for (let i = 0; i < 30; i++) {
     const [r] = await d.select().from(workflow).where(eq(workflow.id, 1));
-    const s = structuredClone(r.payload);
+    const s = upgradeState(structuredClone(r.payload));
     const result = fn(s);
     const updated = await d
       .update(workflow)

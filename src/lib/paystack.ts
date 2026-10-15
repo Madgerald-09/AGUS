@@ -14,7 +14,15 @@ export interface TransferData {
   transfer_code?: string;
   domain?: string;
   integration?: number;
-  recipient?: string | number | { recipient_code?: string };
+  recipient?:
+    | string
+    | number
+    | {
+        recipient_code?: string;
+        id?: number;
+        details?: { account_number?: string; bank_code?: string };
+      };
+  fee_charged?: number;
   fees?: number;
 }
 export interface ProviderResult<T> {
@@ -31,7 +39,7 @@ export interface PaymentProvider {
   recipient(
     p: Instruction,
     name: string,
-  ): Promise<ProviderResult<{ recipient_code: string }>>;
+  ): Promise<ProviderResult<{ recipient_code: string; id?: number }>>;
   balance(): Promise<ProviderResult<number>>;
   submit(p: Payment): Promise<ProviderResult<TransferData>>;
   verify(p: Payment): Promise<ProviderResult<TransferData>>;
@@ -40,7 +48,7 @@ export interface PaymentProvider {
 const transferSchema = z
   .object({
     reference: z.string(),
-    amount: z.number().int().nonnegative(),
+    amount: z.number().int().nonnegative().safe(),
     currency: z.string(),
     status: z.string(),
     transfer_code: z.string().optional(),
@@ -49,13 +57,78 @@ const transferSchema = z
     recipient: z
       .union([
         z.string(),
-        z.number(),
-        z.object({ recipient_code: z.string().optional() }).passthrough(),
+        z.number().int().positive().safe(),
+        z
+          .object({
+            recipient_code: z.string().optional(),
+            id: z.number().int().positive().safe().optional(),
+            details: z
+              .object({
+                account_number: z.string().optional(),
+                bank_code: z.string().optional(),
+              })
+              .passthrough()
+              .optional(),
+          })
+          .passthrough(),
       ])
       .optional(),
-    fees: z.number().int().nonnegative().optional(),
+    fee_charged: z.number().int().nonnegative().safe().optional(),
+    fees: z.number().int().nonnegative().safe().optional(),
   })
   .passthrough();
+// Both response fields are integer kobo, never naira or estimated reserves.
+export function confirmedFeeKobo(data: TransferData) {
+  for (const fee of [data.fee_charged, data.fees])
+    if (fee !== undefined && (!Number.isSafeInteger(fee) || fee < 0))
+      throw new AppError("Invalid confirmed provider fee", 502);
+  if (
+    data.fee_charged !== undefined &&
+    data.fees !== undefined &&
+    data.fee_charged !== data.fees
+  )
+    throw new AppError("Conflicting confirmed provider fees", 502);
+  return data.fee_charged ?? data.fees;
+}
+
+export function recipientIdentity(value: TransferData["recipient"]): {
+  code?: string;
+  recipientId?: number;
+  accountNumber?: string;
+  bankCode?: string;
+} {
+  const codeSchema = z.string().regex(/^RCP_[A-Za-z0-9_]+$/);
+  const idSchema = z.number().int().positive().safe();
+  if (value === undefined) return {};
+  if (typeof value === "string") return { code: codeSchema.parse(value) };
+  if (typeof value === "number") return { recipientId: idSchema.parse(value) };
+  const parsed = z
+    .object({
+      recipient_code: codeSchema.optional(),
+      id: idSchema.optional(),
+      details: z
+        .object({
+          account_number: z
+            .string()
+            .regex(/^\d{10}$/)
+            .optional(),
+          bank_code: z
+            .string()
+            .regex(/^\d{3,6}$/)
+            .optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough()
+    .parse(value);
+  return {
+    code: parsed.recipient_code,
+    recipientId: parsed.id,
+    accountNumber: parsed.details?.account_number,
+    bankCode: parsed.details?.bank_code,
+  };
+}
 export class ProviderError extends AppError {
   constructor(
     message: string,
@@ -133,7 +206,10 @@ export class Paystack implements PaymentProvider {
   recipient(p: Instruction, name: string) {
     return this.call(
       "/transferrecipient",
-      z.object({ recipient_code: z.string().startsWith("RCP_") }),
+      z.object({
+        recipient_code: z.string().startsWith("RCP_"),
+        id: z.number().int().positive().safe().optional(),
+      }),
       {
         type: "nuban",
         name,
@@ -228,6 +304,7 @@ export class FixtureProvider implements PaymentProvider {
       status: "pending",
       transfer_code: `TRF_fixture_${p.id}`,
       domain: "test",
+      recipient: p.recipientCode,
     };
     return { data, raw: { fixture: true, data } };
   }
@@ -247,6 +324,7 @@ export class FixtureProvider implements PaymentProvider {
       transfer_code: p.transferCode,
       domain: "test",
       fees: 0,
+      recipient: p.recipientCode,
     };
     return { data, raw: { fixture: true, data } };
   }

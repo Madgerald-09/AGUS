@@ -31,10 +31,18 @@ export interface Payment extends Instruction {
   reference: string;
   verifiedName?: string;
   recipientCode?: string;
+  recipientId?: number;
   verifiedAt?: string;
   status: Status;
   transferCode?: string;
   providerFeeKobo?: number;
+  operationGeneration?: number;
+  otpFinalization?: {
+    claimId: string;
+    claimedAt: string;
+    generation: number;
+    outcome: "claimed" | "recorded" | "uncertain";
+  };
   lastError?: string;
   responses: { at: string; operation: string; data: unknown }[];
 }
@@ -86,8 +94,20 @@ export interface State {
   messages: Message[];
   audit: Audit[];
   webhookIds: string[];
+  webhookWork: WebhookWork[];
   ledger: LedgerEntry[];
   emergencyDisabled: boolean;
+}
+export interface WebhookWork {
+  eventId: string;
+  batchId: string;
+  paymentId: string;
+  event: "transfer.success" | "transfer.failed" | "transfer.reversed";
+  receivedAt: string;
+  attempts: number;
+  lastAttemptAt?: string;
+  lastError?: string;
+  completedAt?: string;
 }
 export class AppError extends Error {
   constructor(
@@ -146,6 +166,7 @@ export function digest(b: Batch) {
           amountKobo: p.amountKobo,
           reason: p.reason,
           recipientCode: p.recipientCode,
+          recipientId: p.recipientId,
         })),
       }),
     )
@@ -271,6 +292,7 @@ export function seedState(): State {
     messages: [],
     audit: [],
     webhookIds: [],
+    webhookWork: [],
     ledger,
     emergencyDisabled: false,
   };
