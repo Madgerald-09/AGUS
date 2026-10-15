@@ -2062,7 +2062,7 @@ td code {
   animation: message-in 160ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .conversation-turn .message.assistant {
+  .conversation-turn:last-of-type .message.assistant {
     animation: none;
   }
 }
@@ -2076,4 +2076,110 @@ td code {
   width: max-content;
   max-width: 100%;
   margin: 0 auto 8px;
+}
+
+/* Financial controls expand in the conversation's single scrolling surface. */
+.compact-payment {
+  width: 100%;
+  margin: -8px 0 24px;
+  border: 1px solid #333333;
+  border-radius: 12px;
+  background: #0a0a0a;
+  overflow-anchor: none;
+}
+.compact-payment > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+.compact-payment > summary::-webkit-details-marker {
+  display: none;
+}
+.compact-payment > summary > span:first-child {
+  min-width: 0;
+}
+.compact-payment strong,
+.compact-payment small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.compact-payment small {
+  color: #aaaaaa;
+  font-size: 12px;
+  margin-top: 5px;
+}
+.detail-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.compact-payment[open] > summary {
+  border-bottom: 1px solid #333333;
+}
+.compact-payment[open] > summary .detail-action svg {
+  transform: rotate(90deg);
+}
+.compact-payment > .panel {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.compact-payment > summary:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+.activity-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.activity-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #aaaaaa;
+  animation: activity-pulse 1.2s ease-in-out infinite;
+}
+.activity-dots i:nth-child(2) {
+  animation-delay: 150ms;
+}
+.activity-dots i:nth-child(3) {
+  animation-delay: 300ms;
+}
+@keyframes activity-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (max-width: 700px) {
+  .compact-payment > summary {
+    padding: 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .compact-payment > summary > span:first-child {
+    flex: 1 1 150px;
+  }
+  .detail-action {
+    min-height: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-dots i {
+    animation: none;
+  }
+}
+/* Leave enough room below a short reply to open at its first line. */
+.chat-started .conversation {
+  container-type: size;
+}
+.chat-started
+  .conversation-turn:has(> .message.assistant):not(:has(~ .conversation-turn)) {
+  min-height: calc(100cqh - 24px);
 }

@@ -8,7 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 
-const screenshots = join(process.cwd(), "docs/ux-refinement/after");
+const screenshots =
+  process.env.UX_SCREENSHOT_DIR ??
+  join(process.cwd(), "docs/ux-refinement/after");
 await mkdir(screenshots, { recursive: true });
 const base = "http://localhost:3103";
 const browser = await chromium.launch({
@@ -20,6 +22,7 @@ const browser = await chromium.launch({
 const results = [];
 const widths = [
   { width: 1440, height: 1000, name: "desktop" },
+  { width: 820, height: 900, name: "narrow-desktop" },
   { width: 390, height: 844, name: "mobile-390" },
   { width: 320, height: 740, name: "mobile-320" },
 ];
@@ -392,8 +395,9 @@ try {
       const proposal = page.getByRole("region", {
         name: "Payment proposal",
         exact: true,
+        includeHidden: true,
       });
-      await proposal.waitFor();
+      await proposal.waitFor({ state: "attached" });
       await waitIdle();
       assert.equal(
         await composer.inputValue(),
@@ -412,6 +416,7 @@ try {
         position.y >= conversation.y - 1 && position.y < conversation.y + 55,
         "Response starts at the question, not the bottom of a tall proposal",
       );
+      await page.locator(".proposal-summary > summary").last().click();
       await proposal
         .getByLabel("Fictional recipient 1")
         .selectOption("0000000001");
@@ -456,6 +461,10 @@ try {
         .getByRole("button", { name: "Save draft", exact: true })
         .click();
       await proposal.waitFor({ state: "detached" });
+      await page
+        .locator(".compact-payment:not(.proposal-summary) > summary")
+        .last()
+        .click();
       const card = page.locator(".batch-card");
       await card
         .getByRole("button", { name: "Verify beneficiaries", exact: true })
@@ -560,7 +569,9 @@ try {
       const draft = page.getByRole("region", {
         name: "Payment proposal",
         exact: true,
+        includeHidden: true,
       });
+      await page.locator(".proposal-summary > summary").last().click();
       const labelInput = draft.getByLabel("Recipient label", { exact: true });
       await labelInput.fill("Keep this unfinished recipient");
       await draft.getByLabel("Amount (NGN)", { exact: true }).fill("50");

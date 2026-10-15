@@ -91,6 +91,7 @@ export interface Message {
   }[];
   batchId?: string;
   sourceRequest?: string;
+  topic?: string;
   supersededBy?: string;
 }
 export interface LedgerEntry {

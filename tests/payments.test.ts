@@ -632,7 +632,10 @@ describe("additional security and adapter integration", () => {
           ),
       ),
     );
-    const result = await chat(actor, "Prepare this instruction");
+    const result = await chat(
+      actor,
+      "Prepare ₦500.07 for Ada at Wema Bank; account: 0000000001; reason: Lunch",
+    );
     expect(result.batchId).toBeDefined();
     const batch = (await readState()).batches[0];
     expect(batch.status).toBe("awaiting_beneficiary_verification");

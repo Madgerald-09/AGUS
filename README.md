@@ -103,3 +103,7 @@ See `ENGINEERING_HANDOFF.md`, `ARCHITECTURE.md`, `LIVE_READINESS.md`, `DEMO_SCRI
 See [CHAT_FIRST_REPORT.md](CHAT_FIRST_REPORT.md) for the experience changes, model/fallback boundary, verification results, screenshots and remaining P1 work.
 
 The [P1 chat UX refinement report](CHAT_UX_REFINEMENT_REPORT.md) includes before/after desktop and mobile screenshots, request/error/scroll behavior, and keyboard verification limits.
+
+## Hackaholics 7.0 integration
+
+See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) for the conversational architecture, exact incorporated PR commits, financial authority boundaries, four-viewport evidence, limitations and genuine Gemini testing instructions. `npm run test:browser` includes the required conversation journey using a test-only mocked Gemini transport.

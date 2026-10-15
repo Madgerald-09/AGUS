@@ -80,6 +80,7 @@ try {
   await page.getByRole("heading", { name: /What can I help you/ }).waitFor();
   const widths = [
     { width: 1440, height: 1000, name: "desktop" },
+    { width: 820, height: 900, name: "narrow-desktop" },
     { width: 390, height: 844, name: "mobile-390" },
     { width: 320, height: 740, name: "mobile-320" },
   ];
@@ -213,6 +214,7 @@ try {
       name: "Payment proposal",
       exact: true,
     });
+    await page.locator(".proposal-summary > summary").last().click();
     await proposal.waitFor();
     assert.equal(
       await proposal
@@ -261,6 +263,7 @@ try {
     await proposal.getByLabel("Description", { exact: true }).nth(1).click();
     assert.equal((await savedEdits).status(), 200);
     await page.reload();
+    await page.locator(".proposal-summary > summary").last().click();
     await proposal.waitFor();
     assert.equal(
       await proposal
@@ -288,6 +291,10 @@ try {
       .getByRole("button", { name: "Save draft", exact: true })
       .click();
     await proposal.waitFor({ state: "detached" });
+    await page
+      .locator(".compact-payment:not(.proposal-summary) > summary")
+      .last()
+      .click();
     const card = page.locator(".batch-card").last();
     await card
       .getByRole("button", { name: "Verify beneficiaries", exact: true })

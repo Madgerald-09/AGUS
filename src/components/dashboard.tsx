@@ -159,9 +159,7 @@ function Badge({ status }: { status: string }) {
 function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
   const operation = key.split("-")[0];
   const messages: Record<string, string> = {
-    chat: aiEnabled
-      ? "Waiting for the model response…"
-      : "Preparing a demo response…",
+    chat: aiEnabled ? "Thinking…" : "Preparing a demo response…",
     image: "Extracting details from your image…",
     save: "Saving your payment draft…",
     verify: fixture
@@ -357,9 +355,40 @@ export function Dashboard() {
     await run(
       "chat",
       async () => {
-        const response = await api<{ messageId: string }>("chat", {
-          message: submittedText,
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/x-ndjson",
+          },
+          body: JSON.stringify({ message: submittedText }),
         });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(
+            data.error ??
+              "The assistant is unavailable. Your input is preserved.",
+          );
+        }
+        const reader = res.body?.getReader();
+        if (!reader) throw new TypeError("Missing response");
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let response: { messageId: string } | undefined;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let end: number;
+          while ((end = buffer.indexOf("\n")) >= 0) {
+            const event = JSON.parse(buffer.slice(0, end));
+            buffer = buffer.slice(end + 1);
+            if (event.error) throw new Error(event.error);
+            if (event.activity) setProgress(event.activity);
+            if (event.result) response = event.result;
+          }
+        }
+        if (!response) throw new TypeError("Unconfirmed response");
         responseAnchor.current = response.messageId;
       },
       () => {
@@ -503,18 +532,42 @@ export function Dashboard() {
         "awaiting_otp",
       ].includes(p.status),
     );
-  const renderBatch = (b: ViewBatch) => (
-    <BatchCard
-      key={`${b.id}:${b.reviewDigest}`}
-      batch={b}
-      banks={banks}
-      busy={!!busy}
-      run={run}
-      edit={() => edit(b)}
-      mode={state.mode}
-      stopped={state.emergencyDisabled}
-    />
-  );
+  const renderBatch = (b: ViewBatch) => {
+    const card = (
+      <BatchCard
+        key={`${b.id}:${b.reviewDigest}`}
+        batch={b}
+        banks={banks}
+        busy={!!busy}
+        run={run}
+        edit={() => edit(b)}
+        mode={state.mode}
+        stopped={state.emergencyDisabled}
+      />
+    );
+    return tab === "Agent" ? (
+      <details className="compact-payment" key={b.id}>
+        <summary>
+          <span>
+            <strong>
+              {b.payments.map((p) => p.verifiedName ?? p.name).join(", ")}
+            </strong>
+            <small>
+              {money(b.payments.reduce((n, p) => n + p.amountKobo, 0))} before
+              fees · {b.mode === "fixture" ? "Simulation" : b.mode} ·{" "}
+              {label(b.status)}
+            </small>
+          </span>
+          <span className="detail-action">
+            Review details <ChevronRight size={15} />
+          </span>
+        </summary>
+        {card}
+      </details>
+    ) : (
+      card
+    );
+  };
   const linked = new Set(state.messages.map((m) => m.batchId).filter(Boolean));
   const proposals = (m: Message) =>
     (m.proposals ?? []).map((p) => ({
@@ -803,18 +856,46 @@ export function Dashboard() {
                     m.proposals?.length &&
                     !m.batchId &&
                     !m.supersededBy ? (
-                      <PaymentEditor
-                        key={m.id}
-                        {...editorProps}
-                        initialRows={proposals(m)}
-                        sourceRequest={m.sourceRequest}
-                        sourceMessageId={m.id}
-                        onSave={(payments) =>
-                          run("save", () =>
-                            api("batches", { payments, sourceMessageId: m.id }),
-                          )
-                        }
-                      />
+                      <details className="compact-payment proposal-summary">
+                        <summary>
+                          <span>
+                            <strong>
+                              {m.proposals
+                                .map((p) => p.name || "Recipient needed")
+                                .join(", ")}
+                            </strong>
+                            <small>
+                              {m.proposals.every((p) => p.amountNaira)
+                                ? `₦${m.proposals.map((p) => p.amountNaira).join(" + ₦")} · `
+                                : "Amount needed · "}
+                              {m.proposals.length} recipient
+                              {m.proposals.length === 1 ? "" : "s"} · Unverified
+                              proposal
+                              {m.proposals.some((p) => !p.accountNumber)
+                                ? " · Account needed"
+                                : ""}
+                            </small>
+                          </span>
+                          <span className="detail-action">
+                            Edit details <ChevronRight size={15} />
+                          </span>
+                        </summary>
+                        <PaymentEditor
+                          key={m.id}
+                          {...editorProps}
+                          initialRows={proposals(m)}
+                          sourceRequest={m.sourceRequest}
+                          sourceMessageId={m.id}
+                          onSave={(payments) =>
+                            run("save", () =>
+                              api("batches", {
+                                payments,
+                                sourceMessageId: m.id,
+                              }),
+                            )
+                          }
+                        />
+                      </details>
                     ) : null}
                     {m.batchId &&
                       state.batches.find((b) => b.id === m.batchId) && (
@@ -918,7 +999,13 @@ export function Dashboard() {
                   aria-live="polite"
                   aria-atomic="true"
                 >
-                  {busy && <Clock3 size={15} aria-hidden="true" />}
+                  {busy && (
+                    <span className="activity-dots" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  )}
                   {progress || announcement}
                 </p>
                 <form
