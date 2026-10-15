@@ -1,15 +1,29 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowUpRight,
   ArrowDownLeft,
   ArrowRight,
+  Paperclip,
+  Sparkles,
+  Menu,
   Check,
+  CircleAlert,
+  CircleX,
+  Undo2,
+  KeyRound,
+  LockKeyhole,
+  Search,
   ChevronRight,
   Clock3,
   FileDown,
-  ImagePlus,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -31,7 +45,7 @@ import type {
   Mode,
   Instruction,
 } from "@/lib/domain";
-import type { Insight, Proposed } from "@/lib/intelligence";
+import type { Insight } from "@/lib/intelligence";
 type ViewBatch = Batch & { reviewDigest: string };
 type Row = {
   name: string;
@@ -45,6 +59,7 @@ type Snapshot = {
   operator: string;
   mode: Mode;
   aiEnabled: boolean;
+  aiProvider: string;
   emergencyDisabled: boolean;
   liveEnabled: boolean;
   maxPaymentKobo: number;
@@ -77,7 +92,7 @@ const date = (s: string) =>
   });
 const blank = (): Row => ({
   name: "",
-  bankCode: "035",
+  bankCode: "",
   accountNumber: "",
   amountNaira: "",
   reason: "Payment",
@@ -103,12 +118,68 @@ async function api<T>(
   return d;
 }
 function Badge({ status }: { status: string }) {
+  const labels: Record<string, string> = {
+    draft: "Draft",
+    awaiting_beneficiary_verification: "Needs verification",
+    awaiting_user_approval: "Needs your approval",
+    approved: "Approved",
+    submitted: "Submitted · unresolved",
+    processing: "Processing · unresolved",
+    successful: "Successful",
+    failed: "Failed",
+    reversed: "Reversed",
+    unknown: "Unknown · needs follow-up",
+    awaiting_otp: "Awaiting provider OTP",
+  };
+  const Icon =
+    status === "successful"
+      ? Check
+      : status === "failed"
+        ? CircleX
+        : status === "reversed"
+          ? Undo2
+          : status === "unknown"
+            ? CircleAlert
+            : status === "awaiting_otp"
+              ? KeyRound
+              : status === "approved"
+                ? ShieldCheck
+                : status === "awaiting_user_approval"
+                  ? LockKeyhole
+                  : status === "awaiting_beneficiary_verification"
+                    ? Search
+                    : Clock3;
   return (
     <span className={`badge ${status}`}>
-      {status === "successful" ? <Check size={12} /> : <span className="dot" />}
-      {label(status)}
+      <Icon size={14} aria-hidden="true" />
+      {labels[status] ?? label(status)}
     </span>
   );
+}
+function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
+  const operation = key.split("-")[0];
+  const messages: Record<string, string> = {
+    chat: aiEnabled
+      ? "Waiting for the model response…"
+      : "Preparing a demo response…",
+    image: "Extracting details from your image…",
+    save: "Saving your payment draft…",
+    verify: fixture
+      ? "Checking fictional recipient details…"
+      : "Verifying recipient details…",
+    approve: "Checking your approval…",
+    execute: fixture
+      ? "Submitting simulated transfers…"
+      : "Submitting reviewed transfers…",
+    reconcile: fixture
+      ? "Checking simulated transfer outcomes…"
+      : "Checking provider outcomes…",
+    otp: "Checking your OTP submission…",
+    emergency: "Updating the transfer stop…",
+    login: "Signing you in…",
+    logout: "Signing you out…",
+  };
+  return messages[operation] ?? "Updating your saved workspace…";
 }
 export function Dashboard() {
   const [state, setState] = useState<Snapshot | null>(null);
@@ -116,28 +187,49 @@ export function Dashboard() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [progress, setProgress] = useState("");
+  const [announcement, setAnnouncement] = useState("");
+  const [pendingMessage, setPendingMessage] = useState<{
+    text: string;
+    after: number;
+    status: "pending" | "failed";
+  }>();
+  const [showLatest, setShowLatest] = useState(false);
+  const operationInFlight = useRef(false);
+  const snapshotRequest = useRef(0);
+  const followLatest = useRef(true);
+  const responseAnchor = useRef<string | undefined>(undefined);
+  const appRef = useRef<HTMLDivElement>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
   const [tab, setTab] = useState("Agent");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
-  const [rows, setRows] = useState<Row[]>([blank()]);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<string>();
   const [message, setMessage] = useState("");
-  const [balance, setBalance] = useState<number>();
-  const chatEnd = useRef<HTMLDivElement>(null);
-  const refresh = useCallback(async () => {
+  const [editor, setEditor] = useState<{ batchId?: string; rows: Row[] }>();
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const refresh = useCallback(async (throwOnError = false) => {
+    const request = ++snapshotRequest.current;
     try {
-      setState(await api<Snapshot>("state"));
+      const snapshot = await api<Snapshot>("state");
+      if (request !== snapshotRequest.current) return;
+      setState(snapshot);
       setSignedOut(false);
     } catch (e) {
-      if (e instanceof Error && /Sign in|expired/.test(e.message)) {
+      if (request !== snapshotRequest.current && !throwOnError) return;
+      const text = e instanceof Error ? e.message : "Unable to load workspace";
+      if (/Sign in|expired/.test(text)) {
         setSignedOut(true);
         setState(null);
-      } else setError(String(e instanceof Error ? e.message : e));
+      } else if (!throwOnError) setError(text);
+      if (throwOnError) throw e;
     }
   }, []);
   useEffect(() => {
     void refresh();
-    const timer = setInterval(() => void refresh(), 20000);
+    const timer = setInterval(() => {
+      if (!operationInFlight.current) void refresh();
+    }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
   useEffect(() => {
@@ -146,107 +238,202 @@ export function Dashboard() {
         .then(setBanks)
         .catch((e) => setError(e.message));
   }, [state, banks.length]);
+  const authenticated = state !== null;
   useEffect(() => {
-    chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [state?.messages.length]);
-  async function run(key: string, fn: () => Promise<unknown>) {
+    const viewport = window.visualViewport;
+    const keepFocusedVisible = () => {
+      const focused = document.activeElement;
+      if (
+        focused instanceof HTMLElement &&
+        conversationRef.current?.contains(focused)
+      )
+        focused.scrollIntoView({ block: "nearest" });
+      else if (
+        focused === composerInput.current &&
+        followLatest.current &&
+        conversationRef.current
+      )
+        conversationRef.current.scrollTop =
+          conversationRef.current.scrollHeight;
+    };
+    const update = () => {
+      appRef.current?.style.setProperty(
+        "--chat-height",
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      appRef.current?.style.setProperty(
+        "--chat-top",
+        `${viewport?.offsetTop ?? 0}px`,
+      );
+      keepFocusedVisible();
+    };
+    update();
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    const observer = new ResizeObserver(keepFocusedVisible);
+    if (conversationRef.current) observer.observe(conversationRef.current);
+    return () => {
+      observer.disconnect();
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, [authenticated, tab]);
+  useLayoutEffect(() => {
+    const input = composerInput.current;
+    if (input) {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+    }
+  }, [message, authenticated]);
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    if (!conversation) return;
+    if (editor) {
+      const cards = conversation.querySelectorAll(".proposal-card");
+      cards.item(cards.length - 1)?.scrollIntoView({ block: "start" });
+    } else if (responseAnchor.current) {
+      const response = document.getElementById(
+        `message-${responseAnchor.current}`,
+      );
+      if (response) {
+        response.scrollIntoView({ block: "start" });
+        followLatest.current = false;
+        responseAnchor.current = undefined;
+      }
+    } else if (followLatest.current)
+      conversation.scrollTop = conversation.scrollHeight;
+  }, [state?.messages.length, pendingMessage?.status, editor, tab]);
+  async function run(
+    key: string,
+    fn: () => Promise<unknown>,
+    onSuccess?: () => void,
+  ) {
+    if (operationInFlight.current) return;
+    operationInFlight.current = true;
     setBusy(key);
     setError("");
+    setAnnouncement("");
+    setProgress(
+      operationProgress(key, state?.mode === "fixture", !!state?.aiEnabled),
+    );
     try {
       await fn();
-      await refresh();
+      if (key !== "logout") {
+        setProgress(
+          key === "chat"
+            ? "Loading the saved response…"
+            : "Refreshing saved workspace details…",
+        );
+        await refresh(true);
+      }
+      onSuccess?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed");
+      if (key === "chat") responseAnchor.current = undefined;
+      setError(
+        e instanceof TypeError || e instanceof SyntaxError
+          ? "The response could not be confirmed. Your input is preserved. Check the conversation before sending again."
+          : e instanceof Error
+            ? e.message
+            : "The response could not be confirmed. Your input has been kept.",
+      );
     } finally {
+      operationInFlight.current = false;
       setBusy("");
+      setProgress("");
     }
   }
-  function applyProposals(proposals: Proposed[]) {
-    if (!proposals.length) return;
-    setRows(
-      proposals.map((p) => ({
-        name: p.name,
-        bankCode: p.bankCode ?? "",
-        accountNumber: p.accountNumber ?? "",
-        amountNaira: p.amountNaira ?? "",
-        reason: p.reason,
-        warnings: [
-          ...p.warnings,
-          ...(p.confidence !== "high"
-            ? [`${p.confidence} confidence: review carefully`]
-            : []),
-        ],
-      })),
-    );
-    setEditing(undefined);
-    setShowForm(true);
-  }
   async function send(text: string) {
-    if (!text.trim()) return;
-    await run("chat", async () => {
-      const r = await api<{ proposals: Proposed[] }>("chat", { message: text });
-      setMessage("");
-      applyProposals(r.proposals);
+    if (!text.trim() || operationInFlight.current) return;
+    followLatest.current = true;
+    const submittedText = text.trim();
+    setPendingMessage({
+      text: submittedText,
+      after: state?.messages.length ?? 0,
+      status: "pending",
     });
+    setMessage((current) => current || text);
+    composerInput.current?.focus({ preventScroll: true });
+    let confirmed = false;
+    await run(
+      "chat",
+      async () => {
+        const response = await api<{ messageId: string }>("chat", {
+          message: submittedText,
+        });
+        responseAnchor.current = response.messageId;
+      },
+      () => {
+        confirmed = true;
+        setMessage((current) => (current === text ? "" : current));
+        setAnnouncement(
+          "Response received. Your saved conversation has been updated.",
+        );
+      },
+    );
+    if (confirmed) setPendingMessage(undefined);
+    else
+      setPendingMessage((current) =>
+        current ? { ...current, status: "failed" } : current,
+      );
   }
-  async function upload(file: File) {
-    await run("image", async () => {
-      const form = new FormData();
-      form.set("image", file);
-      const r = await fetch("/api/extract", { method: "POST", body: form });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error);
-      applyProposals(data.proposals);
+  function jumpToLatest() {
+    followLatest.current = true;
+    conversationRef.current?.scrollTo({
+      top: conversationRef.current.scrollHeight,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
     });
+    setShowLatest(false);
   }
-  async function save() {
-    const payments: Instruction[] = rows.map((r) => {
-      if (!/^\d+(\.\d{1,2})?$/.test(r.amountNaira))
-        throw new Error("Use a positive amount with at most 2 decimals");
-      const [a, b = ""] = r.amountNaira.split(".");
-      return {
-        name: r.name,
-        bankCode: r.bankCode,
-        accountNumber: r.accountNumber,
-        amountKobo: Number(a) * 100 + Number(b.padEnd(2, "0")),
-        reason: r.reason,
-      };
-    });
-    await api(editing ? `batches/${editing}/edit` : "batches", { payments });
-    setShowForm(false);
-    setRows([blank()]);
-    setEditing(undefined);
-    setTab("Payment jobs");
+  function navigate(next: string) {
+    setTab(next);
+    setMenuOpen(false);
   }
   function edit(b: ViewBatch) {
-    setRows(
-      b.payments.map((p) => ({
+    setTab("Agent");
+    setEditor({
+      batchId: b.id,
+      rows: b.payments.map((p) => ({
         name: p.name,
         bankCode: p.bankCode,
         accountNumber: p.accountNumber,
         amountNaira: (p.amountKobo / 100).toFixed(2),
         reason: p.reason,
       })),
-    );
-    setEditing(b.id);
-    setShowForm(true);
+    });
+  }
+  async function upload(file: File) {
+    if (!state?.aiEnabled) {
+      setError(
+        "Image extraction needs a server-configured OpenAI or Gemini model. You can paste payment details into the conversation or enter them in a payment card.",
+      );
+      return;
+    }
+    await run("image", async () => {
+      const form = new FormData();
+      form.set("image", file);
+      const r = await fetch("/api/extract", { method: "POST", body: form });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+    });
   }
   if (!state)
     return (
       <main className="login-shell">
         <div className="login-card">
           <div className="brand-mark">
-            <Wallet size={23} />
+            <Sparkles size={23} />
           </div>
-          <p className="eyebrow">HACKAHOLICS 7.0</p>
+          <p className="eyebrow">FINANCIAL AGENT · HACKAHOLICS 7.0</p>
           <h1>
-            Your financial tasks,
+            Let’s take care of
             <br />
-            carried through.
+            your next payment.
           </h1>
           <p className="muted">
-            Sign in as the funding-account operator to prepare, review and track
-            payments.
+            A conversation to prepare. A clear review to approve. Sign in as the
+            account operator to get started.
           </p>
           {error && (
             <div className="alert" role="alert">
@@ -274,27 +461,28 @@ export function Dashboard() {
                 />
               </label>
               <button className="primary full" disabled={!!busy}>
-                {busy ? (
-                  <Loader2 className="spin" size={17} />
-                ) : (
-                  <ShieldCheck size={17} />
-                )}{" "}
-                Sign in securely <ArrowRight size={17} />
+                <ShieldCheck size={17} />{" "}
+                {busy === "login" ? "Signing you in…" : "Sign in securely"}{" "}
+                <ArrowRight size={17} />
               </button>
             </form>
           ) : (
-            <p>
-              <Loader2 size={18} className="spin" /> Connecting to persistent
-              storage…
+            <p role="status">
+              <Loader2 size={18} className="spin" /> Connecting to saved
+              workspace…
             </p>
           )}
-          <div className="setup-note">
-            First run? Configure <code>OPERATOR_PASSWORD_HASH</code> using{" "}
-            <code>npm run operator:password</code>. See the project README. No
-            password is built into the app.
-          </div>
+          <details className="setup-note">
+            <summary>First-time operator setup</summary>
+            <p>
+              Configure <code>OPERATOR_PASSWORD_HASH</code> with{" "}
+              <code>npm run operator:password</code>. See the README. No
+              password is built in.
+            </p>
+          </details>
           <div className="login-footer">
-            CONTINUITY <span>Prepare. Approve. Follow through.</span>
+            Financial Agent
+            <span>Fixture experience available without AI credentials.</span>
           </div>
         </div>
       </main>
@@ -302,31 +490,60 @@ export function Dashboard() {
   const pending = state.batches.filter((b) =>
     b.payments.some((p) => !terminal(p.status)),
   );
-  const allPayments = state.batches.flatMap((b) => b.payments);
-  const submitted = allPayments.filter((p) =>
-    [
-      "submitted",
-      "processing",
-      "successful",
-      "failed",
-      "reversed",
-      "unknown",
-      "awaiting_otp",
-    ].includes(p.status),
+  const submitted = state.batches
+    .flatMap((b) => b.payments)
+    .filter((p) =>
+      [
+        "submitted",
+        "processing",
+        "successful",
+        "failed",
+        "reversed",
+        "unknown",
+        "awaiting_otp",
+      ].includes(p.status),
+    );
+  const renderBatch = (b: ViewBatch) => (
+    <BatchCard
+      key={`${b.id}:${b.reviewDigest}`}
+      batch={b}
+      banks={banks}
+      busy={!!busy}
+      run={run}
+      edit={() => edit(b)}
+      mode={state.mode}
+      stopped={state.emergencyDisabled}
+    />
   );
+  const linked = new Set(state.messages.map((m) => m.batchId).filter(Boolean));
+  const proposals = (m: Message) =>
+    (m.proposals ?? []).map((p) => ({
+      ...p,
+      bankCode: p.bankCode ?? "",
+      accountNumber: p.accountNumber ?? "",
+      amountNaira: p.amountNaira ?? "",
+    }));
+  const editorProps = {
+    banks,
+    busy: !!busy,
+    fixtures: state.fixtureBeneficiaries,
+    maxPaymentKobo: state.maxPaymentKobo,
+    maxBatchKobo: state.maxBatchKobo,
+  };
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div
+      ref={appRef}
+      className={`app-shell ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
+    >
+      <aside className={`sidebar ${menuOpen ? "menu-open" : ""}`}>
         <Link className="brand" href="/">
           <span className="brand-mark">
-            <Wallet size={22} />
+            <Sparkles size={20} />
           </span>
-          <span>
-            continuity<span className="brand-period">.</span>
-          </span>
+          <span>Financial Agent</span>
         </Link>
-        <p className="workspace-label">YOUR WORKSPACE</p>
-        <nav>
+        <p className="workspace-label">WORKSPACE</p>
+        <nav aria-label="Workspace navigation">
           {[
             { name: "Agent", icon: MessageSquare },
             { name: "Payment jobs", icon: LayoutDashboard },
@@ -335,431 +552,529 @@ export function Dashboard() {
           ].map(({ name, icon: Icon }) => (
             <button
               key={name}
-              onClick={() => setTab(name)}
+              onClick={() => navigate(name)}
               className={`nav-item ${tab === name ? "active" : ""}`}
+              aria-label={name}
+              aria-current={tab === name ? "page" : undefined}
             >
               <Icon size={18} />
-              {name}
+              {name === "Payment jobs" ? "Payment history" : name}
               {name === "Payment jobs" && pending.length > 0 && (
                 <span className="nav-count">{pending.length}</span>
               )}
             </button>
           ))}
         </nav>
+        <button
+          className="secondary new-payment"
+          onClick={() => {
+            navigate("Agent");
+            setEditor({ rows: [blank()] });
+          }}
+        >
+          <Plus size={16} /> New payment details
+        </button>
+        <button
+          className="text-button emergency-control"
+          disabled={!!busy}
+          onClick={() =>
+            void run("emergency", () =>
+              api("emergency", { disabled: !state.emergencyDisabled }),
+            )
+          }
+        >
+          <ShieldCheck size={16} />
+          {state.emergencyDisabled ? "Enable transfers" : "Emergency stop"}
+        </button>
         <div className="sidebar-bottom">
           <div className="safety-card">
-            <ShieldCheck size={21} />
+            <ShieldCheck size={22} />
             <strong>You stay in control</strong>
             <p>
-              Your agent prepares.
+              The agent prepares.
               <br />
-              Only you authorize.
+              You review and authorize.
             </p>
           </div>
-          <div className="operator">
-            <div className="avatar">OP</div>
-            <div>
-              <strong>Account operator</strong>
-              <small>Authenticated workspace</small>
-            </div>
-            <button
-              title="Sign out"
-              aria-label="Sign out"
-              onClick={() =>
-                void run("logout", async () => {
-                  await api("session", undefined, "DELETE");
-                  setState(null);
-                  setSignedOut(true);
-                })
-              }
-            >
-              <LogOut size={17} />
-            </button>
-          </div>
+          <p className="muted">Hackaholics 7.0 prototype</p>
         </div>
       </aside>
       <div className="workspace">
         <header className="topbar">
           <div>
-            <span className="breadcrumb">Workspace</span>
-            <ChevronRight size={13} />
-            <strong>{tab}</strong>
-          </div>
-          <span className={`mode-pill ${state.mode}`}>
-            <span className="dot" />
-            {state.mode === "fixture"
-              ? "Fixture workspace · no real money"
-              : state.mode === "test"
-                ? "Paystack test mode"
-                : "Paystack live mode"}
-          </span>
-        </header>
-        <main className="content">
-          <div className="page-heading">
-            <div>
-              <p className="eyebrow">YOUR FINANCIAL WORKSPACE</p>
-              <h1>
-                {tab === "Agent"
-                  ? "A little clarity. A lot done."
-                  : tab === "Payment jobs"
-                    ? "Every payment, followed through."
-                    : tab === "Activity"
-                      ? "The record behind every task."
-                      : "Know where your money goes."}
-              </h1>
-              <p className="muted">
-                {tab === "Agent"
-                  ? "Turn an instruction into a reviewed, trackable financial task."
-                  : tab === "Payment jobs"
-                    ? "Pick up where you left off. Submitted does not mean successful."
-                    : tab === "Activity"
-                      ? "Persisted transfer records and an auditable trail."
-                      : "Real calculations from a fictional Nigerian transaction ledger."}
-              </p>
-            </div>
             <button
-              className="primary"
-              onClick={() => {
-                setRows([blank()]);
-                setEditing(undefined);
-                setShowForm(true);
-              }}
+              className="mobile-menu"
+              aria-label="Toggle navigation"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(!menuOpen)}
             >
-              <Plus size={17} /> Prepare payment
+              <Menu size={21} />
             </button>
+            <strong>
+              {tab === "Agent"
+                ? "Financial Agent"
+                : tab === "Payment jobs"
+                  ? "Payment history"
+                  : tab}
+            </strong>
           </div>
-          <div className="notice">
-            <ShieldCheck size={16} />
-            <span>
-              {state.mode === "fixture"
-                ? "Demonstration data and simulated provider outcomes. No real accounts are verified or funds moved."
-                : "Transfers originate from the authorized Paystack business balance. No personal bank account is debited."}
-            </span>
+          <div className="header-actions">
             <button
-              className="text-button"
+              className="sign-out"
               disabled={!!busy}
               onClick={() =>
-                void run("emergency", () =>
-                  api("emergency", { disabled: !state.emergencyDisabled }),
-                )
+                void run("logout", async () => {
+                  await api("session", undefined, "DELETE");
+                  setState(null);
+                  setSignedOut(true);
+                  setEditor(undefined);
+                  setMessage("");
+                  setTab("Agent");
+                  setMenuOpen(false);
+                })
               }
             >
-              {state.emergencyDisabled ? "Enable transfers" : "Emergency stop"}
+              <LogOut size={16} />
+              <span>Sign out</span>
             </button>
           </div>
-          {state.emergencyDisabled && (
-            <div className="alert">
-              Emergency stop is active. Transfer submission and OTP finalization
-              are disabled.
+        </header>
+        <main className="content">
+          {tab !== "Agent" && (
+            <div className="page-heading">
+              <div>
+                <h1>
+                  {tab === "Payment jobs"
+                    ? "Your payments, in one place."
+                    : tab === "Activity"
+                      ? "Every step, recorded."
+                      : "Understand your spending."}
+                </h1>
+                <p className="muted">
+                  {tab === "Payment jobs"
+                    ? "Review saved details and follow individual outcomes."
+                    : tab === "Insights"
+                      ? "Calculated from a fictional demonstration ledger."
+                      : "Saved transfer history and audit records."}
+                </p>
+              </div>
+              <button className="secondary" onClick={() => navigate("Agent")}>
+                <MessageSquare size={16} /> Back to conversation
+              </button>
             </div>
           )}
-          {error && (
+          <div className="context-bar">
+            <details className="simulation-disclosure">
+              <summary>
+                <ShieldCheck size={14} />
+                <span>
+                  {state.mode === "fixture"
+                    ? "Simulation · no real money"
+                    : `${state.mode} mode · review required`}
+                </span>
+                <ChevronRight size={12} />
+              </summary>
+              <p>
+                {state.mode === "fixture"
+                  ? "Fictional recipients and simulated outcomes. No real accounts are verified and no funds move."
+                  : "Transfers use the authorized business balance. Review all details before approval."}
+              </p>
+            </details>
+            <span
+              className="model-status"
+              title={
+                state.aiEnabled
+                  ? "A provider is configured. Only a successful response is labelled model-assisted."
+                  : "Limited demonstration command parser; no model calls are made."
+              }
+            >
+              {state.aiEnabled
+                ? `${state.aiProvider === "openai" ? "OpenAI" : "Gemini"} configured`
+                : "Demo · no AI"}
+            </span>
+          </div>
+          {state.emergencyDisabled && (
+            <div className="alert" role="status">
+              Emergency stop is active. Submission and OTP finalization are
+              disabled.
+            </div>
+          )}
+          {error && tab !== "Agent" && (
             <div className="alert" role="alert">
               {error}
               <button aria-label="Dismiss error" onClick={() => setError("")}>
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
           )}
           {tab === "Agent" && (
-            <>
-              <div className="stats-grid">
-                <div className="stat">
-                  <span>
-                    <Wallet size={16} />
-                    Transfer balance
-                  </span>
-                  <strong>
-                    {balance === undefined ? "—" : money(balance)}
-                  </strong>
-                  <button
-                    className="text-button"
-                    onClick={() =>
-                      void run("balance", async () =>
-                        setBalance(
-                          (await api<{ availableKobo: number }>("balance"))
-                            .availableKobo,
-                        ),
-                      )
-                    }
-                  >
-                    {busy === "balance"
-                      ? "Checking…"
-                      : `Check ${state.mode === "fixture" ? "fixture" : "Paystack"} balance`}{" "}
-                    <ArrowUpRight size={13} />
-                  </button>
-                </div>
-                <div className="stat">
-                  <span>
-                    <Clock3 size={16} />
-                    Unfinished jobs
-                  </span>
-                  <strong>{pending.length.toString().padStart(2, "0")}</strong>
-                  <button
-                    className="text-button"
-                    onClick={() => setTab("Payment jobs")}
-                  >
-                    Continue a task <ArrowRight size={13} />
-                  </button>
-                </div>
-                <div className="stat">
-                  <span>
-                    <Check size={16} />
-                    Successful transfers
-                  </span>
-                  <strong>
-                    {allPayments
-                      .filter((p) => p.status === "successful")
-                      .length.toString()
-                      .padStart(2, "0")}
-                  </strong>
-                  <small>
-                    {state.mode === "fixture"
-                      ? "Simulated outcomes only"
-                      : "Verified provider outcomes"}
-                  </small>
-                </div>
-              </div>
-              <div className="agent-grid">
-                <section className="panel chat-panel">
-                  <div className="panel-heading">
-                    <div className="agent-avatar">
-                      c<span>✦</span>
-                    </div>
-                    <div>
-                      <h2>Your financial agent</h2>
-                      <span className="subtle">
-                        {state.aiEnabled
-                          ? "Existing AI model connected"
-                          : "Manual demo · no AI model connected"}
-                      </span>
-                    </div>
-                    <span className="online-label">
-                      {state.aiEnabled ? "AI" : "DEMO"}
-                    </span>
-                  </div>
-                  <div className="conversation" aria-live="polite">
-                    {state.messages.length === 0 ? (
-                      <div className="welcome">
-                        <div className="welcome-symbol">✦</div>
-                        <h2>What can we get done?</h2>
-                        <p>
-                          Prepare payments, check an unfinished task,
-                          <br />
-                          or make sense of your spending.
-                        </p>
-                        <div className="suggestions">
-                          {[
-                            "Prepare ₦500 for Ada and ₦700 for Chidi",
-                            "What payments are still pending?",
-                            "Why did I spend so much on food?",
-                          ].map((s, i) => (
-                            <button
-                              disabled={!!busy}
-                              onClick={() => void send(s)}
-                              key={s}
-                            >
-                              <span>
-                                {i === 0 ? (
-                                  <Send size={15} />
-                                ) : i === 1 ? (
-                                  <Clock3 size={15} />
-                                ) : (
-                                  <Wallet size={15} />
-                                )}
-                              </span>
-                              {s}
-                              <ArrowUpRight size={14} />
-                            </button>
-                          ))}
-                        </div>
-                        <p className="micro">
-                          {state.aiEnabled
-                            ? "Payment requests become drafts for your review."
-                            : "Demo recognizes these commands. Enable OpenAI or Gemini for full conversation and screenshots."}
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        {state.messages.map((m) => (
-                          <div className={`message ${m.role}`} key={m.id}>
-                            <small>
-                              {m.role === "user"
-                                ? "You"
-                                : state.aiEnabled
-                                  ? "Continuity"
-                                  : "Demo assistant"}
-                            </small>
-                            <p>{m.content}</p>
-                            <time>{date(m.at)}</time>
-                          </div>
-                        ))}
-                        <div ref={chatEnd} />
-                      </>
-                    )}
-                  </div>
-                  <form
-                    className="composer"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void send(message);
-                    }}
-                  >
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Tell me what you need to do…"
-                      aria-label="Message the financial agent"
-                      rows={2}
-                      maxLength={4000}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          void send(message);
+            <section className="chat-panel" aria-label="Financial conversation">
+              <div
+                className="conversation"
+                ref={conversationRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  const nearBottom =
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  followLatest.current = nearBottom;
+                  setShowLatest(!nearBottom);
+                }}
+                role="log"
+                aria-live="off"
+                aria-label="Conversation messages"
+              >
+                {pending.length > 0 && (
+                  <details className="unfinished">
+                    <summary>
+                      <Clock3 size={16} /> {pending.length} unfinished payment
+                      batch{pending.length === 1 ? "" : "es"} to follow up
+                    </summary>
+                    <p>
+                      These are saved records. Processing or unknown means the
+                      outcome is unresolved. Check the provider before further
+                      action.
+                    </p>
+                    {pending.map((b) => (
+                      <button
+                        key={b.id}
+                        className="task-preview"
+                        onClick={() =>
+                          document
+                            .getElementById(`batch-${b.id}`)
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
                         }
+                      >
+                        <span>
+                          <strong>
+                            {b.payments
+                              .map((p) => p.verifiedName ?? p.name)
+                              .join(", ")}
+                          </strong>
+                          <small>
+                            {label(b.status)} ·{" "}
+                            {money(
+                              b.payments.reduce((n, p) => n + p.amountKobo, 0),
+                            )}
+                          </small>
+                        </span>
+                        <ChevronRight size={16} />
+                      </button>
+                    ))}
+                  </details>
+                )}
+                {state.messages.length === 0 && !pendingMessage && !editor && (
+                  <div className="welcome">
+                    <h1>What can I help you take care of?</h1>
+                    <p>
+                      Start with a message. We’ll take it one step at a time.
+                    </p>
+                  </div>
+                )}
+                {state.messages.map((m) => (
+                  <div className="conversation-turn" key={m.id}>
+                    <article
+                      id={`message-${m.id}`}
+                      className={`message ${m.role}`}
+                    >
+                      <small>
+                        {m.role === "user" ? "You" : "Financial Agent"}
+                        {m.role === "assistant" && (
+                          <span className="generation">
+                            {m.generation === "model"
+                              ? "Model-assisted"
+                              : m.generation === "manual"
+                                ? "Your details"
+                                : "Demo parser"}
+                          </span>
+                        )}
+                      </small>
+                      <p>
+                        {m.content.replace(
+                          /^\[Demonstration command parser — no AI model connected\]\n/,
+                          "",
+                        )}
+                      </p>
+                      <time>{date(m.at)}</time>
+                    </article>
+                    {m.role === "assistant" &&
+                    m.proposals?.length &&
+                    !m.batchId &&
+                    !m.supersededBy ? (
+                      <PaymentEditor
+                        key={m.id}
+                        {...editorProps}
+                        initialRows={proposals(m)}
+                        sourceRequest={m.sourceRequest}
+                        sourceMessageId={m.id}
+                        onSave={(payments) =>
+                          run("save", () =>
+                            api("batches", { payments, sourceMessageId: m.id }),
+                          )
+                        }
+                      />
+                    ) : null}
+                    {m.batchId &&
+                      state.batches.find((b) => b.id === m.batchId) && (
+                        <div id={`batch-${m.batchId}`} className="linked-batch">
+                          <p className="request-link">
+                            <MessageSquare size={14} /> From your request: “
+                            {m.sourceRequest ?? "Payment request"}”
+                          </p>
+                          {renderBatch(
+                            state.batches.find((b) => b.id === m.batchId)!,
+                          )}
+                        </div>
+                      )}
+                  </div>
+                ))}
+                {state.batches
+                  .filter((b) => !linked.has(b.id))
+                  .map((b) => (
+                    <div
+                      id={`batch-${b.id}`}
+                      className="linked-batch"
+                      key={b.id}
+                    >
+                      <p className="request-link">
+                        Saved payment · continue your review here
+                      </p>
+                      {renderBatch(b)}
+                    </div>
+                  ))}
+                {editor && (
+                  <PaymentEditor
+                    key={editor.batchId ?? "manual"}
+                    {...editorProps}
+                    initialRows={editor.rows}
+                    editing={!!editor.batchId}
+                    onCancel={() => setEditor(undefined)}
+                    onSave={(payments) =>
+                      run("save", async () => {
+                        await api(
+                          editor.batchId
+                            ? `batches/${editor.batchId}/edit`
+                            : "batches",
+                          { payments },
+                        );
+                        setEditor(undefined);
+                      })
+                    }
+                  />
+                )}
+                {pendingMessage &&
+                  !state.messages
+                    .slice(pendingMessage.after)
+                    .some(
+                      (m) =>
+                        m.role === "user" && m.content === pendingMessage.text,
+                    ) && (
+                    <article
+                      className={`message user local-message ${pendingMessage.status}`}
+                    >
+                      <small>
+                        You{" "}
+                        <span>
+                          {pendingMessage.status === "failed"
+                            ? "Response not confirmed"
+                            : "Response pending"}
+                        </span>
+                      </small>
+                      <p>{pendingMessage.text}</p>
+                      {pendingMessage.status === "failed" && (
+                        <p className="muted">
+                          Your input is preserved. Check the conversation before
+                          sending again.
+                        </p>
+                      )}
+                    </article>
+                  )}
+              </div>
+              <div className="composer-dock">
+                {showLatest && (
+                  <button
+                    className="latest-messages secondary"
+                    onClick={jumpToLatest}
+                  >
+                    <ArrowDownLeft size={15} /> Latest messages
+                  </button>
+                )}
+                {error && (
+                  <div className="alert chat-error" role="alert">
+                    <span>{error}</span>
+                    <button
+                      aria-label="Dismiss error"
+                      onClick={() => setError("")}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                )}
+                <p
+                  className={busy ? "request-progress" : "sr-only"}
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {busy && <Clock3 size={15} aria-hidden="true" />}
+                  {progress || announcement}
+                </p>
+                <form
+                  className="composer"
+                  aria-busy={busy === "chat" || busy === "image"}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void send(message);
+                  }}
+                >
+                  <textarea
+                    ref={composerInput}
+                    enterKeyHint="enter"
+                    autoCapitalize="sentences"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Tell me what you’d like to do…"
+                    aria-label="Message the financial agent"
+                    aria-describedby="composer-shortcuts"
+                    rows={2}
+                    maxLength={4000}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        !e.shiftKey &&
+                        !e.nativeEvent.isComposing &&
+                        e.keyCode !== 229 &&
+                        !window.matchMedia(
+                          "(pointer: coarse), (max-width: 700px)",
+                        ).matches
+                      ) {
+                        e.preventDefault();
+                        void send(message);
+                      }
+                    }}
+                  />
+                  <div>
+                    <button
+                      type="button"
+                      className="upload-button"
+                      disabled={!!busy}
+                      onClick={() =>
+                        state.aiEnabled
+                          ? uploadInput.current?.click()
+                          : setError(
+                              "Image extraction requires server-side AI configuration. You can paste details in chat or use New payment details without a model.",
+                            )
+                      }
+                    >
+                      <Paperclip size={18} /> Attach image
+                    </button>
+                    <input
+                      ref={uploadInput}
+                      type="file"
+                      hidden
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Attach payment image"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void upload(file);
+                        e.target.value = "";
                       }}
                     />
-                    <div>
-                      <label
-                        className={`upload-button ${!state.aiEnabled ? "disabled" : ""}`}
-                        title="Extract payment drafts from an image"
-                      >
-                        <ImagePlus size={17} />
-                        <span>Upload screenshot</span>
-                        <input
-                          type="file"
-                          hidden
-                          accept="image/png,image/jpeg,image/webp"
-                          disabled={!!busy || !state.aiEnabled}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void upload(file);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
-                      <button
-                        className="send-button"
-                        disabled={!!busy || !message.trim()}
-                        aria-label="Send message"
-                      >
-                        {busy === "chat" || busy === "image" ? (
-                          <Loader2 className="spin" size={18} />
-                        ) : (
-                          <ArrowRight size={19} />
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                  <div className="chat-footnote">
-                    <ShieldCheck size={12} />
-                    Your agent cannot authorize or execute payments.
-                  </div>
-                </section>
-                <aside className="right-rail">
-                  <section className="panel tasks-panel">
-                    <div className="section-heading">
-                      <h2>Pick up where you left off</h2>
-                      <span className="count">{pending.length}</span>
-                    </div>
-                    {pending.length === 0 ? (
-                      <div className="empty-small">
-                        <div className="empty-icon">
-                          <Check size={19} />
-                        </div>
-                        <strong>A clear workspace</strong>
-                        <p>
-                          Unfinished payments will appear here, even after you
-                          come back.
-                        </p>
-                      </div>
-                    ) : (
-                      pending.slice(0, 4).map((b) => (
-                        <button
-                          className="task-preview"
-                          key={b.id}
-                          onClick={() => setTab("Payment jobs")}
-                        >
-                          <span className="task-icon">
-                            <Send size={16} />
-                          </span>
-                          <span>
-                            <strong>
-                              {b.payments.length} recipient
-                              {b.payments.length !== 1 ? "s" : ""} ·{" "}
-                              {money(
-                                b.payments.reduce(
-                                  (n, p) => n + p.amountKobo,
-                                  0,
-                                ),
-                              )}
-                            </strong>
-                            <small>{label(b.status)}</small>
-                          </span>
-                          <ChevronRight size={15} />
-                        </button>
-                      ))
-                    )}
                     <button
-                      className="rail-link"
-                      onClick={() => setTab("Payment jobs")}
+                      className="send-button"
+                      disabled={!!busy || !message.trim()}
+                      aria-label="Send message"
                     >
-                      View all payment jobs <ArrowRight size={14} />
+                      <ArrowRight size={20} />
                     </button>
-                  </section>
-                  <section className="how-card">
-                    <p className="eyebrow">FROM REQUEST TO RESULT</p>
-                    <h2>
-                      A workflow that
-                      <br />
-                      doesn’t lose the thread.
-                    </h2>
-                    {[
-                      "Prepare your instruction",
-                      "Verify every beneficiary",
-                      "Review and authorize",
-                      "Track the actual outcome",
-                    ].map((s, i) => (
-                      <div key={s} className="how-step">
-                        <span>{i + 1}</span>
-                        {s}
-                      </div>
-                    ))}
-                  </section>
-                  <div className="build-note">
-                    <span className="dot" /> Built for Hackaholics 7.0
-                    <br />
-                    <small>A prototype for financial task continuity.</small>
                   </div>
-                </aside>
+                </form>
+                {state.messages.length === 0 && !pendingMessage && !editor && (
+                  <div className="suggestions">
+                    {[
+                      {
+                        title: "Supplier payments",
+                        detail: "Start with who and how much",
+                        text: "Pay my bills",
+                        icon: Send,
+                      },
+                      {
+                        title: "Payment image",
+                        detail: "Review a screenshot together",
+                        text: "upload",
+                        icon: Paperclip,
+                      },
+                      {
+                        title: "Pending transfers",
+                        detail: "Pick up where you left off",
+                        text: "What payments are still pending?",
+                        icon: Clock3,
+                      },
+                      {
+                        title: "Spending",
+                        detail: "Explore the fictional demo ledger",
+                        text: "Review my spending",
+                        icon: Wallet,
+                      },
+                    ].map(({ title, text, icon: Icon }) => (
+                      <button
+                        disabled={!!busy}
+                        key={title}
+                        onClick={() =>
+                          text === "upload"
+                            ? state.aiEnabled
+                              ? uploadInput.current?.click()
+                              : setError(
+                                  "Image extraction requires a server-configured OpenAI or Gemini API key. Paste payment details into the conversation or select New payment details to continue in demo mode.",
+                                )
+                            : void send(text)
+                        }
+                      >
+                        <Icon size={19} />
+                        <strong>{title}</strong>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p id="composer-shortcuts" className="sr-only">
+                  On desktop, Enter sends and Shift+Enter adds a line. On
+                  mobile, Enter adds a line; use the Send message button to
+                  send.
+                </p>
+                <p className="chat-footnote">
+                  <ShieldCheck size={13} />
+                  Every payment needs your review and approval.
+                </p>
               </div>
-            </>
+            </section>
+          )}
+          {tab !== "Agent" && busy && (
+            <p className="request-progress" role="status">
+              {progress}
+            </p>
           )}
           {tab === "Payment jobs" && (
             <div className="job-list">
-              {state.batches.length === 0 ? (
+              {state.batches.length ? (
+                state.batches.map((b) => (
+                  <div key={b.id}>
+                    <p className="request-link">
+                      {state.messages.find((m) => m.batchId === b.id)
+                        ?.sourceRequest ?? "Saved payment details"}
+                    </p>
+                    {renderBatch(b)}
+                  </div>
+                ))
+              ) : (
                 <div className="panel empty-state">
-                  <Send size={28} />
-                  <h2>Your next task starts here.</h2>
-                  <p>Prepare one payment or a batch of up to ten recipients.</p>
-                  <button className="primary" onClick={() => setShowForm(true)}>
-                    <Plus size={16} />
-                    Prepare a payment
+                  <MessageSquare size={28} />
+                  <h2>Your next payment starts with a conversation.</h2>
+                  <button className="primary" onClick={() => navigate("Agent")}>
+                    Talk to the agent <ArrowRight size={16} />
                   </button>
                 </div>
-              ) : (
-                state.batches.map((b) => (
-                  <BatchCard
-                    key={`${b.id}:${b.reviewDigest}`}
-                    batch={b}
-                    banks={banks}
-                    busy={!!busy}
-                    run={run}
-                    edit={() => edit(b)}
-                    mode={state.mode}
-                    stopped={state.emergencyDisabled}
-                  />
-                ))
               )}
             </div>
           )}
@@ -791,7 +1106,10 @@ export function Dashboard() {
                         <tr key={p.id}>
                           <td>
                             <strong>{p.verifiedName ?? p.name}</strong>
-                            <code>{p.reference}</code>
+                            <details className="payment-reference">
+                              <summary>Payment reference</summary>
+                              <code>{p.reference}</code>
+                            </details>
                           </td>
                           <td>{money(p.amountKobo)}</td>
                           <td>{b.mode}</td>
@@ -803,7 +1121,7 @@ export function Dashboard() {
                     )}
                   </tbody>
                 </table>
-                {!allPayments.length && (
+                {!state.batches.some((b) => b.payments.length) && (
                   <p className="empty-small">No saved transfers yet.</p>
                 )}
               </div>
@@ -934,203 +1252,288 @@ export function Dashboard() {
               </div>
             </>
           )}
-          <footer className="workspace-footer">
-            <span>continuity.</span>
-            <span>Prepared with intelligence. Authorized by you.</span>
-            <span>Hackaholics 7.0</span>
-          </footer>
         </main>
       </div>
-      {showForm && (
-        <div className="modal-backdrop">
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="prepare-title"
-          >
+    </div>
+  );
+}
+
+function PaymentEditor({
+  initialRows,
+  banks,
+  fixtures,
+  busy,
+  sourceRequest,
+  sourceMessageId,
+  editing,
+  onSave,
+  onCancel,
+  maxPaymentKobo,
+  maxBatchKobo,
+}: {
+  initialRows: Row[];
+  banks: { name: string; code: string }[];
+  fixtures: Snapshot["fixtureBeneficiaries"];
+  busy: boolean;
+  sourceRequest?: string;
+  sourceMessageId?: string;
+  editing?: boolean;
+  onSave: (payments: Instruction[]) => Promise<void>;
+  onCancel?: () => void;
+  maxPaymentKobo: number;
+  maxBatchKobo: number;
+}) {
+  const [rows, setRows] = useState(initialRows);
+  const [error, setError] = useState("");
+  const [draftStatus, setDraftStatus] = useState("");
+  const edits = useRef<Promise<unknown>>(Promise.resolve());
+  const persist = async (inputRows: Row[] = rows) => {
+    if (!sourceMessageId || busy) return;
+    const snapshot = inputRows.map((r) => ({
+      ...r,
+      bankCode: r.bankCode || null,
+      accountNumber: r.accountNumber || null,
+      amountNaira: r.amountNaira || null,
+      confidence: "medium",
+      warnings: r.warnings ?? [],
+    }));
+    try {
+      const pending = edits.current.then(() =>
+        api(`proposals/${sourceMessageId}`, {
+          proposals: snapshot,
+        }),
+      );
+      edits.current = pending.catch(() => undefined);
+      await pending;
+      setDraftStatus("Changes saved");
+    } catch (e) {
+      setDraftStatus(e instanceof Error ? e.message : "Could not save changes");
+    }
+  };
+  function update(i: number, key: keyof Row, value: string) {
+    setDraftStatus("");
+    setRows(rows.map((r, j) => (i === j ? { ...r, [key]: value } : r)));
+  }
+  return (
+    <section
+      className="panel proposal-card"
+      aria-label={editing ? "Edit payment details" : "Payment proposal"}
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">
+            {editing ? "EDIT PAYMENT DETAILS" : "PAYMENT PROPOSAL · UNVERIFIED"}
+          </p>
+          <h2>
+            {editing ? "Update your instructions" : "Let’s fill in the details"}
+          </h2>
+        </div>
+        {onCancel && (
+          <button aria-label="Close payment details" onClick={onCancel}>
+            <X size={19} />
+          </button>
+        )}
+      </div>
+      {sourceRequest && (
+        <p className="request-link">From your request: “{sourceRequest}”</p>
+      )}
+      <p className="muted">
+        Missing details stay empty. Saving creates an unverified draft.{" "}
+        {editing && "Editing invalidates verification and approval."}
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError("");
+          try {
+            const payments = rows.map((r) => {
+              if (!/^\d+(\.\d{1,2})?$/.test(r.amountNaira))
+                throw new Error(
+                  "Enter an amount with at most two decimal places.",
+                );
+              const [a, b = ""] = r.amountNaira.split(".");
+              return {
+                name: r.name,
+                bankCode: r.bankCode,
+                accountNumber: r.accountNumber,
+                amountKobo: Number(a) * 100 + Number(b.padEnd(2, "0")),
+                reason: r.reason,
+              };
+            });
+            void edits.current.then(() => onSave(payments));
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Review the details");
+          }
+        }}
+      >
+        {rows.map((r, i) => (
+          <fieldset className="recipient-form" key={i} disabled={busy}>
+            <legend>Recipient {i + 1}</legend>
             <div className="section-heading">
-              <div>
-                <p className="eyebrow">
-                  {editing ? "EDIT PAYMENT JOB" : "NEW PAYMENT JOB"}
-                </p>
-                <h2 id="prepare-title">Prepare payments</h2>
-              </div>
-              <button
-                aria-label="Close form"
-                onClick={() => setShowForm(false)}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <p className="muted">
-              Save a draft, then verify beneficiaries before approval. Editing
-              invalidates verification and approval.
-            </p>
-            {state.mode === "fixture" && (
-              <div className="fixture-picker">
-                <small>FICTIONAL BENEFICIARIES</small>
-                {state.fixtureBeneficiaries.map((p) => (
-                  <button
-                    key={p.accountNumber}
-                    className="secondary"
-                    onClick={() =>
-                      setRows([
-                        ...rows.filter(
-                          (r) => r.name || r.accountNumber || r.amountNaira,
-                        ),
-                        {
-                          ...p,
-                          amountNaira: p.name.startsWith("Ada")
-                            ? "500"
-                            : p.name.startsWith("Chidi")
-                              ? "700"
-                              : "100",
-                          reason: "Demo payment",
-                        },
-                      ])
-                    }
-                  >
-                    {p.name} <Plus size={12} />
-                  </button>
-                ))}
-              </div>
-            )}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run("save", save);
-              }}
-            >
-              {rows.map((r, i) => (
-                <div className="recipient-form" key={i}>
-                  <div className="section-heading">
-                    <strong>Recipient {i + 1}</strong>
-                    {rows.length > 1 && (
-                      <button
-                        type="button"
-                        aria-label={`Remove recipient ${i + 1}`}
-                        onClick={() => setRows(rows.filter((_, j) => j !== i))}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
-                  </div>
-                  {r.warnings?.length ? (
-                    <div className="field-warning">{r.warnings.join(" ")}</div>
-                  ) : null}
-                  <div className="form-grid">
-                    {[
-                      {
-                        key: "name",
-                        title: "Recipient label",
-                        placeholder: "Ada",
-                      },
-                      {
-                        key: "accountNumber",
-                        title: "Account number",
-                        placeholder: "10 digits",
-                      },
-                      {
-                        key: "amountNaira",
-                        title: "Amount (NGN)",
-                        placeholder: "500.00",
-                      },
-                      {
-                        key: "reason",
-                        title: "Description",
-                        placeholder: "Payment",
-                      },
-                    ].map((f) => (
-                      <label key={f.key}>
-                        {f.title}
-                        <input
-                          required
-                          maxLength={
-                            f.key === "accountNumber"
-                              ? 10
-                              : f.key === "reason"
-                                ? 140
-                                : 100
-                          }
-                          inputMode={
-                            ["accountNumber", "amountNaira"].includes(f.key)
-                              ? "decimal"
-                              : undefined
-                          }
-                          value={r[f.key as keyof Row] as string}
-                          placeholder={f.placeholder}
-                          onChange={(e) =>
-                            setRows(
-                              rows.map((row, j) =>
-                                j === i
-                                  ? { ...row, [f.key]: e.target.value }
-                                  : row,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                    ))}
-                    <label>
-                      Bank
-                      <select
-                        required
-                        value={r.bankCode}
-                        onChange={(e) =>
-                          setRows(
-                            rows.map((row, j) =>
-                              j === i
-                                ? { ...row, bankCode: e.target.value }
-                                : row,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="">Select a bank</option>
-                        {banks.map((b) => (
-                          <option key={b.code} value={b.code}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              ))}
-              <div className="form-footer">
+              <span className="muted">
+                {r.name || "Who would you like to pay?"}
+              </span>
+              {rows.length > 1 && (
                 <button
                   type="button"
-                  className="secondary"
-                  disabled={rows.length >= 10}
-                  onClick={() => setRows([...rows, blank()])}
+                  aria-label={`Remove recipient ${i + 1}`}
+                  onClick={() => {
+                    const next = rows.filter((_, j) => i !== j);
+                    setRows(next);
+                    void persist(next);
+                  }}
                 >
-                  <Plus size={15} />
-                  Add recipient
+                  <Trash2 size={16} />
                 </button>
-                <span className="subtle">
-                  Limit {money(state.maxPaymentKobo)} / payment ·{" "}
-                  {money(state.maxBatchKobo)} / batch
-                </span>
-                <button className="primary" disabled={!!busy}>
-                  {busy === "save" ? (
-                    <Loader2 className="spin" size={16} />
-                  ) : (
-                    <Check size={16} />
-                  )}
-                  Save draft
-                </button>
-              </div>
-            </form>
-            {error && (
-              <div className="alert" role="alert">
-                {error}
-              </div>
+              )}
+            </div>
+            {fixtures.length > 0 && (
+              <label className="fixture-select">
+                Use fictional demo details (optional)
+                <select
+                  aria-label={`Fictional recipient ${i + 1}`}
+                  onBlur={() => void persist()}
+                  value=""
+                  onChange={(e) => {
+                    const f = fixtures.find(
+                      (f) => f.accountNumber === e.target.value,
+                    );
+                    if (f) {
+                      setRows(
+                        rows.map((row, j) =>
+                          j === i ? { ...row, ...f } : row,
+                        ),
+                      );
+                      setDraftStatus("");
+                    }
+                  }}
+                >
+                  <option value="">Choose a fictional recipient</option>
+                  {fixtures.map((f) => (
+                    <option key={f.accountNumber} value={f.accountNumber}>
+                      {f.name} · {f.accountNumber}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
-          </section>
+            <div className="form-grid">
+              {[
+                {
+                  key: "name",
+                  title: "Recipient label",
+                  hint: "Who should be paid?",
+                  length: 100,
+                },
+                {
+                  key: "accountNumber",
+                  title: "Account number",
+                  hint: "10 digits required",
+                  length: 10,
+                },
+                {
+                  key: "amountNaira",
+                  title: "Amount (NGN)",
+                  hint: "Amount required",
+                  length: 16,
+                },
+                {
+                  key: "reason",
+                  title: "Description",
+                  hint: "What is it for?",
+                  length: 140,
+                },
+              ].map(({ key, title, hint, length }) => (
+                <label key={key}>
+                  {title}
+                  <input
+                    required={key !== "reason"}
+                    maxLength={length}
+                    pattern={
+                      key === "accountNumber"
+                        ? "[0-9]{10}"
+                        : key === "amountNaira"
+                          ? "[0-9]+(\\.[0-9]{1,2})?"
+                          : undefined
+                    }
+                    inputMode={
+                      key === "accountNumber"
+                        ? "numeric"
+                        : key === "amountNaira"
+                          ? "decimal"
+                          : undefined
+                    }
+                    value={r[key as keyof Row] as string}
+                    placeholder={hint}
+                    onChange={(e) =>
+                      update(i, key as keyof Row, e.target.value)
+                    }
+                    onBlur={() => void persist()}
+                  />
+                </label>
+              ))}
+              <label>
+                Bank
+                <select
+                  required
+                  aria-label="Bank"
+                  value={r.bankCode}
+                  onBlur={() => void persist()}
+                  onChange={(e) => update(i, "bankCode", e.target.value)}
+                >
+                  <option value="">Bank required</option>
+                  {banks.map((b) => (
+                    <option key={b.code} value={b.code}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {r.warnings?.length ? (
+              <details className="field-warning">
+                <summary>Extraction notes · review carefully</summary>
+                {r.warnings.map((w, j) => (
+                  <p key={j}>{w}</p>
+                ))}
+              </details>
+            ) : null}
+          </fieldset>
+        ))}
+        <div className="form-footer">
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy || rows.length >= 10}
+            onClick={() => {
+              const next = [...rows, blank()];
+              setRows(next);
+              void persist(next);
+            }}
+          >
+            <Plus size={16} /> Add recipient
+          </button>
+          <button className="primary" disabled={busy}>
+            <Check size={16} />
+            {editing ? "Save changes" : "Save draft"}
+          </button>
         </div>
-      )}
-    </div>
+        <p className="micro">
+          Limit {money(maxPaymentKobo)} per payment · {money(maxBatchKobo)} per
+          batch. No approval or submission occurs here.
+        </p>
+        {sourceMessageId && (
+          <p className="micro" role="status">
+            {draftStatus || "Edits save when you leave a field."}
+          </p>
+        )}
+        {error && (
+          <div className="alert" role="alert">
+            {error}
+          </div>
+        )}
+      </form>
+    </section>
   );
 }
 function BatchCard({
@@ -1170,7 +1573,9 @@ function BatchCard({
       <div className="batch-heading">
         <div>
           <p className="eyebrow">
-            {b.mode.toUpperCase()} PAYMENT JOB · {b.id.slice(0, 8)}
+            {b.mode === "fixture"
+              ? "SIMULATED PAYMENT BATCH"
+              : `${b.mode.toUpperCase()} PAYMENT BATCH`}
           </p>
           <h2>
             {b.payments.length} recipient{b.payments.length !== 1 ? "s" : ""}{" "}
@@ -1179,6 +1584,51 @@ function BatchCard({
         </div>
         <Badge status={b.status} />
       </div>
+      <details className="workflow-guide">
+        <summary>Payment steps</summary>
+        <ol className="workflow-steps" aria-label="Payment progress">
+          {[
+            "Details saved",
+            "Verify recipients",
+            "Your approval",
+            "Track outcomes",
+          ].map((step, i) => {
+            const current = b.approval?.consumedAt
+              ? 3
+              : b.approval
+                ? 2
+                : b.payments.every((p) => p.verifiedName)
+                  ? 2
+                  : 1;
+            return (
+              <li
+                key={step}
+                className={
+                  i < current ? "done" : i === current ? "current" : ""
+                }
+              >
+                <span>{i < current ? <Check size={12} /> : i + 1}</span>
+                {step}
+              </li>
+            );
+          })}
+        </ol>
+      </details>
+      <p className="next-step">
+        {b.payments.some((p) =>
+          ["unknown", "processing", "submitted"].includes(p.status),
+        )
+          ? "Some outcomes are still unresolved. Check provider status below; do not send the same payments again."
+          : b.payments.some((p) => p.status === "awaiting_otp")
+            ? "A provider OTP is required. Review the recipient outcome below."
+            : b.payments.every((p) => terminal(p.status))
+              ? "Review each recipient’s individual outcome below."
+              : b.status === "approved"
+                ? "Your approval is recorded. Submit explicitly below when you are ready."
+                : b.status === "awaiting_user_approval"
+                  ? "Review all verified details, acknowledge them, and approve with your operator password."
+                  : "Next, verify the recipient details. You will review them before approving."}
+      </p>
       <div className="payment-rows">
         {b.payments.map((p, i) => (
           <div className="payment-row" key={p.id}>
@@ -1203,7 +1653,10 @@ function BatchCard({
                   : "Awaiting provider verification"}{" "}
                 · {p.reason}
               </small>
-              <code>{p.reference}</code>
+              <details className="payment-reference">
+                <summary>Payment reference</summary>
+                <code>{p.reference}</code>
+              </details>
               {p.lastError && (
                 <span className="payment-error">{p.lastError}</span>
               )}
@@ -1267,10 +1720,12 @@ function BatchCard({
               e.preventDefault();
               if (!acknowledgedDigest || acknowledgedDigest !== b.reviewDigest)
                 return;
+              const submittedPassword = password;
+              setPassword("");
               void action("approve", {
-                password,
+                password: submittedPassword,
                 reviewDigest: acknowledgedDigest,
-              }).then(() => setPassword(""));
+              });
             }}
           >
             <label className="checkbox-label">
@@ -1294,6 +1749,7 @@ function BatchCard({
                 autoComplete="current-password"
                 placeholder="Operator password"
                 aria-label="Password to approve reviewed batch"
+                disabled={busy}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -1388,6 +1844,7 @@ function BatchCard({
         <pre>
           {JSON.stringify(
             {
+              batchId: b.id,
               approval: b.approval,
               payments: b.payments.map((p) => ({
                 reference: p.reference,

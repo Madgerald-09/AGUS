@@ -26,6 +26,7 @@ import {
   chat,
   exportPaymentReport,
   extractImage,
+  proposedSchema,
 } from "@/lib/intelligence";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,7 +101,8 @@ async function handle(req: Request) {
         batches: s.batches
           .filter((b) => b.owner === actor)
           .map((b) => ({ ...b, reviewDigest: digest(b) })),
-        messages: s.messages,
+        messages: s.messages.filter((m) => !m.owner || m.owner === actor),
+        aiProvider: process.env.AI_PROVIDER ?? "none",
         ledger: s.ledger,
         insights: analyzeSpending(s.ledger),
         audit: s.audit
@@ -151,21 +153,75 @@ async function handle(req: Request) {
       const file = form.get("image");
       if (!(file instanceof File)) throw new AppError("Image file required");
       return reply(
-        await extractImage(Buffer.from(await file.arrayBuffer()), file.type),
+        await extractImage(
+          Buffer.from(await file.arrayBuffer()),
+          file.type,
+          actor,
+        ),
+      );
+    }
+    if (action === "proposals" && req.method === "POST") {
+      const { proposals } = z
+        .object({
+          proposals: z
+            .array(
+              proposedSchema.extend({
+                // Editable partial input is stored as a draft only. Extracted model
+                // fields and saved payment instructions retain their strict schemas.
+                bankCode: z
+                  .string()
+                  .regex(/^\d{1,6}$/)
+                  .nullable(),
+                accountNumber: z
+                  .string()
+                  .regex(/^\d{1,10}$/)
+                  .nullable(),
+                amountNaira: z
+                  .string()
+                  .regex(/^\d+(\.\d{0,2})?$/)
+                  .nullable(),
+              }),
+            )
+            .min(1)
+            .max(10),
+        })
+        .parse(await json(req));
+      return reply(
+        await mutate((s) => {
+          const message = s.messages.find(
+            (m) =>
+              m.id === path[1] && m.owner === actor && m.role === "assistant",
+          );
+          if (!message || !message.proposals?.length)
+            throw new AppError("Proposal not found", 404);
+          if (message.batchId || message.supersededBy)
+            throw new AppError(
+              "This proposal already has a payment batch. Edit the payment card instead.",
+              409,
+            );
+          message.proposals = proposals;
+          return { saved: true };
+        }),
       );
     }
     if (action === "batches" && req.method === "POST") {
       const body = await json(req);
       const batchId = path[1];
       const operation = path[2];
-      if (!batchId)
-        return reply(
-          await preparePaymentBatch(
-            actor,
-            z.object({ payments: z.unknown() }).parse(body).payments,
-          ),
-          201,
+      if (!batchId) {
+        const { payments, sourceMessageId } = z
+          .object({
+            payments: z.unknown(),
+            sourceMessageId: z.string().uuid().optional(),
+          })
+          .parse(body);
+        const batch = await preparePaymentBatch(
+          actor,
+          payments,
+          sourceMessageId,
         );
+        return reply(batch, 201);
+      }
       if (operation === "edit")
         return reply(
           await editBatch(

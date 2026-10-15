@@ -78,6 +78,20 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   at: string;
+  owner?: string;
+  generation?: "model" | "demo" | "manual";
+  proposals?: {
+    name: string;
+    bankCode: string | null;
+    accountNumber: string | null;
+    amountNaira: string | null;
+    reason: string;
+    confidence: "high" | "medium" | "low";
+    warnings: string[];
+  }[];
+  batchId?: string;
+  sourceRequest?: string;
+  supersededBy?: string;
 }
 export interface LedgerEntry {
   id: string;

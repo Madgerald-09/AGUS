@@ -1,7 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
 export const metadata: Metadata = {
-  title: "Continuity · Financial Agent",
+  title: "Financial Agent",
   description:
     "Hackaholics 7.0 financial workflow prototype. Prepare, review, approve and track Nigerian transfers.",
 };
