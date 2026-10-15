@@ -1,0 +1,70 @@
+{
+  "mode": "fixture",
+  "genuineModelCalls": 0,
+  "fakeResponses": 0,
+  "results": [
+    {
+      "viewport": "desktop",
+      "width": 1440,
+      "result": "PASS",
+      "persistedMessages": 32,
+      "scenarios": [
+        "compact welcome and disclosures",
+        "secondary navigation retains the authenticated emergency stop",
+        "composer-first suggestions",
+        "Enter/Shift+Enter and IME",
+        "touch/reduced visual viewport and focused proposal inputs",
+        "real request gating with contextual progress",
+        "edited composer retained during success",
+        "real server limit and password errors",
+        "explicit approval and simulated submission",
+        "actual successful/processing outcomes",
+        "long conversation, polling and user-controlled scrolling",
+        "transport and post-response refresh errors retain input"
+      ],
+      "nativeKeyboard": "Not exercised: headless Chromium uses touch/mobile contexts and focused reduced-viewport checks"
+    },
+    {
+      "viewport": "mobile-390",
+      "width": 390,
+      "result": "PASS",
+      "persistedMessages": 32,
+      "scenarios": [
+        "compact welcome and disclosures",
+        "secondary navigation retains the authenticated emergency stop",
+        "composer-first suggestions",
+        "Enter/Shift+Enter and IME",
+        "touch/reduced visual viewport and focused proposal inputs",
+        "real request gating with contextual progress",
+        "edited composer retained during success",
+        "real server limit and password errors",
+        "explicit approval and simulated submission",
+        "actual successful/processing outcomes",
+        "long conversation, polling and user-controlled scrolling",
+        "transport and post-response refresh errors retain input"
+      ],
+      "nativeKeyboard": "Not exercised: headless Chromium uses touch/mobile contexts and focused reduced-viewport checks"
+    },
+    {
+      "viewport": "mobile-320",
+      "width": 320,
+      "result": "PASS",
+      "persistedMessages": 32,
+      "scenarios": [
+        "compact welcome and disclosures",
+        "secondary navigation retains the authenticated emergency stop",
+        "composer-first suggestions",
+        "Enter/Shift+Enter and IME",
+        "touch/reduced visual viewport and focused proposal inputs",
+        "real request gating with contextual progress",
+        "edited composer retained during success",
+        "real server limit and password errors",
+        "explicit approval and simulated submission",
+        "actual successful/processing outcomes",
+        "long conversation, polling and user-controlled scrolling",
+        "transport and post-response refresh errors retain input"
+      ],
+      "nativeKeyboard": "Not exercised: headless Chromium uses touch/mobile contexts and focused reduced-viewport checks"
+    }
+  ]
+}

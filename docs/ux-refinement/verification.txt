@@ -1,0 +1,82 @@
+Financial Agent P1 verification — 2026-10-15
+Base: PR #3 b8e84e9b66cccc4e52f96536a518f070428cbf80
+
+Engine/provider/server-auth/API/model-adapter/schema/live-config diff against PR #3: none.
+
+
+Unit tests
+
+> hackaholics-financial-agent@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.4 /workspace/hackaholics-financial-agent
+
+
+ Test Files  5 passed (5)
+      Tests  82 passed (82)
+   Start at  21:30:22
+   Duration  57.17s (tests 97%, import 3%)
+
+
+Typecheck
+
+> hackaholics-financial-agent@0.1.0 typecheck
+> tsc --noEmit
+
+
+Lint
+
+> hackaholics-financial-agent@0.1.0 lint
+> eslint .
+
+
+Production build
+
+> hackaholics-financial-agent@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.4.1 (webpack)
+✓ Running next.config.ts took 24ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.0s
+  Running TypeScript ...
+  Finished TypeScript in 3.0s ...
+  Collecting page data using 2 workers ...
+  Generating static pages using 2 workers (0/3) ...
+✓ Generating static pages using 2 workers (3/3) in 218ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+└ ƒ /api/[...path]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+Production HTTP tests
+
+> hackaholics-financial-agent@0.1.0 test:http
+> node scripts/http-smoke.mjs
+
+PASS: production Next.js HTTP smoke — login, route protection, two recipients, verification, approval, explicit submission, duplicate rejection, reconciliation, persisted status chat, CSV. No provider network calls or real money.
+
+
+Production browser tests
+
+> hackaholics-financial-agent@0.1.0 test:browser
+> node scripts/browser-safety.mjs && node scripts/browser-chat-first.mjs && node scripts/browser-chat-ux.mjs
+
+PASS: two authenticated browser sessions; unchanged polling; amount, beneficiary, bank/account and reason changes clear acknowledgment/password; stale submit blocked; renewed review submits the acknowledged digest. Fixture mode only.
+PASS: a confirmed 1,000-kobo fee renders as ₦10.00 in the payment card (controlled presentation response).
+PASS: desktop 1440px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: mobile-390 390px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: mobile-320 320px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: desktop 1440px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
+PASS: mobile-390 390px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
+PASS: mobile-320 320px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
