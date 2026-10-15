@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Continuity · Financial Agent",
+  title: "Financial Agent",
   description:
     "Hackaholics 7.0 financial workflow prototype. Prepare, review, approve and track Nigerian transfers.",
 };

@@ -44,7 +44,11 @@ export function checkLimits(b: Batch) {
   )
     throw new AppError("Configured payment or batch limit exceeded");
 }
-export async function preparePaymentBatch(actor: string, input: unknown) {
+export async function preparePaymentBatch(
+  actor: string,
+  input: unknown,
+  sourceMessageId?: string,
+) {
   const values = z.array(instructionSchema).min(1).max(10).parse(input);
   const c = config();
   const b: Batch = {
@@ -66,6 +70,24 @@ export async function preparePaymentBatch(actor: string, input: unknown) {
   };
   checkLimits(b);
   return mutate((s) => {
+    // Link the conversation and draft in the same persisted write. CAS retries
+    // must not create two drafts for a double-click or concurrent request.
+    if (sourceMessageId) {
+      const message = s.messages.find(
+        (m) =>
+          m.id === sourceMessageId &&
+          m.owner === actor &&
+          m.role === "assistant" &&
+          m.proposals?.length,
+      );
+      if (!message) throw new AppError("Proposal not found", 404);
+      if (message.batchId || message.supersededBy)
+        throw new AppError(
+          "Proposal already saved or continued. Review its latest payment card.",
+          409,
+        );
+      message.batchId = b.id;
+    }
     s.batches.unshift(b);
     audit(
       s,

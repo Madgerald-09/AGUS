@@ -1,6 +1,6 @@
-# Continuity — Hackaholics 7.0
+# Financial Agent — Hackaholics 7.0
 
-A Next.js financial workflow prototype: prepare payments, resolve beneficiaries, review and approve an immutable snapshot, explicitly submit individual Paystack transfers, and follow persisted outcomes. The agent never approves or executes payments.
+A monochrome, chat-first Next.js financial workflow prototype: prepare payments, resolve beneficiaries, review and approve an immutable snapshot, explicitly submit individual Paystack transfers, and follow persisted outcomes. The agent never approves or executes payments.
 
 **Default: fixtures. No real money moves. No live transfer was attempted or verified during implementation.** Real transfers can only come from an eligible, funded, authorized Paystack business account; this is not a way to debit arbitrary personal accounts.
 
@@ -38,11 +38,13 @@ All provider operations happen **outside** database reducers. Reducers may repla
 
 ## Demonstrate the workflow
 
-1. In the Agent, select “Prepare ₦500 for Ada and ₦700 for Chidi”. Without a key this is a visibly labeled limited command parser, not an AI model.
-2. Complete missing account numbers using the fictional beneficiaries in the form: Ada `035 / 0000000001`, Chidi `044 / 0000000002`.
-3. Save the draft. In Payment jobs, verify beneficiaries, review names, accounts, amounts and fee reserves, check the review checkbox and re-enter your password.
+1. Start in the full-screen conversation. Select “Prepare supplier payments” or type “Pay my bills”. The labelled demo parser asks who, how much, which bank and account; all missing fields stay empty.
+2. In the inline proposal, explicitly choose fictional Ada (`035 / 0000000001`) and enter ₦500. Add Chidi (`044 / 0000000002`) with ₦700. Choosing a fictional recipient fills only the listed identity details, never an amount. Edits save when leaving a field and survive reload.
+3. Save the draft. The linked payment card stays in the conversation with the original request. Verify beneficiaries, review names, accounts, amounts and fee reserves, check the review checkbox and re-enter your password.
 4. Approve, then separately submit simulated transfers. Acceptance displays processing.
-5. Click Check provider: Ada becomes **simulated successful**, Chidi stays **simulated processing**. Reload; both jobs persist. Ask “What happened to those payments?” to retrieve saved statuses.
+5. Click Check provider: Ada becomes **simulated successful**, Chidi stays **simulated processing**. Reload; both outcomes persist. Ask “What payments are still pending?” to retrieve saved outcomes and the unresolved-payment explanation.
+
+The demo parser also supports the explicit single-recipient follow-up syntax `name: Ada; amount: 500`, then `bank: 035; account: 0000000001`. It retains the original request and never assigns ambiguous details across multiple recipients. Payment history, Activity and Insights are secondary navigation items. On mobile use the menu button; Sign out remains in the header.
 
 Additional fixture accounts: reversal `058 / 0000000003`, failure `033 / 0000000004`. Only the listed bank/account combinations resolve. This whitelist is not a claim of real bank verification. No fake receipts are presented as evidence of a real transfer.
 
@@ -73,9 +75,9 @@ AI_MODEL=gpt-4.1-mini
 # Or AI_PROVIDER=gemini and AI_MODEL=gemini-2.5-flash
 ```
 
-Both adapters validate JSON against strict Zod schemas. The model classifies requests and extracts draft instructions; only deterministic server code produces financial summaries. Complete model-extracted text instructions may create **unverified drafts**. Missing or ambiguous fields return a correction form. Persisted messages and recent payment summaries supply context. Existing-model connectivity was not tested without a configured key. Model-classification requests receive recent messages and payment summaries; do not connect real customer data without reviewing your chosen provider’s data policy.
+Both adapters validate JSON against strict Zod schemas. The model classifies requests, extracts draft instructions, and may phrase a clarification question. Only deterministic server code produces financial summaries, statuses and payment actions. A bounded question filter rejects numeric or outcome-bearing clarification text; it is not a general-purpose model safety guarantee. Complete model-extracted text instructions may create **unverified drafts**. Missing fields return persisted, editable cards within the conversation; bank details are never inferred from a recognized name. Persisted messages and recent payment summaries supply context. The header distinguishes model configuration from a successful call; individual responses record model-assisted or demo-parser provenance. Provider failures are shown as errors, with no fake response or silent fallback. Real model connectivity was not tested in this credential-free environment. Model-classification requests receive recent messages and payment summaries; do not connect real customer data without reviewing your chosen provider’s data policy.
 
-PNG, JPEG and WebP screenshots up to 5 MB are sent to the configured model for extraction. Files are not saved. Extracted fields always return to the editable review form; image contents cannot approve or submit a transfer. Do not upload real financial documents into this prototype without reviewing model-provider data policies. Configure a reverse proxy request-body limit of 6 MB as an additional production limit.
+PNG, JPEG and WebP screenshots up to 5 MB are sent to the configured model for extraction. Files are not saved. Extracted fields and their image-source label persist in an editable conversation card; image contents cannot approve or submit a transfer. Do not upload real financial documents into this prototype without reviewing model-provider data policies. Configure a reverse proxy request-body limit of 6 MB as an additional production limit.
 
 Seeded financial insights use fictional transactions; they do not represent Wema or personal bank account history. A future authorized banking-data source can implement `BankingDataSource` without changing the payout adapter.
 
@@ -97,3 +99,5 @@ npm start
 Deploy to a Node host supporting Next.js server routes and managed PostgreSQL, with HTTPS, a secret manager, an exact `APP_ORIGIN`, scheduled reconciliation, backups, and provider webhooks. This project has not been published or connected to a production account. Static export is unsuitable for these server-side payment endpoints.
 
 See `ENGINEERING_HANDOFF.md`, `ARCHITECTURE.md`, `LIVE_READINESS.md`, `DEMO_SCRIPT.md`, and `TEAM_HANDOFF.md`.
+
+See [CHAT_FIRST_REPORT.md](CHAT_FIRST_REPORT.md) for the experience changes, model/fallback boundary, verification results, screenshots and remaining P1 work.

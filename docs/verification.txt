@@ -1,0 +1,67 @@
+Financial Agent verification — 2026-10-15
+
+Typecheck: npm run typecheck — PASS
+Lint: npm run lint — PASS
+
+
+Unit tests
+
+> hackaholics-financial-agent@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.4 /workspace/hackaholics-financial-agent
+
+
+ Test Files  5 passed (5)
+      Tests  82 passed (82)
+   Start at  20:20:44
+   Duration  53.04s (tests 93%, import 6%)
+
+
+Production build
+
+> hackaholics-financial-agent@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.4.1 (webpack)
+✓ Running next.config.ts took 21ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1967ms
+  Running TypeScript ...
+  Finished TypeScript in 1848ms ...
+  Collecting page data using 2 workers ...
+  Generating static pages using 2 workers (0/3) ...
+✓ Generating static pages using 2 workers (3/3) in 345ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+└ ƒ /api/[...path]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+Production HTTP tests
+
+> hackaholics-financial-agent@0.1.0 test:http
+> node scripts/http-smoke.mjs
+
+PASS: production Next.js HTTP smoke — login, route protection, two recipients, verification, approval, explicit submission, duplicate rejection, reconciliation, persisted status chat, CSV. No provider network calls or real money.
+
+
+Production browser tests — monochrome screenshots and full fixture journeys
+
+> hackaholics-financial-agent@0.1.0 test:browser
+> node scripts/browser-safety.mjs && node scripts/browser-chat-first.mjs
+
+PASS: two authenticated browser sessions; unchanged polling; amount, beneficiary, bank/account and reason changes clear acknowledgment/password; stale submit blocked; renewed review submits the acknowledged digest. Fixture mode only.
+PASS: a confirmed 1,000-kobo fee renders as ₦10.00 in the payment card (controlled presentation response).
+PASS: desktop 1440px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: mobile-390 390px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: mobile-320 320px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
