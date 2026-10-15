@@ -23,6 +23,8 @@ import {
   Search,
   ChevronRight,
   Clock3,
+  Eye,
+  EyeOff,
   FileDown,
   LayoutDashboard,
   Loader2,
@@ -183,6 +185,8 @@ export function Dashboard() {
   const [state, setState] = useState<Snapshot | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [progress, setProgress] = useState("");
@@ -451,68 +455,165 @@ export function Dashboard() {
     return (
       <main className="login-shell">
         <div className="login-card">
-          <div className="brand-mark">
-            <Sparkles size={23} />
+          <header className="login-header">
+            <div className="brand-row">
+              <span className="agus-wordmark" aria-label="agus.">agus.</span>
+              <div className="demo-pill" role="status">
+                <span className="demo-dot" aria-hidden="true" />
+                <span>Demo Access</span>
+              </div>
+            </div>
+            <h1 className="login-title">
+              Vigilant financial intelligence.
+            </h1>
+            <p className="login-subtitle">
+              Agus safeguards Nigerian business transfers with continuous review and operator oversight.
+            </p>
+          </header>
+
+          <div className="demo-notice" role="note">
+            <ShieldCheck size={16} className="demo-notice-icon" aria-hidden="true" />
+            <div className="demo-notice-text">
+              <strong>Demo Operator Portal</strong>
+              <span>Transactions run in sandbox fixture mode with simulation settlement. No live funds move.</span>
+            </div>
           </div>
-          <p className="eyebrow">FINANCIAL AGENT · HACKAHOLICS 7.0</p>
-          <h1>
-            Let’s take care of
-            <br />
-            your next payment.
-          </h1>
-          <p className="muted">
-            A conversation to prepare. A clear review to approve. Sign in as the
-            account operator to get started.
-          </p>
+
           {error && (
-            <div className="alert" role="alert">
-              {error}
+            <div className="login-alert" role="alert">
+              <CircleAlert size={16} className="alert-icon" aria-hidden="true" />
+              <div className="login-alert-body">
+                <strong>Authentication Notice</strong>
+                <p>{error}</p>
+              </div>
+              <button
+                type="button"
+                className="alert-dismiss"
+                aria-label="Dismiss error"
+                onClick={() => setError("")}
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
             </div>
           )}
+
           {signedOut ? (
             <form
+              className="login-form"
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
+                if (!password.trim()) {
+                  setValidationError("Please enter your operator password to continue.");
+                  return;
+                }
+                setValidationError("");
                 void run("login", async () => {
                   await api("session", { password });
                   setPassword("");
+                  setShowPassword(false);
                 });
               }}
             >
-              <label>
-                Operator password
-                <input
-                  required
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              <button className="primary full" disabled={!!busy}>
-                <ShieldCheck size={17} />{" "}
-                {busy === "login" ? "Signing you in…" : "Sign in securely"}{" "}
-                <ArrowRight size={17} />
+              <div className="field-group">
+                <label htmlFor="operator-password" className="field-label">
+                  Operator password
+                </label>
+                <div className="password-input-wrapper">
+                  <input
+                    id="operator-password"
+                    required
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    placeholder="Enter operator password"
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (validationError) setValidationError("");
+                      if (error) setError("");
+                    }}
+                    disabled={busy === "login"}
+                    className={`password-input ${validationError ? "input-has-error" : ""}`}
+                    aria-invalid={!!validationError}
+                    aria-describedby={validationError ? "operator-password-error" : undefined}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showPassword ? "Hide password" : "Show password"}
+                    disabled={busy === "login"}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} aria-hidden="true" />
+                    ) : (
+                      <Eye size={18} aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+                {validationError && (
+                  <p id="operator-password-error" className="field-error" role="alert">
+                    <CircleAlert size={13} aria-hidden="true" />
+                    <span>{validationError}</span>
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="primary full login-submit-btn"
+                disabled={!!busy}
+              >
+                {busy === "login" ? (
+                  <>
+                    <Loader2 size={16} className="spin" aria-hidden="true" />
+                    <span>Signing you in…</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} aria-hidden="true" />
+                    <span>Sign in securely</span>
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </>
+                )}
               </button>
             </form>
           ) : (
-            <p role="status">
-              <Loader2 size={18} className="spin" /> Connecting to saved
-              workspace…
-            </p>
+            <div className="login-connecting" role="status" aria-live="polite">
+              <Loader2 size={20} className="spin" aria-hidden="true" />
+              <span>Connecting to Agus workspace…</span>
+            </div>
           )}
+
           <details className="setup-note">
-            <summary>First-time operator setup</summary>
-            <p>
-              Configure <code>OPERATOR_PASSWORD_HASH</code> with{" "}
-              <code>npm run operator:password</code>. See the README. No
-              password is built in.
-            </p>
+            <summary>
+              <KeyRound size={14} aria-hidden="true" />
+              <span>First-time operator setup</span>
+              <ChevronRight size={13} className="disclosure-chevron" aria-hidden="true" />
+            </summary>
+            <div className="setup-body">
+              <p>
+                Configure <code>OPERATOR_PASSWORD_HASH</code> with:
+              </p>
+              <pre><code>npm run operator:password</code></pre>
+              <p className="subtle">
+                Passwords use scrypt hashing with a 16-byte cryptographically random salt. No password is built in.
+              </p>
+            </div>
           </details>
-          <div className="login-footer">
-            Financial Agent
-            <span>Fixture experience available without AI credentials.</span>
-          </div>
+
+          <footer className="login-footer">
+            <div className="footer-meta">
+              <span className="footer-wordmark">agus.</span>
+              <span className="footer-separator">·</span>
+              <span className="footer-label">Financial Agent</span>
+              <span className="footer-tag">Hackaholics 7.0</span>
+            </div>
+            <p className="footer-security">
+              Fixture experience available without AI credentials.
+            </p>
+          </footer>
         </div>
       </main>
     );
