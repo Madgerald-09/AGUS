@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { inferenceRequest } from "./ai-inference";
 import {
   AppError,
   id,
@@ -158,21 +159,21 @@ export async function modelPlan(
         type: "image_url",
         image_url: { url: `data:${image.mime};base64,${image.data}` },
       });
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
+    const model = process.env.AI_MODEL || "gpt-4.1-mini";
+    const res = await inferenceRequest(
+      "openai",
+      model,
+      "https://api.openai.com/v1/chat/completions",
+      {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: process.env.AI_MODEL || "gpt-4.1-mini",
+      JSON.stringify({
+        model,
         messages: [{ role: "user", content }],
         response_format: { type: "json_object" },
       }),
-      signal: AbortSignal.timeout(45000),
-    });
-    if (!res.ok)
-      throw new AppError(`AI provider unavailable (${res.status})`, 502);
+    );
     const body = z
       .object({
         choices: z
@@ -185,20 +186,17 @@ export async function modelPlan(
     const parts: unknown[] = [{ text: prompt }];
     if (image)
       parts.push({ inlineData: { mimeType: image.mime, data: image.data } });
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(process.env.AI_MODEL || "gemini-2.5-flash")}:generateContent`,
-      {
-        method: "POST",
-        headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts }],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
-        signal: AbortSignal.timeout(45000),
-      },
+    const model = process.env.AI_MODEL || "gemini-2.5-flash";
+    const res = await inferenceRequest(
+      "gemini",
+      model,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      { "x-goog-api-key": key, "Content-Type": "application/json" },
+      JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseMimeType: "application/json" },
+      }),
     );
-    if (!res.ok)
-      throw new AppError(`AI provider unavailable (${res.status})`, 502);
     const body = z
       .object({
         candidates: z
