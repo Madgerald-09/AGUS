@@ -1,6 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -150,34 +156,80 @@ function Badge({ status }: { status: string }) {
     </span>
   );
 }
+function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
+  const operation = key.split("-")[0];
+  const messages: Record<string, string> = {
+    chat: aiEnabled
+      ? "Waiting for the model response…"
+      : "Preparing a demo response…",
+    image: "Extracting details from your image…",
+    save: "Saving your payment draft…",
+    verify: fixture
+      ? "Checking fictional recipient details…"
+      : "Verifying recipient details…",
+    approve: "Checking your approval…",
+    execute: fixture
+      ? "Submitting simulated transfers…"
+      : "Submitting reviewed transfers…",
+    reconcile: fixture
+      ? "Checking simulated transfer outcomes…"
+      : "Checking provider outcomes…",
+    otp: "Checking your OTP submission…",
+    emergency: "Updating the transfer stop…",
+    login: "Signing you in…",
+    logout: "Signing you out…",
+  };
+  return messages[operation] ?? "Updating your saved workspace…";
+}
 export function Dashboard() {
   const [state, setState] = useState<Snapshot | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [progress, setProgress] = useState("");
+  const [announcement, setAnnouncement] = useState("");
+  const [pendingMessage, setPendingMessage] = useState<{
+    text: string;
+    after: number;
+    status: "pending" | "failed";
+  }>();
+  const [showLatest, setShowLatest] = useState(false);
+  const operationInFlight = useRef(false);
+  const snapshotRequest = useRef(0);
+  const followLatest = useRef(true);
+  const responseAnchor = useRef<string | undefined>(undefined);
+  const appRef = useRef<HTMLDivElement>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
   const [tab, setTab] = useState("Agent");
   const [menuOpen, setMenuOpen] = useState(false);
   const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
   const [message, setMessage] = useState("");
   const [editor, setEditor] = useState<{ batchId?: string; rows: Row[] }>();
-  const chatEnd = useRef<HTMLDivElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (throwOnError = false) => {
+    const request = ++snapshotRequest.current;
     try {
-      setState(await api<Snapshot>("state"));
+      const snapshot = await api<Snapshot>("state");
+      if (request !== snapshotRequest.current) return;
+      setState(snapshot);
       setSignedOut(false);
     } catch (e) {
+      if (request !== snapshotRequest.current && !throwOnError) return;
       const text = e instanceof Error ? e.message : "Unable to load workspace";
       if (/Sign in|expired/.test(text)) {
         setSignedOut(true);
         setState(null);
-      } else setError(text);
+      } else if (!throwOnError) setError(text);
+      if (throwOnError) throw e;
     }
   }, []);
   useEffect(() => {
     void refresh();
-    const timer = setInterval(() => void refresh(), 20000);
+    const timer = setInterval(() => {
+      if (!operationInFlight.current) void refresh();
+    }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
   useEffect(() => {
@@ -186,27 +238,153 @@ export function Dashboard() {
         .then(setBanks)
         .catch((e) => setError(e.message));
   }, [state, banks.length]);
+  const authenticated = state !== null;
   useEffect(() => {
-    chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [state?.messages.length, editor]);
-  async function run(key: string, fn: () => Promise<unknown>) {
+    const viewport = window.visualViewport;
+    const keepFocusedVisible = () => {
+      const focused = document.activeElement;
+      if (
+        focused instanceof HTMLElement &&
+        conversationRef.current?.contains(focused)
+      )
+        focused.scrollIntoView({ block: "nearest" });
+      else if (
+        focused === composerInput.current &&
+        followLatest.current &&
+        conversationRef.current
+      )
+        conversationRef.current.scrollTop =
+          conversationRef.current.scrollHeight;
+    };
+    const update = () => {
+      appRef.current?.style.setProperty(
+        "--chat-height",
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      appRef.current?.style.setProperty(
+        "--chat-top",
+        `${viewport?.offsetTop ?? 0}px`,
+      );
+      keepFocusedVisible();
+    };
+    update();
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    const observer = new ResizeObserver(keepFocusedVisible);
+    if (conversationRef.current) observer.observe(conversationRef.current);
+    return () => {
+      observer.disconnect();
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, [authenticated, tab]);
+  useLayoutEffect(() => {
+    const input = composerInput.current;
+    if (input) {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+    }
+  }, [message, authenticated]);
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    if (!conversation) return;
+    if (editor) {
+      const cards = conversation.querySelectorAll(".proposal-card");
+      cards.item(cards.length - 1)?.scrollIntoView({ block: "start" });
+    } else if (responseAnchor.current) {
+      const response = document.getElementById(
+        `message-${responseAnchor.current}`,
+      );
+      if (response) {
+        response.scrollIntoView({ block: "start" });
+        followLatest.current = false;
+        responseAnchor.current = undefined;
+      }
+    } else if (followLatest.current)
+      conversation.scrollTop = conversation.scrollHeight;
+  }, [state?.messages.length, pendingMessage?.status, editor, tab]);
+  async function run(
+    key: string,
+    fn: () => Promise<unknown>,
+    onSuccess?: () => void,
+  ) {
+    if (operationInFlight.current) return;
+    operationInFlight.current = true;
     setBusy(key);
     setError("");
+    setAnnouncement("");
+    setProgress(
+      operationProgress(key, state?.mode === "fixture", !!state?.aiEnabled),
+    );
     try {
       await fn();
-      await refresh();
+      if (key !== "logout") {
+        setProgress(
+          key === "chat"
+            ? "Loading the saved response…"
+            : "Refreshing saved workspace details…",
+        );
+        await refresh(true);
+      }
+      onSuccess?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed");
+      if (key === "chat") responseAnchor.current = undefined;
+      setError(
+        e instanceof TypeError || e instanceof SyntaxError
+          ? "The response could not be confirmed. Your input is preserved. Check the conversation before sending again."
+          : e instanceof Error
+            ? e.message
+            : "The response could not be confirmed. Your input has been kept.",
+      );
     } finally {
+      operationInFlight.current = false;
       setBusy("");
+      setProgress("");
     }
   }
   async function send(text: string) {
-    if (!text.trim() || busy) return;
-    await run("chat", async () => {
-      await api("chat", { message: text });
-      setMessage("");
+    if (!text.trim() || operationInFlight.current) return;
+    followLatest.current = true;
+    const submittedText = text.trim();
+    setPendingMessage({
+      text: submittedText,
+      after: state?.messages.length ?? 0,
+      status: "pending",
     });
+    setMessage((current) => current || text);
+    composerInput.current?.focus({ preventScroll: true });
+    let confirmed = false;
+    await run(
+      "chat",
+      async () => {
+        const response = await api<{ messageId: string }>("chat", {
+          message: submittedText,
+        });
+        responseAnchor.current = response.messageId;
+      },
+      () => {
+        confirmed = true;
+        setMessage((current) => (current === text ? "" : current));
+        setAnnouncement(
+          "Response received. Your saved conversation has been updated.",
+        );
+      },
+    );
+    if (confirmed) setPendingMessage(undefined);
+    else
+      setPendingMessage((current) =>
+        current ? { ...current, status: "failed" } : current,
+      );
+  }
+  function jumpToLatest() {
+    followLatest.current = true;
+    conversationRef.current?.scrollTo({
+      top: conversationRef.current.scrollHeight,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+    setShowLatest(false);
   }
   function navigate(next: string) {
     setTab(next);
@@ -283,7 +461,8 @@ export function Dashboard() {
                 />
               </label>
               <button className="primary full" disabled={!!busy}>
-                <ShieldCheck size={17} /> Sign in securely{" "}
+                <ShieldCheck size={17} />{" "}
+                {busy === "login" ? "Signing you in…" : "Sign in securely"}{" "}
                 <ArrowRight size={17} />
               </button>
             </form>
@@ -352,7 +531,10 @@ export function Dashboard() {
     maxBatchKobo: state.maxBatchKobo,
   };
   return (
-    <div className={`app-shell ${tab === "Agent" ? "chat-active" : ""}`}>
+    <div
+      ref={appRef}
+      className={`app-shell ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
+    >
       <aside className={`sidebar ${menuOpen ? "menu-open" : ""}`}>
         <Link className="brand" href="/">
           <span className="brand-mark">
@@ -392,6 +574,18 @@ export function Dashboard() {
         >
           <Plus size={16} /> New payment details
         </button>
+        <button
+          className="text-button emergency-control"
+          disabled={!!busy}
+          onClick={() =>
+            void run("emergency", () =>
+              api("emergency", { disabled: !state.emergencyDisabled }),
+            )
+          }
+        >
+          <ShieldCheck size={16} />
+          {state.emergencyDisabled ? "Enable transfers" : "Emergency stop"}
+        </button>
         <div className="sidebar-bottom">
           <div className="safety-card">
             <ShieldCheck size={22} />
@@ -418,18 +612,13 @@ export function Dashboard() {
             </button>
             <strong>
               {tab === "Agent"
-                ? "Your financial agent"
+                ? "Financial Agent"
                 : tab === "Payment jobs"
                   ? "Payment history"
                   : tab}
             </strong>
           </div>
           <div className="header-actions">
-            <span className="mode-pill">
-              {state.mode === "fixture"
-                ? "Simulation · no real money"
-                : `${state.mode} mode`}
-            </span>
             <button
               className="sign-out"
               disabled={!!busy}
@@ -474,24 +663,35 @@ export function Dashboard() {
               </button>
             </div>
           )}
-          <div className="notice">
-            <ShieldCheck size={16} />
-            <span>
-              {state.mode === "fixture"
-                ? "Fictional recipients and simulated outcomes. No real accounts verified or funds moved."
-                : "Review all payment details before authorizing."}
-            </span>
-            <button
-              className="text-button"
-              disabled={!!busy}
-              onClick={() =>
-                void run("emergency", () =>
-                  api("emergency", { disabled: !state.emergencyDisabled }),
-                )
+          <div className="context-bar">
+            <details className="simulation-disclosure">
+              <summary>
+                <ShieldCheck size={14} />
+                <span>
+                  {state.mode === "fixture"
+                    ? "Simulation · no real money"
+                    : `${state.mode} mode · review required`}
+                </span>
+                <ChevronRight size={12} />
+              </summary>
+              <p>
+                {state.mode === "fixture"
+                  ? "Fictional recipients and simulated outcomes. No real accounts are verified and no funds move."
+                  : "Transfers use the authorized business balance. Review all details before approval."}
+              </p>
+            </details>
+            <span
+              className="model-status"
+              title={
+                state.aiEnabled
+                  ? "A provider is configured. Only a successful response is labelled model-assisted."
+                  : "Limited demonstration command parser; no model calls are made."
               }
             >
-              {state.emergencyDisabled ? "Enable transfers" : "Emergency stop"}
-            </button>
+              {state.aiEnabled
+                ? `${state.aiProvider === "openai" ? "OpenAI" : "Gemini"} configured`
+                : "Demo · no AI"}
+            </span>
           </div>
           {state.emergencyDisabled && (
             <div className="alert" role="status">
@@ -499,7 +699,7 @@ export function Dashboard() {
               disabled.
             </div>
           )}
-          {error && (
+          {error && tab !== "Agent" && (
             <div className="alert" role="alert">
               {error}
               <button aria-label="Dismiss error" onClick={() => setError("")}>
@@ -509,15 +709,18 @@ export function Dashboard() {
           )}
           {tab === "Agent" && (
             <section className="chat-panel" aria-label="Financial conversation">
-              <div className="model-status">
-                <span className="dot" />
-                {state.aiEnabled
-                  ? `${state.aiProvider === "openai" ? "OpenAI" : "Gemini"} configured · model requests may fail`
-                  : "Demo parser · limited commands · no AI model connected"}
-              </div>
               <div
                 className="conversation"
+                ref={conversationRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  const nearBottom =
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  followLatest.current = nearBottom;
+                  setShowLatest(!nearBottom);
+                }}
                 role="log"
+                aria-live="off"
                 aria-label="Conversation messages"
               >
                 {pending.length > 0 && (
@@ -562,76 +765,20 @@ export function Dashboard() {
                     ))}
                   </details>
                 )}
-                {state.messages.length === 0 && !editor && (
+                {state.messages.length === 0 && !pendingMessage && !editor && (
                   <div className="welcome">
-                    <div className="welcome-symbol">
-                      <Sparkles size={32} />
-                    </div>
-                    <p className="eyebrow">
-                      A LITTLE HELP WITH YOUR MONEY TASKS
-                    </p>
-                    <h1>
-                      What can I help you
-                      <br />
-                      take care of?
-                    </h1>
+                    <h1>What can I help you take care of?</h1>
                     <p>
-                      Prepare a payment, follow up a transfer,
-                      <br />
-                      or understand your spending. One step at a time.
+                      Start with a message. We’ll take it one step at a time.
                     </p>
-                    <div className="suggestions">
-                      {[
-                        {
-                          title: "Prepare supplier payments",
-                          detail: "Start with who and how much",
-                          text: "Pay my bills",
-                          icon: Send,
-                        },
-                        {
-                          title: "Upload payment details",
-                          detail: "Review a screenshot together",
-                          text: "upload",
-                          icon: Paperclip,
-                        },
-                        {
-                          title: "Check pending transfers",
-                          detail: "Pick up where you left off",
-                          text: "What payments are still pending?",
-                          icon: Clock3,
-                        },
-                        {
-                          title: "Review my spending",
-                          detail: "Explore the fictional demo ledger",
-                          text: "Review my spending",
-                          icon: Wallet,
-                        },
-                      ].map(({ title, detail, text, icon: Icon }) => (
-                        <button
-                          disabled={!!busy}
-                          key={title}
-                          onClick={() =>
-                            text === "upload"
-                              ? state.aiEnabled
-                                ? uploadInput.current?.click()
-                                : setError(
-                                    "Image extraction requires a server-configured OpenAI or Gemini API key. Paste payment details into the conversation or select New payment details to continue in demo mode.",
-                                  )
-                              : void send(text)
-                          }
-                        >
-                          <Icon size={19} />
-                          <strong>{title}</strong>
-                          <small>{detail}</small>
-                          <ArrowUpRight size={15} />
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 )}
                 {state.messages.map((m) => (
                   <div className="conversation-turn" key={m.id}>
-                    <article className={`message ${m.role}`}>
+                    <article
+                      id={`message-${m.id}`}
+                      className={`message ${m.role}`}
+                    >
                       <small>
                         {m.role === "user" ? "You" : "Financial Agent"}
                         {m.role === "assistant" && (
@@ -717,38 +864,91 @@ export function Dashboard() {
                     }
                   />
                 )}
-                {busy && (
-                  <p className="working" role="status">
-                    <Loader2 className="spin" size={17} />
-                    {busy === "chat"
-                      ? "Preparing a response…"
-                      : busy === "image"
-                        ? "Reading your image with the configured model…"
-                        : "Updating saved payment state…"}
-                  </p>
-                )}
-                <div ref={chatEnd} />
+                {pendingMessage &&
+                  !state.messages
+                    .slice(pendingMessage.after)
+                    .some(
+                      (m) =>
+                        m.role === "user" && m.content === pendingMessage.text,
+                    ) && (
+                    <article
+                      className={`message user local-message ${pendingMessage.status}`}
+                    >
+                      <small>
+                        You{" "}
+                        <span>
+                          {pendingMessage.status === "failed"
+                            ? "Response not confirmed"
+                            : "Response pending"}
+                        </span>
+                      </small>
+                      <p>{pendingMessage.text}</p>
+                      {pendingMessage.status === "failed" && (
+                        <p className="muted">
+                          Your input is preserved. Check the conversation before
+                          sending again.
+                        </p>
+                      )}
+                    </article>
+                  )}
               </div>
               <div className="composer-dock">
+                {showLatest && (
+                  <button
+                    className="latest-messages secondary"
+                    onClick={jumpToLatest}
+                  >
+                    <ArrowDownLeft size={15} /> Latest messages
+                  </button>
+                )}
+                {error && (
+                  <div className="alert chat-error" role="alert">
+                    <span>{error}</span>
+                    <button
+                      aria-label="Dismiss error"
+                      onClick={() => setError("")}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                )}
+                <p
+                  className={busy ? "request-progress" : "sr-only"}
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {busy && <Clock3 size={15} aria-hidden="true" />}
+                  {progress || announcement}
+                </p>
                 <form
                   className="composer"
+                  aria-busy={busy === "chat" || busy === "image"}
                   onSubmit={(e) => {
                     e.preventDefault();
                     void send(message);
                   }}
                 >
                   <textarea
+                    ref={composerInput}
+                    enterKeyHint="enter"
+                    autoCapitalize="sentences"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Tell me what you’d like to do…"
                     aria-label="Message the financial agent"
+                    aria-describedby="composer-shortcuts"
                     rows={2}
                     maxLength={4000}
                     onKeyDown={(e) => {
                       if (
                         e.key === "Enter" &&
                         !e.shiftKey &&
-                        !e.nativeEvent.isComposing
+                        !e.nativeEvent.isComposing &&
+                        e.keyCode !== 229 &&
+                        !window.matchMedia(
+                          "(pointer: coarse), (max-width: 700px)",
+                        ).matches
                       ) {
                         e.preventDefault();
                         void send(message);
@@ -791,12 +991,69 @@ export function Dashboard() {
                     </button>
                   </div>
                 </form>
+                {state.messages.length === 0 && !pendingMessage && !editor && (
+                  <div className="suggestions">
+                    {[
+                      {
+                        title: "Supplier payments",
+                        detail: "Start with who and how much",
+                        text: "Pay my bills",
+                        icon: Send,
+                      },
+                      {
+                        title: "Payment image",
+                        detail: "Review a screenshot together",
+                        text: "upload",
+                        icon: Paperclip,
+                      },
+                      {
+                        title: "Pending transfers",
+                        detail: "Pick up where you left off",
+                        text: "What payments are still pending?",
+                        icon: Clock3,
+                      },
+                      {
+                        title: "Spending",
+                        detail: "Explore the fictional demo ledger",
+                        text: "Review my spending",
+                        icon: Wallet,
+                      },
+                    ].map(({ title, text, icon: Icon }) => (
+                      <button
+                        disabled={!!busy}
+                        key={title}
+                        onClick={() =>
+                          text === "upload"
+                            ? state.aiEnabled
+                              ? uploadInput.current?.click()
+                              : setError(
+                                  "Image extraction requires a server-configured OpenAI or Gemini API key. Paste payment details into the conversation or select New payment details to continue in demo mode.",
+                                )
+                            : void send(text)
+                        }
+                      >
+                        <Icon size={19} />
+                        <strong>{title}</strong>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p id="composer-shortcuts" className="sr-only">
+                  On desktop, Enter sends and Shift+Enter adds a line. On
+                  mobile, Enter adds a line; use the Send message button to
+                  send.
+                </p>
                 <p className="chat-footnote">
                   <ShieldCheck size={13} />
-                  You review and approve. The agent cannot authorize or submit.
+                  Every payment needs your review and approval.
                 </p>
               </div>
             </section>
+          )}
+          {tab !== "Agent" && busy && (
+            <p className="request-progress" role="status">
+              {progress}
+            </p>
           )}
           {tab === "Payment jobs" && (
             <div className="job-list">
@@ -849,7 +1106,10 @@ export function Dashboard() {
                         <tr key={p.id}>
                           <td>
                             <strong>{p.verifiedName ?? p.name}</strong>
-                            <code>{p.reference}</code>
+                            <details className="payment-reference">
+                              <summary>Payment reference</summary>
+                              <code>{p.reference}</code>
+                            </details>
                           </td>
                           <td>{money(p.amountKobo)}</td>
                           <td>{b.mode}</td>
@@ -1313,7 +1573,9 @@ function BatchCard({
       <div className="batch-heading">
         <div>
           <p className="eyebrow">
-            {b.mode.toUpperCase()} PAYMENT JOB · {b.id.slice(0, 8)}
+            {b.mode === "fixture"
+              ? "SIMULATED PAYMENT BATCH"
+              : `${b.mode.toUpperCase()} PAYMENT BATCH`}
           </p>
           <h2>
             {b.payments.length} recipient{b.payments.length !== 1 ? "s" : ""}{" "}
@@ -1322,31 +1584,36 @@ function BatchCard({
         </div>
         <Badge status={b.status} />
       </div>
-      <ol className="workflow-steps" aria-label="Payment progress">
-        {[
-          "Details saved",
-          "Verify recipients",
-          "Your approval",
-          "Track outcomes",
-        ].map((step, i) => {
-          const current = b.approval?.consumedAt
-            ? 3
-            : b.approval
-              ? 2
-              : b.payments.every((p) => p.verifiedName)
+      <details className="workflow-guide">
+        <summary>Payment steps</summary>
+        <ol className="workflow-steps" aria-label="Payment progress">
+          {[
+            "Details saved",
+            "Verify recipients",
+            "Your approval",
+            "Track outcomes",
+          ].map((step, i) => {
+            const current = b.approval?.consumedAt
+              ? 3
+              : b.approval
                 ? 2
-                : 1;
-          return (
-            <li
-              key={step}
-              className={i < current ? "done" : i === current ? "current" : ""}
-            >
-              <span>{i < current ? <Check size={12} /> : i + 1}</span>
-              {step}
-            </li>
-          );
-        })}
-      </ol>
+                : b.payments.every((p) => p.verifiedName)
+                  ? 2
+                  : 1;
+            return (
+              <li
+                key={step}
+                className={
+                  i < current ? "done" : i === current ? "current" : ""
+                }
+              >
+                <span>{i < current ? <Check size={12} /> : i + 1}</span>
+                {step}
+              </li>
+            );
+          })}
+        </ol>
+      </details>
       <p className="next-step">
         {b.payments.some((p) =>
           ["unknown", "processing", "submitted"].includes(p.status),
@@ -1386,7 +1653,10 @@ function BatchCard({
                   : "Awaiting provider verification"}{" "}
                 · {p.reason}
               </small>
-              <code>{p.reference}</code>
+              <details className="payment-reference">
+                <summary>Payment reference</summary>
+                <code>{p.reference}</code>
+              </details>
               {p.lastError && (
                 <span className="payment-error">{p.lastError}</span>
               )}
@@ -1450,10 +1720,12 @@ function BatchCard({
               e.preventDefault();
               if (!acknowledgedDigest || acknowledgedDigest !== b.reviewDigest)
                 return;
+              const submittedPassword = password;
+              setPassword("");
               void action("approve", {
-                password,
+                password: submittedPassword,
                 reviewDigest: acknowledgedDigest,
-              }).then(() => setPassword(""));
+              });
             }}
           >
             <label className="checkbox-label">
@@ -1477,6 +1749,7 @@ function BatchCard({
                 autoComplete="current-password"
                 placeholder="Operator password"
                 aria-label="Password to approve reviewed batch"
+                disabled={busy}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -1571,6 +1844,7 @@ function BatchCard({
         <pre>
           {JSON.stringify(
             {
+              batchId: b.id,
               approval: b.approval,
               payments: b.payments.map((p) => ({
                 reference: p.reference,

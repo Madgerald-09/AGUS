@@ -101,3 +101,5 @@ Deploy to a Node host supporting Next.js server routes and managed PostgreSQL, w
 See `ENGINEERING_HANDOFF.md`, `ARCHITECTURE.md`, `LIVE_READINESS.md`, `DEMO_SCRIPT.md`, and `TEAM_HANDOFF.md`.
 
 See [CHAT_FIRST_REPORT.md](CHAT_FIRST_REPORT.md) for the experience changes, model/fallback boundary, verification results, screenshots and remaining P1 work.
+
+The [P1 chat UX refinement report](CHAT_UX_REFINEMENT_REPORT.md) includes before/after desktop and mobile screenshots, request/error/scroll behavior, and keyboard verification limits.

@@ -62,7 +62,9 @@ try {
       process.env.CHROMIUM_PATH ??
       (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
   });
-  const screenshots = join(process.cwd(), "docs/screenshots");
+  const screenshots =
+    process.env.CHAT_SCREENSHOT_DIR ??
+    join(process.cwd(), "docs/ux-refinement/after");
   await mkdir(screenshots, { recursive: true });
   const results = [];
   const errors = [];
