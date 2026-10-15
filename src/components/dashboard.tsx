@@ -750,7 +750,7 @@ export function Dashboard() {
               ) : (
                 state.batches.map((b) => (
                   <BatchCard
-                    key={b.id}
+                    key={`${b.id}:${b.reviewDigest}`}
                     batch={b}
                     banks={banks}
                     busy={!!busy}
@@ -1151,7 +1151,9 @@ function BatchCard({
   stopped: boolean;
 }) {
   const [password, setPassword] = useState("");
-  const [checked, setChecked] = useState(false);
+  // The parent remounts this card when reviewDigest changes, clearing secrets too.
+  const [acknowledgedDigest, setAcknowledgedDigest] = useState<string>();
+  const checked = acknowledgedDigest === b.reviewDigest;
   const [otp, setOtp] = useState("");
   const [otpPayment, setOtpPayment] = useState("");
   const isDraft =
@@ -1263,10 +1265,11 @@ function BatchCard({
             className="approval-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!checked) return;
+              if (!acknowledgedDigest || acknowledgedDigest !== b.reviewDigest)
+                return;
               void action("approve", {
                 password,
-                reviewDigest: b.reviewDigest,
+                reviewDigest: acknowledgedDigest,
               }).then(() => setPassword(""));
             }}
           >
@@ -1275,7 +1278,11 @@ function BatchCard({
                 type="checkbox"
                 required
                 checked={checked}
-                onChange={(e) => setChecked(e.target.checked)}
+                onChange={(e) =>
+                  setAcknowledgedDigest(
+                    e.target.checked ? b.reviewDigest : undefined,
+                  )
+                }
               />
               I reviewed the bank, verified name, account, amount and fee
               reserve for every payment.

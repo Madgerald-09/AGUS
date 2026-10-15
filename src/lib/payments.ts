@@ -18,11 +18,14 @@ import {
   type Batch,
   type Payment,
   type State,
+  type WebhookWork,
 } from "./domain";
 import {
   provider,
   ProviderError,
   verifySignature,
+  confirmedFeeKobo,
+  recipientIdentity,
   type PaymentProvider,
   type ProviderResult,
   type TransferData,
@@ -174,6 +177,7 @@ export async function verifyBeneficiaries(
         const payment = current.payments.find((x) => x.id === p.id)!;
         payment.verifiedName = resolved.data.account_name;
         payment.recipientCode = r.data.recipient_code;
+        payment.recipientId = r.data.id;
         payment.verifiedAt = now();
         payment.lastError = undefined;
         payment.status = "awaiting_user_approval";
@@ -199,6 +203,7 @@ export async function verifyBeneficiaries(
         const payment = current.payments.find((x) => x.id === p.id)!;
         payment.verifiedName = undefined;
         payment.recipientCode = undefined;
+        payment.recipientId = undefined;
         payment.verifiedAt = undefined;
         payment.status = "awaiting_beneficiary_verification";
         current.status = batchStatus(current);
@@ -270,7 +275,12 @@ export async function approveBatch(
     return b;
   });
 }
-function validateTransfer(p: Payment, b: Batch, data: TransferData) {
+function validateTransfer(
+  p: Payment,
+  b: Batch,
+  data: TransferData,
+  verified: boolean,
+) {
   if (
     data.reference !== p.reference ||
     data.amount !== p.amountKobo ||
@@ -284,12 +294,32 @@ function validateTransfer(p: Payment, b: Batch, data: TransferData) {
     String(data.integration) !== process.env.PAYSTACK_INTEGRATION_ID
   )
     throw new AppError("Provider integration mismatch", 502);
+  const identity = recipientIdentity(data.recipient);
   if (
-    typeof data.recipient === "object" &&
-    data.recipient.recipient_code &&
-    data.recipient.recipient_code !== p.recipientCode
+    (identity.code !== undefined && identity.code !== p.recipientCode) ||
+    (identity.recipientId !== undefined &&
+      p.recipientId !== undefined &&
+      identity.recipientId !== p.recipientId) ||
+    (identity.accountNumber !== undefined &&
+      identity.accountNumber !== p.accountNumber) ||
+    (identity.bankCode !== undefined && identity.bankCode !== p.bankCode) ||
+    (data.transfer_code !== undefined &&
+      p.transferCode !== undefined &&
+      data.transfer_code !== p.transferCode)
   )
     throw new AppError("Provider recipient mismatch", 502);
+  const matched =
+    (identity.code !== undefined && identity.code === p.recipientCode) ||
+    (identity.recipientId !== undefined &&
+      identity.recipientId === p.recipientId) ||
+    (identity.accountNumber === p.accountNumber &&
+      identity.bankCode === p.bankCode);
+  if (verified && !matched)
+    throw new AppError(
+      "Provider recipient identity is insufficient to verify the outcome",
+      502,
+    );
+  confirmedFeeKobo(data);
 }
 async function record(
   actor: string,
@@ -298,13 +328,25 @@ async function record(
   operation: string,
   result: ProviderResult<TransferData>,
   verified: boolean,
+  generation: number,
+  eventId?: string,
 ) {
   return mutate((s) => {
     const b = findBatch(s, batchId, actor);
     const p = b.payments.find((x) => x.id === paymentId)!;
     p.responses.push({ at: now(), operation, data: result.raw });
+    if ((p.operationGeneration ?? 0) !== generation) {
+      audit(
+        s,
+        actor,
+        "transfer.stale_response_ignored",
+        { paymentId, operation, generation },
+        batchId,
+      );
+      return b;
+    }
     try {
-      validateTransfer(p, b, result.data);
+      validateTransfer(p, b, result.data, verified);
     } catch (e) {
       throw new ProviderError(
         e instanceof Error ? e.message : "Provider identity mismatch",
@@ -312,16 +354,20 @@ async function record(
       );
     }
     p.transferCode = result.data.transfer_code ?? p.transferCode;
-    p.status = transition(
-      p.status,
-      verified
-        ? providerStatus(result.data.status)
-        : result.data.status === "otp"
-          ? "awaiting_otp"
-          : "processing",
-    );
-    if (verified && result.data.fees !== undefined)
-      p.providerFeeKobo = result.data.fees;
+    let nextStatus = verified
+      ? providerStatus(result.data.status)
+      : result.data.status === "otp"
+        ? "awaiting_otp"
+        : "processing";
+    // A claimed OTP operation can never be reopened, even by a fresh otp response.
+    if (p.otpFinalization && nextStatus === "awaiting_otp")
+      nextStatus = "unknown";
+    p.status = transition(p.status, nextStatus);
+    if (operation === "finalize" && p.otpFinalization)
+      p.otpFinalization.outcome =
+        nextStatus === "unknown" ? "uncertain" : "recorded";
+    const fee = confirmedFeeKobo(result.data);
+    if (verified && fee !== undefined) p.providerFeeKobo = fee;
     p.lastError = undefined;
     b.status = batchStatus(b);
     b.updatedAt = now();
@@ -337,6 +383,34 @@ async function record(
       },
       batchId,
     );
+    const work = s.webhookWork.find((w) => w.eventId === eventId);
+    if (work && !work.completedAt) {
+      const expected = providerStatus(work.event.replace("transfer.", ""));
+      if (
+        nextStatus === expected ||
+        p.status === "reversed" ||
+        (expected === "failed" && nextStatus === "successful")
+      ) {
+        work.completedAt = now();
+        work.lastError = undefined;
+        audit(
+          s,
+          actor,
+          "webhook.reconciled",
+          { eventId, paymentId, status: p.status },
+          batchId,
+        );
+      } else {
+        work.lastError = `Awaiting provider confirmation of ${work.event}; observed ${nextStatus}`;
+        audit(
+          s,
+          actor,
+          "webhook.reconciliation_pending",
+          { eventId, status: nextStatus },
+          batchId,
+        );
+      }
+    }
     return b;
   });
 }
@@ -346,12 +420,33 @@ async function uncertain(
   paymentId: string,
   e: unknown,
   operation: string,
+  generation: number,
+  eventId?: string,
 ) {
   return mutate((s) => {
     const b = findBatch(s, batchId, actor);
     const p = b.payments.find((x) => x.id === paymentId)!;
+    if ((p.operationGeneration ?? 0) !== generation) {
+      p.responses.push({
+        at: now(),
+        operation: `${operation}_stale_error`,
+        data: e instanceof ProviderError ? e.raw : { error: String(e) },
+      });
+      audit(
+        s,
+        actor,
+        "transfer.stale_error_ignored",
+        { paymentId, operation, generation },
+        batchId,
+      );
+      return b;
+    }
     p.status = transition(p.status, "unknown");
     p.lastError = e instanceof Error ? e.message : "Unknown provider outcome";
+    if (operation === "finalize" && p.otpFinalization)
+      p.otpFinalization.outcome = "uncertain";
+    const work = s.webhookWork.find((w) => w.eventId === eventId);
+    if (work && !work.completedAt) work.lastError = p.lastError;
     p.responses.push({
       at: now(),
       operation,
@@ -420,7 +515,10 @@ export async function executeBatch(
         409,
       );
     a.consumedAt = now();
-    b.payments.forEach((p) => (p.status = "submitted"));
+    b.payments.forEach((p) => {
+      p.status = "submitted";
+      p.operationGeneration = (p.operationGeneration ?? 0) + 1;
+    });
     b.status = "submitted";
     audit(
       s,
@@ -435,9 +533,24 @@ export async function executeBatch(
     try {
       executionGate(claimed.mode, (await readState()).emergencyDisabled);
       const r = await api.submit(p);
-      await record(actor, batchId, p.id, "submit", r, false);
+      await record(
+        actor,
+        batchId,
+        p.id,
+        "submit",
+        r,
+        false,
+        p.operationGeneration ?? 0,
+      );
     } catch (e) {
-      await uncertain(actor, batchId, p.id, e, "submit");
+      await uncertain(
+        actor,
+        batchId,
+        p.id,
+        e,
+        "submit",
+        p.operationGeneration ?? 0,
+      );
     }
   }
   return findBatch(await readState(), batchId, actor);
@@ -460,9 +573,24 @@ export async function reconcileBatch(
     ].includes(x.status),
   )) {
     try {
-      await record(actor, batchId, p.id, "verify", await api.verify(p), true);
+      await record(
+        actor,
+        batchId,
+        p.id,
+        "verify",
+        await api.verify(p),
+        true,
+        p.operationGeneration ?? 0,
+      );
     } catch (e) {
-      await uncertain(actor, batchId, p.id, e, "verify");
+      await uncertain(
+        actor,
+        batchId,
+        p.id,
+        e,
+        "verify",
+        p.operationGeneration ?? 0,
+      );
     }
   }
   return findBatch(await readState(), batchId, actor);
@@ -495,10 +623,30 @@ export async function finalizeOTP(
     )
       throw new AppError("Invalid approved transfer", 409);
     const p = b.payments.find((x) => x.id === paymentId);
-    if (!p || p.status !== "awaiting_otp" || !p.transferCode)
+    if (
+      !p ||
+      p.status !== "awaiting_otp" ||
+      !p.transferCode ||
+      p.otpFinalization
+    )
       throw new AppError("Transfer is not awaiting OTP", 409);
     p.status = "submitted";
-    audit(s, actor, "transfer.otp_submitted", { paymentId }, batchId);
+    p.operationGeneration = (p.operationGeneration ?? 0) + 1;
+    p.otpFinalization = {
+      claimId: id(),
+      claimedAt: now(),
+      generation: p.operationGeneration,
+      outcome: "claimed",
+    };
+    b.status = batchStatus(b);
+    b.updatedAt = now();
+    audit(
+      s,
+      actor,
+      "transfer.otp_submitted",
+      { paymentId, ...p.otpFinalization },
+      batchId,
+    );
     return structuredClone(p);
   });
   try {
@@ -509,9 +657,17 @@ export async function finalizeOTP(
       "finalize",
       await api.finalize(claimed, otp),
       false,
+      claimed.operationGeneration ?? 0,
     );
   } catch (e) {
-    return uncertain(actor, batchId, paymentId, e, "finalize");
+    return uncertain(
+      actor,
+      batchId,
+      paymentId,
+      e,
+      "finalize",
+      claimed.operationGeneration ?? 0,
+    );
   }
 }
 export async function webhook(
@@ -537,31 +693,89 @@ export async function webhook(
   )
     return { ignored: true };
   const eventId = hash(raw);
-  const duplicate = await mutate((s) => {
-    if (s.webhookIds.includes(eventId)) return true;
-    s.webhookIds.push(eventId);
-    audit(s, "paystack", "webhook.received", { eventId, payload });
-    return false;
+  // Receipt deduplication and durable work creation commit together, before I/O.
+  const receipt = await mutate((s) => {
+    const duplicate = s.webhookIds.includes(eventId);
+    if (!duplicate) {
+      s.webhookIds.push(eventId);
+      audit(s, "paystack", "webhook.received", { eventId, payload });
+    }
+    let work = s.webhookWork.find((w) => w.eventId === eventId);
+    // Also repairs old receipt-only snapshots on redelivery.
+    if (!work) {
+      const b = s.batches.find(
+        (b) =>
+          b.mode === api.mode &&
+          b.approval?.consumedAt &&
+          b.payments.some((p) => p.reference === payload.data.reference),
+      );
+      const p = b?.payments.find((p) => p.reference === payload.data.reference);
+      if (
+        b &&
+        p &&
+        ![
+          "draft",
+          "approved",
+          "awaiting_beneficiary_verification",
+          "awaiting_user_approval",
+        ].includes(p.status)
+      ) {
+        work = {
+          eventId,
+          batchId: b.id,
+          paymentId: p.id,
+          event: payload.event as WebhookWork["event"],
+          receivedAt: now(),
+          attempts: 0,
+        };
+        s.webhookWork.push(work);
+        audit(
+          s,
+          "paystack",
+          "webhook.reconciliation_queued",
+          { eventId, paymentId: p.id },
+          b.id,
+        );
+      }
+    }
+    return { duplicate, queued: !!work };
   });
-  if (duplicate) return { duplicate: true };
-  const s = await readState();
-  const b = s.batches.find(
-    (x) =>
-      x.mode === api.mode &&
-      x.payments.some((p) => p.reference === payload.data.reference),
-  );
-  if (!b) return { ignored: true };
-  const p = b.payments.find((x) => x.reference === payload.data.reference)!;
-  if (
-    !b.approval?.consumedAt ||
-    [
-      "draft",
-      "approved",
-      "awaiting_beneficiary_verification",
-      "awaiting_user_approval",
-    ].includes(p.status)
-  )
-    return { ignored: true };
+  if (receipt.queued) await reconcileWebhookWork(eventId, api);
+  return receipt.duplicate
+    ? { duplicate: true }
+    : receipt.queued
+      ? { received: true }
+      : { ignored: true };
+}
+
+export async function reconcileWebhookWork(
+  eventId: string,
+  api: PaymentProvider = provider(),
+) {
+  const attempt = await mutate((s) => {
+    const work = s.webhookWork.find(
+      (w) => w.eventId === eventId && !w.completedAt,
+    );
+    if (!work) return;
+    const b = s.batches.find(
+      (b) =>
+        b.id === work.batchId && b.mode === api.mode && b.approval?.consumedAt,
+    );
+    const p = b?.payments.find((p) => p.id === work.paymentId);
+    if (!b || !p) return;
+    work.attempts++;
+    work.lastAttemptAt = now();
+    audit(
+      s,
+      "paystack",
+      "webhook.reconciliation_attempt",
+      { eventId, attempt: work.attempts },
+      b.id,
+    );
+    return structuredClone({ b, p });
+  });
+  if (!attempt) return;
+  const { b, p } = attempt;
   try {
     await record(
       b.owner,
@@ -570,11 +784,39 @@ export async function webhook(
       "webhook_verify",
       await api.verify(p),
       true,
+      p.operationGeneration ?? 0,
+      eventId,
     );
   } catch (e) {
-    await uncertain(b.owner, b.id, p.id, e, "webhook_verify");
+    await uncertain(
+      b.owner,
+      b.id,
+      p.id,
+      e,
+      "webhook_verify",
+      p.operationGeneration ?? 0,
+      eventId,
+    );
   }
-  return { received: true };
+}
+
+// Scheduled recovery makes GET verification calls only, including work on terminal payments.
+export async function reconcileOutstanding(api: PaymentProvider = provider()) {
+  const state = await readState();
+  for (const work of state.webhookWork.filter((w) => !w.completedAt))
+    await reconcileWebhookWork(work.eventId, api);
+  const remaining = await readState();
+  for (const b of remaining.batches.filter(
+    (b) =>
+      b.mode === api.mode &&
+      b.approval?.consumedAt &&
+      b.payments.some((p) =>
+        ["submitted", "processing", "unknown", "awaiting_otp"].includes(
+          p.status,
+        ),
+      ),
+  ))
+    await reconcileBatch(b.owner, b.id, api);
 }
 export async function listPendingPayments(actor: string) {
   return (await readState()).batches.filter(

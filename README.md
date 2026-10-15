@@ -52,7 +52,7 @@ Set `PAYMENT_MODE=test` and configure a legitimate `sk_test_…` key through env
 
 Implemented: banks (pagination), account resolution, recipient creation, balance, individual transfer initiation, OTP finalization and reference verification. Multi-recipient workflows coordinate individual transfers; the bulk endpoint is intentionally unused because its OTP requirement would conflict with preserving safeguards. Persistent references are generated before submission and reused for verification. No automatic POST retry exists.
 
-Configure Paystack's webhook to `https://YOUR_HOST/api/webhooks/paystack`. Signature verification uses raw body bytes and the corresponding Paystack secret. Transfer webhooks are durably deduplicated and trigger independent reference verification; an event name alone does not declare success. Configure `PAYSTACK_INTEGRATION_ID` for live identity checks.
+Configure Paystack's webhook to `https://YOUR_HOST/api/webhooks/paystack`. Signature verification uses raw body bytes and the corresponding Paystack secret. Transfer webhooks atomically persist a deduplicated receipt and separate pending reconciliation work before independent reference verification; an event name alone does not declare success. Duplicate delivery can retry unfinished verification. Configure `PAYSTACK_INTEGRATION_ID` for live identity checks.
 
 Run read-only reconciliation manually or from your deployment scheduler every minute:
 
@@ -60,9 +60,9 @@ Run read-only reconciliation manually or from your deployment scheduler every mi
 npm run payments:reconcile
 ```
 
-It verifies unfinished submitted transfers; it cannot submit or retry transfers. In fixture mode it simulates verification. Webhook failures remain unknown for later reconciliation. UI polling refreshes saved database state every 20 seconds; “Check provider” performs actual reference verification. Successful transfers can be rechecked manually and reversal webhooks trigger reconciliation. A missing webhook therefore requires an operational review of older successful transfers if reversal detection is needed.
+It verifies unfinished submitted transfers and pending webhook work, including reversal work whose last confirmed payment status is successful. It cannot submit or retry transfers. Pending work survives restarts and remains queued until verification confirms the event or a later terminal outcome supersedes it. In fixture mode it simulates verification. UI polling refreshes saved database state every 20 seconds; “Check provider” performs actual reference verification. Successful transfers can be rechecked manually and reversal webhooks trigger reconciliation. A missing webhook therefore requires an operational review of older successful transfers if reversal detection is needed.
 
-**Do not enable live flags for a hackathon test without satisfying `LIVE_READINESS.md`.** All flags ship false. Amount limits are intentionally small: ₦1,000 per payment and ₦5,000 principal per batch. Fee reserves default to ₦50 per payment and are estimates, not confirmed Paystack pricing. Confirmed fees appear only if the provider returns a `fees` field. Adjust reserves after checking account-specific pricing and taxes.
+**Do not enable live flags for a hackathon test without satisfying `LIVE_READINESS.md`.** All flags ship false. Amount limits are intentionally small: ₦1,000 per payment and ₦5,000 principal per batch. Fee reserves default to ₦50 per payment and are estimates, not confirmed Paystack pricing. Confirmed fees use integer-kobo `fee_charged` (or compatible `fees`) evidence, separate from the reserve. Adjust reserves after checking account-specific pricing and taxes.
 
 ## AI and screenshot extraction
 
@@ -87,10 +87,12 @@ npm run typecheck
 npm run lint
 npm run build
 npm run test:http # Starts a temporary fixture-only production server on port 3100
+npm run test:browser # Two-session Chromium polling regression, fixture server on port 3101
+npm audit --audit-level=high
 npm start
 ```
 
-`npm test` forcibly uses in-memory embedded PostgreSQL and fixture credentials. Provider REST tests use injected HTTP fixtures. No automated test calls Paystack or uses a production credential. The persistence test uses an isolated temporary disk database across separate Node processes.
+`npm test` forcibly uses in-memory embedded PostgreSQL and fixture credentials. Provider REST tests use injected HTTP fixtures. No automated test calls Paystack or uses a production credential. The persistence and interruption tests use isolated temporary disk databases across separate Node processes. Browser tests use Playwright and installed Chromium (`CHROMIUM_PATH`, `/usr/bin/chromium`, or a Playwright browser installed with `npx playwright install chromium`). See `REPAIR_REPORT.md` for repair validation and limitations.
 
 Deploy to a Node host supporting Next.js server routes and managed PostgreSQL, with HTTPS, a secret manager, an exact `APP_ORIGIN`, scheduled reconciliation, backups, and provider webhooks. This project has not been published or connected to a production account. Static export is unsuitable for these server-side payment endpoints.
 
