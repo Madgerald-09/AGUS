@@ -62,7 +62,7 @@ try {
       const r = await fetch(base);
       if (r.ok) {
         ready = true;
-        assert.match(await r.text(), /Continuity/);
+        assert.match(await r.text(), /Financial Agent/);
         break;
       }
     } catch {
