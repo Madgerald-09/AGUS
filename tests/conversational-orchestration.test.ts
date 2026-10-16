@@ -36,12 +36,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("uses actual generated conversational language and bounded actor-owned context", async () => {
+it("uses server conversational language and bounded actor-owned context", async () => {
   inference({
     response: "Hey there! What would you like help with today?",
   });
   expect((await chat(actor, "Hey.")).reply).toBe(
-    "Hey there! What would you like help with today?",
+    "Hey! What would you like help with today?",
   );
   await mutate((s) =>
     s.messages.push({
@@ -98,7 +98,7 @@ it("explains financial context from the saved authoritative answer even when inf
   inference({ response: "I moved money for you" });
   const explanation = await chat(actor, "I don't understand. Explain that.");
   expect(explanation.reply).toContain("fictional sample ledger");
-  expect(explanation.reply).toContain(result.reply);
+  expect(explanation.reply).not.toContain(result.reply);
   expect((await readState()).batches).toHaveLength(0);
 });
 

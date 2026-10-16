@@ -180,7 +180,7 @@ function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
   };
   return messages[operation] ?? "Updating your saved workspace…";
 }
-export function Dashboard() {
+export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "live" }) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [password, setPassword] = useState("");
@@ -459,7 +459,7 @@ export function Dashboard() {
               <span className="agus-wordmark" aria-label="agus.">agus.</span>
               <div className="demo-pill" role="status">
                 <span className="demo-dot" aria-hidden="true" />
-                <span>Demo Access</span>
+                <span>{paymentMode === "fixture" ? "Demo Access" : paymentMode === "test" ? "Test Access" : "Live Access"}</span>
               </div>
             </div>
             <h1 className="login-title">
@@ -473,8 +473,12 @@ export function Dashboard() {
           <div className="demo-notice" role="note">
             <ShieldCheck size={16} className="demo-notice-icon" aria-hidden="true" />
             <div className="demo-notice-text">
-              <strong>Demo Operator Portal</strong>
-              <span>Transactions run in sandbox fixture mode with simulation settlement. No live funds move.</span>
+              <strong>{paymentMode === "fixture" ? "Demo Operator Portal" : paymentMode === "test" ? "Paystack Test Portal" : "Live Operator Portal"}</strong>
+              <span>{paymentMode === "fixture"
+                ? "Transactions use local fixture simulation. No real funds move."
+                : paymentMode === "test"
+                  ? "Transactions use Paystack test mode. No real funds move."
+                  : "Live payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}</span>
             </div>
           </div>
 
@@ -610,7 +614,7 @@ export function Dashboard() {
               <span className="footer-tag">Hackaholics 7.0</span>
             </div>
             <p className="footer-security">
-              Fixture experience available without AI credentials.
+              Manual draft preparation is available without AI credentials.
             </p>
           </footer>
         </div>

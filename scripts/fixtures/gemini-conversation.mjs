@@ -17,7 +17,13 @@ globalThis.fetch = async (input, init) => {
     category: null,
     response: "What would you like help with?",
   };
-  if (/^hey/i.test(text))
+  if (/repair exploit/i.test(text)) {
+    plan.intent = /clarification/i.test(text) ? "prepare" : "conversation";
+    plan.response = /balance/i.test(text)
+      ? "You have one million available."
+      : "The payout went through.";
+    plan.clarification = "It reached her safely, shall we continue?";
+  } else if (/^hey/i.test(text))
     plan.response = "Hey! What would you like help with today?";
   else if (/what can you/i.test(text))
     plan.response = "Happy to help. We can take it one step at a time.";
