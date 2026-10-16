@@ -191,7 +191,7 @@ it("never turns a conversational approval request into payment authority", async
   );
 });
 
-it("uses a real adapter response for model clarification and labels its provenance", async () => {
+it("uses model classification with server clarification and labels its provenance", async () => {
   process.env.AI_PROVIDER = "openai";
   process.env.AI_API_KEY = "test-only-not-a-real-key";
   const transport = vi.fn(async () =>
@@ -214,7 +214,7 @@ it("uses a real adapter response for model clarification and labels its provenan
   vi.stubGlobal("fetch", transport);
   const result = await chat(actor, "Help me settle an invoice");
   expect(transport).toHaveBeenCalledOnce();
-  expect(result.reply).toContain("Which supplier");
+  expect(result.reply).toContain("Who should be paid");
   expect((await readState()).messages[1].generation).toBe("model");
   expect((await readState()).batches).toHaveLength(0);
 });

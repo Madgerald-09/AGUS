@@ -226,7 +226,7 @@ try {
         };
       }
       async function send(text) {
-        await page.getByLabel("Message the financial agent").fill(text);
+        await page.getByLabel("Message Agus").fill(text);
         const response = page.waitForResponse(
           (r) => r.url() === `${base}/api/chat`,
         );
@@ -241,7 +241,7 @@ try {
         .getByLabel("Operator password", { exact: true })
         .fill(password);
       await page.getByRole("button", { name: "Sign in securely" }).click();
-      const composer = page.getByLabel("Message the financial agent");
+      const composer = page.getByLabel("Message Agus");
       await composer.waitFor();
       await page
         .getByRole("heading", { name: /What can I help you/ })
@@ -281,8 +281,8 @@ try {
           "Welcome composer is within easy view",
         );
         assert.ok(
-          welcome.suggestionsHeight <= 90,
-          "Suggestions do not dominate mobile welcome",
+          welcome.suggestionsHeight <= 94,
+          "Suggestions fit two 44px touch-target rows with a 6px gap",
         );
       }
       await screenshot("welcome");

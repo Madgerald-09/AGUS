@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError, audit, digest, now } from "@/lib/domain";
+import { presentMessage } from "@/lib/conversation-policy";
 import { config } from "@/lib/config";
 import {
   operator,
@@ -101,7 +102,9 @@ async function handle(req: Request) {
         batches: s.batches
           .filter((b) => b.owner === actor)
           .map((b) => ({ ...b, reviewDigest: digest(b) })),
-        messages: s.messages.filter((m) => !m.owner || m.owner === actor),
+        messages: s.messages
+          .filter((m) => !m.owner || m.owner === actor)
+          .map(presentMessage),
         aiProvider: process.env.AI_PROVIDER ?? "none",
         ledger: s.ledger,
         insights: analyzeSpending(s.ledger),
@@ -227,6 +230,7 @@ async function handle(req: Request) {
             .min(1)
             .max(10),
         })
+        .strict()
         .parse(await json(req));
       return reply(
         await mutate((s) => {
