@@ -232,6 +232,8 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [bankError, setBankError] = useState("");
   const [bankLoading, setBankLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState("");
+  const [listening, setListening] = useState(false);
   const [editor, setEditor] = useState<{ batchId?: string; rows: Row[] }>();
   const uploadInput = useRef<HTMLInputElement>(null);
   const speechRecognition = useRef<SpeechRecognitionLike | null>(null);
@@ -265,6 +267,20 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         .then(setBanks)
         .catch((e) => setError(e.message));
   }, [state, banks.length]);
+  useEffect(
+    () => () => {
+      const recognition = speechRecognition.current;
+      speechRecognition.current = null;
+      if (recognition) {
+        recognition.onend = null;
+        recognition.onerror = null;
+        recognition.onresult = null;
+        recognition.onstart = null;
+        recognition.stop();
+      }
+    },
+    [],
+  );
   const authenticated = state !== null;
   const loadBanks = useCallback(async () => {
     setBankLoading(true);
