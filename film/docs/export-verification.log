@@ -1,0 +1,44 @@
+
+> agus-hackaholics-demo-film@1.0.0 verify
+> node scripts/verify.mjs
+
+{
+  "passed": true,
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 24,
+    "durationSeconds": 210,
+    "frames": 5040,
+    "codec": "H.264",
+    "pixelFormat": "yuv420p",
+    "silent": true,
+    "fullDecode": "passed",
+    "fastStart": true,
+    "colorRange": "limited"
+  },
+  "sourceCommit": "3ca4cba0da4c2417df417aaba2a515c23c7e1f55",
+  "sourceTree": "893b04995a77bc664bb9f5b20288e5be1b691bd5",
+  "mode": "fixture",
+  "liveAI": false,
+  "realFundsMoved": false,
+  "hashes": {
+    "agus-hackaholics-7.mp4": {
+      "sha256": "68375bdf7c025dbfd2fd16d0c7febdb2d98c5bbdb9b91975495c7ff96a2f819a",
+      "bytes": 29786652
+    },
+    "poster.png": {
+      "sha256": "cb2297cbcedad24a565b6e12dfb573533628f2aac7480c901eb46b3607b7be97",
+      "bytes": 791537
+    },
+    "captions.srt": {
+      "sha256": "3a25d350b8b8d2db4b6774bb0e291a26b1b3a51bc759337737fb2b70d74337eb",
+      "bytes": 2403
+    }
+  }
+}
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
