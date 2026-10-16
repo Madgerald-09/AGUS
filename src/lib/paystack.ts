@@ -186,17 +186,48 @@ export class Paystack implements PaymentProvider {
     }
   }
   async banks() {
-    const banks: Bank[] = [];
-    for (let page = 1; page <= 20; page++) {
+    // /bank documents use_cursor + meta.next, not an offset page parameter.
+    // Page length is not a termination signal (including an exact full page).
+    const banks = new Map<string, Bank>();
+    const seenCursors = new Set<string>();
+    let next: string | undefined;
+    for (let page = 0; page < 20; page++) {
+      const query = new URLSearchParams({
+        country: "nigeria",
+        currency: "NGN",
+        perPage: "100",
+        use_cursor: "true",
+      });
+      if (next) query.set("next", next);
       const result = await this.call(
-        `/bank?country=nigeria&currency=NGN&perPage=100&page=${page}`,
-        z.array(z.object({ name: z.string(), code: z.string() })),
+        `/bank?${query}`,
+        z
+          .array(z.object({ name: z.string().min(1), code: z.string().min(1) }))
+          .max(100),
       );
-      banks.push(...result.data);
-      if (result.data.length < 100) return banks;
+      const pagination = z
+        .object({
+          meta: z
+            .object({ next: z.string().max(2048).nullable().optional() })
+            .optional(),
+        })
+        .safeParse(result.raw);
+      if (!pagination.success)
+        throw new AppError("Bank listing returned invalid pagination", 502);
+      const before = banks.size;
+      for (const bank of result.data)
+        if (!banks.has(bank.code)) banks.set(bank.code, bank);
+      next = pagination.data.meta?.next ?? undefined;
+      // Paystack can omit meta for a non-paginated list, and represents an
+      // exhausted cursor as null, empty, or the literal string "null".
+      if (!next || next === "null") return [...banks.values()];
+      if (seenCursors.has(next) || banks.size === before)
+        throw new AppError("Bank listing pagination made no progress", 502);
+      seenCursors.add(next);
     }
     throw new AppError("Bank listing exceeded pagination limit", 502);
   }
+
   resolve(account: string, bank: string) {
     return this.call(
       `/bank/resolve?account_number=${encodeURIComponent(account)}&bank_code=${encodeURIComponent(bank)}`,

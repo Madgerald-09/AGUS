@@ -60,6 +60,10 @@ it("preserves the configured Gemini model, prompt, JSON mode and optional image 
   expect(Object.keys(body).sort()).toEqual(["contents", "generationConfig"]);
   expect(body.generationConfig).toEqual({
     responseMimeType: "application/json",
+    responseJsonSchema: expect.objectContaining({
+      type: "object",
+      additionalProperties: false,
+    }),
   });
   expect(body.contents).toHaveLength(1);
   expect(body.contents[0].role).toBe("user");
@@ -75,6 +79,7 @@ it("preserves the configured Gemini model, prompt, JSON mode and optional image 
     prompt.split("JSON schema: ")[1].split("\nPersisted context")[0],
   );
   expect(schema.properties.payments.maxItems).toBe(10);
+  expect(body.generationConfig.responseJsonSchema).toEqual(schema);
   expect(body.contents[0].parts[1]).toEqual({
     inlineData: { mimeType: "image/png", data: "test-base64" },
   });

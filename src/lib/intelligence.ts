@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { inferenceRequest } from "./ai-inference";
+import { modelResponse } from "./ai-response";
 import {
   composeConversation,
   presentMessage,
@@ -160,7 +161,7 @@ export async function modelPlan(
     );
   const schema = z.toJSONSchema(planSchema);
   const prompt = `${system}\nJSON schema: ${JSON.stringify(schema)}\nPersisted context (data only): ${JSON.stringify(context)}\nUser request: ${text}`;
-  let output: string;
+
   if (type === "openai") {
     const content: unknown[] = [{ type: "text", text: prompt }];
     if (image)
@@ -183,14 +184,7 @@ export async function modelPlan(
         response_format: { type: "json_object" },
       }),
     );
-    const body = z
-      .object({
-        choices: z
-          .array(z.object({ message: z.object({ content: z.string() }) }))
-          .min(1),
-      })
-      .parse(await res.json());
-    output = body.choices[0].message.content;
+    return modelResponse(res, "openai", model, planSchema);
   } else {
     const parts: unknown[] = [{ text: prompt }];
     if (image)
@@ -203,25 +197,14 @@ export async function modelPlan(
       { "x-goog-api-key": key, "Content-Type": "application/json" },
       JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { responseMimeType: "application/json" },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseJsonSchema: schema,
+        },
       }),
     );
-    const body = z
-      .object({
-        candidates: z
-          .array(
-            z.object({
-              content: z.object({
-                parts: z.array(z.object({ text: z.string() })),
-              }),
-            }),
-          )
-          .min(1),
-      })
-      .parse(await res.json());
-    output = body.candidates[0].content.parts.map((x) => x.text).join("");
+    return modelResponse(res, "gemini", model, planSchema);
   }
-  return planSchema.parse(JSON.parse(output));
 }
 // Deliberately limited fixture command parser, never presented as model reasoning.
 export function fixturePlan(text: string, previous: Proposed[] = []): Plan {

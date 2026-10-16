@@ -329,5 +329,102 @@ it("streamed model failure is private, preserves state and emits no fabricated r
   expect(content).toContain("Your input is preserved");
   expect(content).not.toContain("private-stream-test-key");
   expect(content).not.toContain('"result"');
+  expect(JSON.parse(content.trim().split("\n").at(-1)!)).toMatchObject({
+    ok: false,
+    status: 502,
+    error: expect.any(String),
+  });
   expect(await readState()).toEqual(before);
+});
+
+it("reports invalid provider output as upstream 502 in JSON and as a terminal stream error", async () => {
+  process.env.AI_PROVIDER = "gemini";
+  process.env.AI_API_KEY = "synthetic-private-key";
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const transport = vi.fn(async () =>
+    Response.json({
+      candidates: [
+        {
+          finishReason: "MAX_TOKENS",
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  intent: "authorize",
+                  payments: [],
+                  period: "all",
+                  category: null,
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  );
+  vi.stubGlobal("fetch", transport);
+  try {
+    const before = structuredClone(await readState());
+    const ordinary = await request("chat", { message: "Hey" });
+    expect(ordinary.status).toBe(502);
+    expect((await ordinary.json()).error).toContain("completion");
+    const stream = await request(
+      "chat",
+      { message: "Hey" },
+      "application/x-ndjson",
+    );
+    // Headers precede inference completion: HTTP 200 establishes the stream,
+    // and only a terminal result event establishes application success.
+    expect(stream.status).toBe(200);
+    const events = (await stream.text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events.at(-1)).toMatchObject({ ok: false, status: 502 });
+    expect(events.some((event) => event.result)).toBe(false);
+    expect(transport).toHaveBeenCalledTimes(2);
+    expect(await readState()).toEqual(before);
+  } finally {
+    log.mockRestore();
+  }
+});
+
+it("serves test-mode banks through the authenticated API using the cursor contract", async () => {
+  vi.stubEnv("PAYMENT_MODE", "test");
+  vi.stubEnv("PAYSTACK_SECRET_KEY", "sk_test_synthetic");
+  const transport = vi
+    .fn()
+    .mockResolvedValueOnce(
+      Response.json({
+        status: true,
+        data: [{ name: "Wema Bank", code: "035" }],
+        meta: { next: "next-token" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      Response.json({
+        status: true,
+        data: [
+          { name: "Wema Bank", code: "035" },
+          { name: "Access Bank", code: "044" },
+        ],
+        meta: { next: null },
+      }),
+    );
+  vi.stubGlobal("fetch", transport);
+  try {
+    const response = await GET(
+      new Request("http://localhost:3000/api/banks", {
+        headers: { Cookie: `ha_session=${token}` },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      { name: "Wema Bank", code: "035" },
+      { name: "Access Bank", code: "044" },
+    ]);
+    expect(transport).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });

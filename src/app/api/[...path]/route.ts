@@ -168,6 +168,8 @@ async function handle(req: Request) {
               // Same privacy boundary as ordinary responses: never expose raw
               // model output, transport errors, prompts or credentials.
               emit({
+                ok: false,
+                status: e instanceof AppError ? e.status : 502,
                 error:
                   e instanceof AppError
                     ? e.message
