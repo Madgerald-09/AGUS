@@ -44,6 +44,9 @@ it("answers capability questions and casual conversation without a payment-statu
   expect(composeConversation("What can you do?")).toContain(
     "prepare payment drafts",
   );
+  expect(composeConversation("What can you do for me?")).toContain(
+    "prepare payment drafts",
+  );
   expect(composeConversation("How are you Agus?")).toContain("ready to help");
   expect(composeConversation("Thanks, Agus!")).toContain("You’re welcome");
   expect(composeConversation("Did that go through?")).toContain(
@@ -133,7 +136,8 @@ it("asks for a recipient before applying an ambiguous change, then remembers exp
   expect(ambiguous.reply).toContain("Which recipient");
   expect(ambiguous.proposals).toEqual([]);
   const selected = await chat(actor, "I meant the second recipient.");
-  expect(selected.reply).toContain("recipient 2: Chidi");
+  expect(selected.proposals.map((p) => p.bankCode)).toEqual([null, "035"]);
+  expect(selected.reply).toContain("for Chidi");
   const edited = await chat(actor, "Change the bank to Wema.");
   expect(edited.proposals.map((p) => p.bankCode)).toEqual([null, "035"]);
   expect(edited.proposals.map((p) => p.name)).toEqual(["Ada", "Chidi"]);
@@ -143,7 +147,7 @@ it("asks for an account number and never invents it", async () => {
   const asked = await chat(actor, "Change the account number.");
   expect(asked.reply).toContain("What 10-digit account number");
   expect((await readState()).batches).toEqual([b]);
-  await chat(actor, "account: 0000000002");
+  await chat(actor, "0000000002");
   expect((await readState()).batches[0].payments[0].accountNumber).toBe(
     "0000000002",
   );
@@ -258,4 +262,57 @@ it("explains an ordinary conversation without switching to a transfer-status lec
   expect(explained.reply).toContain("in your own words");
   expect(explained.reply).not.toContain("reconcile");
   expect((await readState()).batches).toHaveLength(0);
+});
+
+it("uses a plain bank-name answer for a saved clarification", async () => {
+  await preparePaymentBatch(actor, [instruction]);
+  await chat(actor, "Change the bank.");
+  await chat(actor, "Access");
+  expect((await readState()).batches[0].payments[0].bankCode).toBe("044");
+});
+it("keeps a requested amount while clarifying which recipient", async () => {
+  const b = await preparePaymentBatch(actor, [
+    instruction,
+    { ...instruction, name: "Chidi", accountNumber: "0000000002" },
+  ]);
+  await chat(actor, "Make it ₦700.");
+  await chat(actor, "I meant the second recipient.");
+  const saved = (await readState()).batches.find((x) => x.id === b.id)!;
+  expect(saved.payments.map((p) => p.amountKobo)).toEqual([50000, 70000]);
+});
+it("does not reinterpret an isolated account number as a payment amount", async () => {
+  const b = await preparePaymentBatch(actor, [instruction]);
+  await chat(actor, "0000000002");
+  expect((await readState()).batches).toEqual([b]);
+});
+it("asks again when the selected recipient changed in another editor", async () => {
+  const b = await preparePaymentBatch(actor, [
+    instruction,
+    { ...instruction, name: "Chidi", accountNumber: "0000000002" },
+  ]);
+  await chat(actor, "I meant the second recipient.");
+  await editBatch(actor, b.id, [instruction]);
+  expect((await chat(actor, "Make it ₦700.")).reply).toContain("Which draft");
+  expect((await readState()).batches[0].payments[0].amountKobo).toBe(50000);
+});
+
+it("describes saved simulation drafts without implying submission or unnecessary provider follow-up", async () => {
+  await preparePaymentBatch(actor, [instruction]);
+  const result = await chat(actor, "Payment status");
+  expect(result.reply).toContain(
+    "Simulation · Draft · needs recipient verification",
+  );
+  const saved = (await readState()).messages.at(-1)!.content;
+  expect(saved).toContain("Simulation · Draft");
+  expect(saved).not.toContain("outcomes are unresolved");
+});
+it("keeps unresolved saved outcomes explicit in conversational status", async () => {
+  await preparePaymentBatch(actor, [instruction]);
+  await mutate((s) => {
+    s.batches[0].status = "unknown";
+    s.batches[0].payments[0].status = "unknown";
+  });
+  const result = await chat(actor, "Payment status");
+  expect(result.reply).toContain("outcomes are unresolved");
+  expect(result.reply).toContain("Simulation · Unknown");
 });

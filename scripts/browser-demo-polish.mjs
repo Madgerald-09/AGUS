@@ -18,6 +18,7 @@ const browser = await chromium.launch({
 try {
   for (const viewport of [
     { width: 1440, height: 1000 },
+    { width: 820, height: 900 },
     { width: 390, height: 844 },
     { width: 320, height: 740 },
   ]) {
@@ -205,6 +206,39 @@ try {
       await card.screenshot({
         path: join(evidence, `${viewport.width}-review.png`),
       });
+      await card
+        .getByRole("button", { name: "Edit instructions", exact: true })
+        .click();
+      const approvedEditor = page.getByRole("region", {
+        name: "Edit payment details",
+      });
+      await approvedEditor.waitFor();
+      assert.equal(
+        await page
+          .getByRole("button", {
+            name: "Submit simulated transfers",
+            exact: true,
+          })
+          .isDisabled(),
+        true,
+        "cannot submit the saved instructions while editing",
+      );
+      await approvedEditor
+        .getByLabel("Close payment details", { exact: true })
+        .click();
+      assert.equal(
+        await page
+          .getByRole("button", {
+            name: "Submit simulated transfers",
+            exact: true,
+          })
+          .isEnabled(),
+        true,
+        "closing without saving preserves the original approved draft",
+      );
+      await card
+        .getByRole("button", { name: "Edit instructions", exact: true })
+        .click();
       await send("Make it ₦900.");
       assert.equal(
         await page.locator(".batch-card").count(),
@@ -228,14 +262,38 @@ try {
       assert.equal(state.batches[0].approval, undefined);
       assert.equal(state.batches[0].payments[0].verifiedName, undefined);
       assert.equal(state.batches[0].payments[0].amountKobo, 90000);
-      await page
-        .getByRole("button", { name: "Edit instructions", exact: true })
+      const staleEditor = page.getByRole("region", {
+        name: "Edit payment details",
+      });
+      assert.equal(
+        await staleEditor
+          .getByRole("button", { name: "Save changes", exact: true })
+          .isDisabled(),
+        true,
+        "stale form cannot overwrite a chat correction",
+      );
+      await staleEditor
+        .getByRole("button", { name: "Load latest draft", exact: true })
         .click();
       const editor = page.getByRole("region", { name: "Edit payment details" });
       await editor.waitFor();
       assert.equal(
+        await editor.getByLabel("Amount (NGN)", { exact: true }).inputValue(),
+        "900.00",
+      );
+      assert.equal(
         await editor.getByLabel("Bank", { exact: true }).inputValue(),
         "044",
+      );
+      const fieldOrder = await editor
+        .locator(".form-grid label")
+        .allTextContents();
+      assert.match(fieldOrder[1], /Financial institution/);
+      assert.match(fieldOrder[2], /Account number/);
+      assert.equal(
+        await editor.evaluate((section) => document.activeElement === section),
+        true,
+        "editor receives focus without opening the mobile keyboard",
       );
       const fit = await page.evaluate(() => {
         const conversation = document.querySelector(".conversation");

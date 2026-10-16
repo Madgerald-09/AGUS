@@ -354,7 +354,7 @@ try {
     await page
       .locator(".message.assistant")
       .last()
-      .getByText(/Processing and unknown payments remain unresolved/)
+      .getByText(/Some outcomes are unresolved/)
       .waitFor();
     await layoutCheck(`${viewport.name}-outcomes`);
     const snapshot = await (
@@ -373,7 +373,7 @@ try {
     await layoutCheck(`${viewport.name}-restored`);
     const followUp = page.locator(".message.assistant").last();
     await followUp
-      .getByText(/Processing and unknown payments remain unresolved/)
+      .getByText(/Some outcomes are unresolved/)
       .waitFor();
     await followUp.evaluate((el) =>
       el.scrollIntoView({ block: "start", behavior: "instant" }),

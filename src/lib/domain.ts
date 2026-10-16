@@ -100,6 +100,15 @@ export interface Message {
     draftId: string;
     recipientIndex: number;
     fingerprint: string;
+    awaiting?: "bank" | "accountNumber" | "amountNaira";
+  };
+  pendingDraftEdit?: {
+    bankQuery?: string;
+    bankCode?: string;
+    accountNumber?: string;
+    amountNaira?: string;
+    name?: string;
+    missing?: string;
   };
 }
 export interface LedgerEntry {

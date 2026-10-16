@@ -98,7 +98,21 @@ const blank = (): Row => ({
   amountNaira: "",
   reason: "Payment",
 });
-const label = (s: string) => s.replaceAll("_", " ");
+const statusLabels: Record<string, string> = {
+  draft: "Draft",
+  awaiting_beneficiary_verification: "Needs verification",
+  awaiting_user_approval: "Needs your approval",
+  approved: "Approved · not submitted",
+  submitted: "Submitted · unresolved",
+  processing: "Processing · unresolved",
+  successful: "Successful",
+  failed: "Failed",
+  reversed: "Reversed",
+  unknown: "Unknown · needs follow-up",
+  awaiting_otp: "Awaiting provider OTP",
+};
+
+const label = (s: string) => statusLabels[s] ?? s.replaceAll("_", " ");
 const bankName = (code: string, banks: { name: string; code: string }[]) =>
   banks.find((b) => b.code === code)?.name ?? code;
 const terminal = (s: string) =>
@@ -119,19 +133,6 @@ async function api<T>(
   return d;
 }
 function Badge({ status }: { status: string }) {
-  const labels: Record<string, string> = {
-    draft: "Draft",
-    awaiting_beneficiary_verification: "Needs verification",
-    awaiting_user_approval: "Needs your approval",
-    approved: "Approved",
-    submitted: "Submitted · unresolved",
-    processing: "Processing · unresolved",
-    successful: "Successful",
-    failed: "Failed",
-    reversed: "Reversed",
-    unknown: "Unknown · needs follow-up",
-    awaiting_otp: "Awaiting provider OTP",
-  };
   const Icon =
     status === "successful"
       ? Check
@@ -153,7 +154,7 @@ function Badge({ status }: { status: string }) {
   return (
     <span className={`badge ${status}`}>
       <Icon size={14} aria-hidden="true" />
-      {labels[status] ?? label(status)}
+      {label(status)}
     </span>
   );
 }
@@ -209,7 +210,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [bankError, setBankError] = useState("");
   const [bankLoading, setBankLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [editor, setEditor] = useState<{ batchId?: string; rows: Row[] }>();
+  const [editor, setEditor] = useState<{
+    batchId?: string;
+    version?: number;
+    rows: Row[];
+  }>();
   const uploadInput = useRef<HTMLInputElement>(null);
   const refresh = useCallback(async (throwOnError = false) => {
     const request = ++snapshotRequest.current;
@@ -241,7 +246,10 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     setBankError("");
     try {
       const available = await api<{ name: string; code: string }[]>("banks");
-      if (!available.length) throw new Error("No institutions were returned. Try loading the bank list again.");
+      if (!available.length)
+        throw new Error(
+          "No institutions were returned. Try loading the bank list again.",
+        );
       setBanks(available);
     } catch (e) {
       setBankError(e instanceof Error ? e.message : "Banks are unavailable");
@@ -438,6 +446,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     setTab("Agent");
     setEditor({
       batchId: b.id,
+      version: b.version,
       rows: b.payments.map((p) => ({
         name: p.name,
         bankCode: p.bankCode,
@@ -639,10 +648,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const renderBatch = (b: ViewBatch) => {
     const card = (
       <BatchCard
-        key={`${b.id}:${b.reviewDigest}`}
+        key={`${b.id}:${b.reviewDigest}:${editor?.batchId === b.id}`}
         batch={b}
         banks={banks}
-        busy={!!busy}
+        busy={!!busy || editor?.batchId === b.id}
+        editing={editor?.batchId === b.id}
         run={run}
         edit={() => edit(b)}
         mode={state.mode}
@@ -1052,10 +1062,21 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                   ))}
                 {editor && (
                   <PaymentEditor
-                    key={editor.batchId ?? "manual"}
+                    key={`${editor.batchId ?? "manual"}:${editor.version ?? "new"}`}
                     {...editorProps}
                     initialRows={editor.rows}
                     editing={!!editor.batchId}
+                    stale={
+                      !!editor.batchId &&
+                      state.batches.find((b) => b.id === editor.batchId)
+                        ?.version !== editor.version
+                    }
+                    onReload={() => {
+                      const current = state.batches.find(
+                        (b) => b.id === editor.batchId,
+                      );
+                      if (current) edit(current);
+                    }}
                     onCancel={() => setEditor(undefined)}
                     onSave={(payments) =>
                       run("save", async () => {
@@ -1063,7 +1084,12 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                           editor.batchId
                             ? `batches/${editor.batchId}/edit`
                             : "batches",
-                          { payments },
+                          {
+                            payments,
+                            ...(editor.batchId
+                              ? { expectedVersion: editor.version }
+                              : {}),
+                          },
                         );
                         setEditor(undefined);
                       })
@@ -1471,6 +1497,8 @@ function PaymentEditor({
   sourceRequest,
   sourceMessageId,
   editing,
+  stale = false,
+  onReload,
   onSave,
   onCancel,
   maxPaymentKobo,
@@ -1486,11 +1514,18 @@ function PaymentEditor({
   sourceRequest?: string;
   sourceMessageId?: string;
   editing?: boolean;
+  stale?: boolean;
+  onReload?: () => void;
   onSave: (payments: Instruction[]) => Promise<void>;
   onCancel?: () => void;
   maxPaymentKobo: number;
   maxBatchKobo: number;
 }) {
+  const editorRef = useRef<HTMLElement>(null);
+  const standalone = !!onCancel;
+  useLayoutEffect(() => {
+    if (standalone) editorRef.current?.focus({ preventScroll: true });
+  }, [standalone]);
   const [rows, setRows] = useState(initialRows);
   const [error, setError] = useState("");
   const [draftStatus, setDraftStatus] = useState("");
@@ -1524,6 +1559,8 @@ function PaymentEditor({
   }
   return (
     <section
+      ref={editorRef}
+      tabIndex={standalone ? -1 : undefined}
       className="panel proposal-card"
       aria-label={editing ? "Edit payment details" : "Payment proposal"}
     >
@@ -1550,6 +1587,22 @@ function PaymentEditor({
         the destination.{" "}
         {editing && "Editing invalidates verification and approval."}
       </p>
+      {stale && (
+        <div className="alert" role="alert">
+          <p>
+            This draft changed in chat or another session. Load its latest
+            details before saving.
+          </p>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={onReload}
+          >
+            Load latest draft
+          </button>
+        </div>
+      )}
       {bankError && (
         <div className="alert" role="alert">
           <p>Banks couldn’t be loaded. {bankError}</p>
@@ -1567,19 +1620,29 @@ function PaymentEditor({
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (stale) return;
           setError("");
           try {
-            const payments = rows.map((r) => {
+            const payments = rows.map((r, i) => {
+              if (!banks.some((b) => b.code === r.bankCode))
+                throw new Error(
+                  `Choose an available financial institution for recipient ${i + 1}.`,
+                );
               if (!/^\d+(\.\d{1,2})?$/.test(r.amountNaira))
                 throw new Error(
                   "Enter an amount with at most two decimal places.",
                 );
               const [a, b = ""] = r.amountNaira.split(".");
+              const amountKobo = Number(a) * 100 + Number(b.padEnd(2, "0"));
+              if (!Number.isSafeInteger(amountKobo) || amountKobo <= 0)
+                throw new Error(
+                  `Enter an amount greater than zero for recipient ${i + 1}.`,
+                );
               return {
                 name: r.name,
                 bankCode: r.bankCode,
                 accountNumber: r.accountNumber,
-                amountKobo: Number(a) * 100 + Number(b.padEnd(2, "0")),
+                amountKobo,
                 reason: r.reason,
               };
             });
@@ -1592,11 +1655,9 @@ function PaymentEditor({
         {rows.map((r, i) => (
           <fieldset className="recipient-form" key={i} disabled={busy}>
             <legend>Recipient {i + 1}</legend>
-            <div className="section-heading">
-              <span className="muted">
-                {r.name || "Who would you like to pay?"}
-              </span>
-              {rows.length > 1 && (
+            {rows.length > 1 && (
+              <div className="section-heading">
+                <span className="muted">{r.name || "Recipient details"}</span>
                 <button
                   type="button"
                   aria-label={`Remove recipient ${i + 1}`}
@@ -1608,8 +1669,8 @@ function PaymentEditor({
                 >
                   <Trash2 size={16} />
                 </button>
-              )}
-            </div>
+              </div>
+            )}
             {fixtures.length > 0 && (
               <label className="fixture-select">
                 Use fictional demo details (optional)
@@ -1631,7 +1692,7 @@ function PaymentEditor({
                     }
                   }}
                 >
-                  <option value="">Choose a fictional recipient</option>
+                  <option value="">Select sample details</option>
                   {fixtures.map((f) => (
                     <option key={f.accountNumber} value={f.accountNumber}>
                       {f.name} · {f.accountNumber}
@@ -1647,6 +1708,12 @@ function PaymentEditor({
                   title: "Recipient label",
                   hint: "Who should be paid?",
                   length: 100,
+                },
+                {
+                  key: "bankCode",
+                  title: "Financial institution",
+                  hint: "",
+                  length: 6,
                 },
                 {
                   key: "accountNumber",
@@ -1666,62 +1733,66 @@ function PaymentEditor({
                   hint: "What is it for?",
                   length: 140,
                 },
-              ].map(({ key, title, hint, length }) => (
-                <label key={key}>
-                  {title}
-                  <input
-                    required={key !== "reason"}
-                    maxLength={length}
-                    pattern={
-                      key === "accountNumber"
-                        ? "[0-9]{10}"
-                        : key === "amountNaira"
-                          ? "[0-9]+(\\.[0-9]{1,2})?"
-                          : undefined
-                    }
-                    inputMode={
-                      key === "accountNumber"
-                        ? "numeric"
-                        : key === "amountNaira"
-                          ? "decimal"
-                          : undefined
-                    }
-                    value={r[key as keyof Row] as string}
-                    placeholder={hint}
-                    onChange={(e) =>
-                      update(i, key as keyof Row, e.target.value)
-                    }
-                    onBlur={() => void persist()}
-                  />
-                </label>
-              ))}
-              <label>
-                Financial institution
-                <select
-                  required
-                  aria-label="Bank"
-                  disabled={bankLoading || banks.length === 0}
-                  value={r.bankCode}
-                  onBlur={() => void persist()}
-                  onChange={(e) => update(i, "bankCode", e.target.value)}
-                >
-                  <option value="">
-                    {bankLoading
-                      ? "Loading institutions…"
-                      : "Select institution"}
-                  </option>
-                  {r.bankCode && !banks.some((b) => b.code === r.bankCode) && (
-                    <option value={r.bankCode}>
-                      Institution code {r.bankCode} · unavailable
-                    </option>
-                  )}
-                  {banks.map((b) => (
-                    <option key={b.code} value={b.code}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              ].map(({ key, title, hint, length }) =>
+                key === "bankCode" ? (
+                  <label key={key}>
+                    Financial institution
+                    <select
+                      required
+                      aria-label="Bank"
+                      disabled={bankLoading || banks.length === 0}
+                      value={r.bankCode}
+                      onBlur={() => void persist()}
+                      onChange={(e) => update(i, "bankCode", e.target.value)}
+                    >
+                      <option value="">
+                        {bankLoading
+                          ? "Loading institutions…"
+                          : "Select institution"}
+                      </option>
+                      {r.bankCode &&
+                        !banks.some((b) => b.code === r.bankCode) && (
+                          <option value={r.bankCode}>
+                            Institution code {r.bankCode} · unavailable
+                          </option>
+                        )}
+                      {banks.map((b) => (
+                        <option key={b.code} value={b.code}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <label key={key}>
+                    {title}
+                    <input
+                      required={key !== "reason"}
+                      maxLength={length}
+                      pattern={
+                        key === "accountNumber"
+                          ? "[0-9]{10}"
+                          : key === "amountNaira"
+                            ? "[0-9]+(\\.[0-9]{1,2})?"
+                            : undefined
+                      }
+                      inputMode={
+                        key === "accountNumber"
+                          ? "numeric"
+                          : key === "amountNaira"
+                            ? "decimal"
+                            : undefined
+                      }
+                      value={r[key as keyof Row] as string}
+                      placeholder={hint}
+                      onChange={(e) =>
+                        update(i, key as keyof Row, e.target.value)
+                      }
+                      onBlur={() => void persist()}
+                    />
+                  </label>
+                ),
+              )}
             </div>
             {r.warnings?.length ? (
               <details className="field-warning">
@@ -1746,7 +1817,10 @@ function PaymentEditor({
           >
             <Plus size={16} /> Add recipient
           </button>
-          <button className="primary" disabled={busy || bankLoading || banks.length === 0}>
+          <button
+            className="primary"
+            disabled={busy || stale || bankLoading || banks.length === 0}
+          >
             <Check size={16} />
             {editing ? "Save changes" : "Save draft"}
           </button>
@@ -1773,6 +1847,7 @@ function BatchCard({
   batch: b,
   banks,
   busy,
+  editing,
   run,
   edit,
   mode,
@@ -1781,6 +1856,7 @@ function BatchCard({
   batch: ViewBatch;
   banks: { name: string; code: string }[];
   busy: boolean;
+  editing: boolean;
   run: (key: string, fn: () => Promise<unknown>) => Promise<void>;
   edit: () => void;
   mode: Mode;
@@ -1839,6 +1915,7 @@ function BatchCard({
             return (
               <li
                 key={step}
+                aria-current={i === current ? "step" : undefined}
                 className={
                   i < current ? "done" : i === current ? "current" : ""
                 }
@@ -1851,19 +1928,21 @@ function BatchCard({
         </ol>
       </details>
       <p className="next-step">
-        {b.payments.some((p) =>
-          ["unknown", "processing", "submitted"].includes(p.status),
-        )
-          ? "Some outcomes are still unresolved. Check provider status below; do not send the same payments again."
-          : b.payments.some((p) => p.status === "awaiting_otp")
-            ? "A provider OTP is required. Review the recipient outcome below."
-            : b.payments.every((p) => terminal(p.status))
-              ? "Review each recipient’s individual outcome below."
-              : b.status === "approved"
-                ? "Your approval is recorded. Submit explicitly below when you are ready."
-                : b.status === "awaiting_user_approval"
-                  ? "Review all verified details, acknowledge them, and approve with your operator password."
-                  : "Next, verify the recipient details. You will review them before approving."}
+        {editing
+          ? "You’re editing this draft. Save your changes or close the editor before continuing."
+          : b.payments.some((p) =>
+                ["unknown", "processing", "submitted"].includes(p.status),
+              )
+            ? "Some outcomes are still unresolved. Check provider status below; do not send the same payments again."
+            : b.payments.some((p) => p.status === "awaiting_otp")
+              ? "A provider OTP is required. Review the recipient outcome below."
+              : b.payments.every((p) => terminal(p.status))
+                ? "Review each recipient’s individual outcome below."
+                : b.status === "approved"
+                  ? "Your approval is recorded. Submit explicitly below when you are ready."
+                  : b.status === "awaiting_user_approval"
+                    ? "Review all verified details, acknowledge them, and approve with your operator password."
+                    : "Next, verify the recipient details. You will review them before approving."}
       </p>
       <div className="payment-rows">
         {b.payments.map((p, i) => (

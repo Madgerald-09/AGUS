@@ -7,6 +7,7 @@ import { modelResponse } from "./ai-response";
 import {
   composeConversation,
   conversationalIntent,
+  describePaymentStatus,
   presentMessage,
   groundProposal,
 } from "./conversation-policy";
@@ -489,26 +490,38 @@ export async function chat(
         ? await listPendingPayments(actor)
         : getTransactionHistory(state, actor);
     batches = batches.filter((b) => dateMatch(b.createdAt, plan.period));
+    const unresolved = batches.some((b) =>
+      b.payments.some((p) =>
+        ["submitted", "processing", "unknown"].includes(p.status),
+      ),
+    );
+    const intro =
+      "Here’s what your saved payment records show:" +
+      (unresolved
+        ? "\nSome outcomes are unresolved. Use Check provider in the payment card before taking further action."
+        : "");
     reply = batches.length
-      ? "Here are your saved payment outcomes. Processing and unknown payments remain unresolved; check the provider from the payment card before taking any further action.\n" +
+      ? intro +
+        "\n" +
         batches
           .slice(0, 10)
           .map(
             (b) =>
-              `Batch ${b.id.slice(0, 8)} (${b.mode}): ${b.payments.map((p) => `${p.verifiedName ?? p.name} — ${money(p.amountKobo)} — ${p.status.replaceAll("_", " ")} [${p.reference}]`).join("; ")}`,
+              `Batch ${b.id.slice(0, 8)} (${b.mode}): ${b.payments.map((p) => `${p.verifiedName ?? p.name} — ${money(p.amountKobo)} — ${describePaymentStatus(p.status, b.mode)} [${p.reference}]`).join("; ")}`,
           )
           .join("\n")
-      : "No matching persisted payment jobs. These results come from saved records; use “Check provider” to refresh unfinished transfers.";
+      : "I couldn’t find a saved payment matching that request. If you were still entering details, look for its editable draft in the conversation.";
     if (batches.length)
       conversationReply =
-        "Here are your saved payment outcomes. Processing and unknown payments remain unresolved; check the provider from the payment card before taking any further action.\n" +
+        intro +
+        "\n" +
         batches
           .slice(0, 10)
           .map((b) =>
             b.payments
               .map(
                 (p) =>
-                  `${p.verifiedName ?? p.name} · ${money(p.amountKobo)} · ${p.status.replaceAll("_", " ")}`,
+                  `${p.verifiedName ?? p.name} · ${money(p.amountKobo)} · ${describePaymentStatus(p.status, b.mode)}`,
               )
               .join("\n"),
           )
@@ -532,12 +545,18 @@ export async function chat(
     const category = insights.categories.find(
       (c) => c.name.toLowerCase() === plan.category?.toLowerCase(),
     );
+    const period = {
+      all: "across all saved dates",
+      week: "over the last seven days",
+      month: "this month",
+      yesterday: "yesterday",
+    }[plan.period];
     reply =
       plan.category && !category
         ? `I don’t see that category in the fictional demonstration ledger. Available categories: ${insights.categories.map((c) => c.name).join(", ")}.`
         : plan.category
-          ? `In the fictional demonstration ledger, you spent ${money(category!.amountKobo)} on ${category!.name.toLowerCase()} across ${plan.period === "all" ? "all saved dates" : plan.period}. Want to compare it with your other spending categories?`
-          : `Across ${plan.period === "all" ? "all saved dates" : plan.period} in the fictional demonstration ledger, spending totals ${money(insights.expenseKobo)}, against ${money(insights.incomeKobo)} in income. ${
+          ? `In the fictional demonstration ledger, you spent ${money(category!.amountKobo)} on ${category!.name.toLowerCase()} ${period}. Want to compare it with your other spending categories?`
+          : `In the fictional demonstration ledger, spending totals ${money(insights.expenseKobo)} ${period}, against ${money(insights.incomeKobo)} in income. ${
               insights.categories.length
                 ? `The biggest categories are ${insights.categories
                     .slice(0, 3)

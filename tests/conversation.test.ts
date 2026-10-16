@@ -428,3 +428,25 @@ it("serves test-mode banks through the authenticated API using the cursor contra
     vi.unstubAllEnvs();
   }
 });
+
+it("rejects a stale editor version through the authenticated API", async () => {
+  const created = await request("batches", { payments: [instruction] });
+  const batch = await created.json();
+  expect(
+    (
+      await request(`batches/${batch.id}/edit`, {
+        payments: [{ ...instruction, amountKobo: 70000 }],
+        expectedVersion: batch.version,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await request(`batches/${batch.id}/edit`, {
+        payments: [instruction],
+        expectedVersion: batch.version,
+      })
+    ).status,
+  ).toBe(409);
+  expect((await readState()).batches[0].payments[0].amountKobo).toBe(70000);
+});

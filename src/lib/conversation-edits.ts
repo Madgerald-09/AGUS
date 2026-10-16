@@ -11,6 +11,7 @@ import {
 } from "./domain";
 import { editBatch, preparePaymentBatch } from "./payments";
 import { provider } from "./paystack";
+import { conversationalIntent } from "./conversation-policy";
 import { parseDraftEdit, resolveBankName } from "./draft-edits";
 import type { Proposed } from "./intelligence";
 
@@ -48,11 +49,46 @@ export async function editConversationDraft(
   state: State,
   aiEnabled: boolean,
 ) {
-  const edit = parseDraftEdit(text);
-  if (!edit) return;
+  if (conversationalIntent(text)) return;
   const messages = state.messages.filter(
     (m) => m.owner === actor && m.role === "assistant",
   );
+  const last = messages.at(-1);
+  let edit = parseDraftEdit(text);
+  const answer = text.trim().replace(/[.!?]+$/, "");
+  if (
+    !edit &&
+    last?.draftSelection?.awaiting === "accountNumber" &&
+    /^\d{10}$/.test(answer)
+  )
+    edit = { accountNumber: answer };
+  if (
+    !edit &&
+    last?.draftSelection?.awaiting === "amountNaira" &&
+    /^\d+(?:\.\d{1,2})?$/.test(answer)
+  )
+    edit = { amountNaira: answer };
+  if (
+    !edit &&
+    last?.draftSelection?.awaiting === "bank" &&
+    answer.length <= 100 &&
+    !/[?;\n]|\b(?:explain|understand|what|why|how|spend|balance|status|history|prepare|send|pay)\b/i.test(
+      text,
+    )
+  )
+    edit = { bankQuery: answer };
+  if (!edit) return;
+  // A recipient clarification supplies the target for the already requested edit.
+  if (
+    last?.pendingDraftEdit &&
+    edit.missing === "change" &&
+    (edit.recipientName || edit.recipientIndex !== undefined)
+  )
+    edit = {
+      ...last.pendingDraftEdit,
+      ...edit,
+      missing: last.pendingDraftEdit.missing,
+    };
   const drafts: Draft[] = messages
     .filter((m) => m.proposals?.length && !m.batchId && !m.supersededBy)
     .map((message) => ({ key: message.id, message, rows: message.proposals! }));
@@ -92,13 +128,20 @@ export async function editConversationDraft(
     );
     if (draft) index = selection.recipientIndex;
   }
-  if (!draft && !edit.recipientName && drafts.length === 1) draft = drafts[0];
+  const staleSelection =
+    selection &&
+    edit.recipientIndex === undefined &&
+    !edit.recipientName &&
+    !draft;
+  if (!draft && !edit.recipientName && !staleSelection && drafts.length === 1)
+    draft = drafts[0];
   if (draft && index === undefined && draft.rows.length === 1) index = 0;
   let reply: string;
   let proposals: Proposed[] = [];
   let batchId: string | undefined;
   let changed = false;
   let selectionRows: Proposed[] | undefined;
+  let awaiting: "bank" | "accountNumber" | "amountNaira" | undefined;
   const validTarget =
     draft && index !== undefined && index >= 0 && index < draft.rows.length;
   if (!drafts.length) {
@@ -143,6 +186,16 @@ export async function editConversationDraft(
       patch.amountNaira = edit.amountNaira;
     }
     if (edit.name !== undefined) patch.name = edit.name;
+    awaiting =
+      clarification && (edit.bankQuery || edit.bankCode)
+        ? "bank"
+        : edit.missing === "bank"
+          ? "bank"
+          : edit.missing === "10-digit account number"
+            ? "accountNumber"
+            : edit.missing?.startsWith("amount")
+              ? "amountNaira"
+              : undefined;
     if (clarification) reply = clarification;
     else if (edit.missing)
       reply =
@@ -232,12 +285,25 @@ export async function editConversationDraft(
         proposals,
         batchId,
         sourceRequest: draft?.message?.sourceRequest ?? text,
+        ...(!validTarget
+          ? {
+              pendingDraftEdit: {
+                bankQuery: edit.bankQuery,
+                bankCode: edit.bankCode,
+                accountNumber: edit.accountNumber,
+                amountNaira: edit.amountNaira,
+                name: edit.name,
+                missing: edit.missing === "change" ? undefined : edit.missing,
+              },
+            }
+          : {}),
         ...(validTarget
           ? {
               draftSelection: {
                 draftId: changed ? (batchId ?? messageId) : draft!.key,
                 recipientIndex: index!,
                 fingerprint: fingerprint(selectionRows ?? draft!.rows),
+                awaiting,
               },
             }
           : {}),

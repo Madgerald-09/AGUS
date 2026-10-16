@@ -270,14 +270,17 @@ async function handle(req: Request) {
         );
         return reply(batch, 201);
       }
-      if (operation === "edit")
+      if (operation === "edit") {
+        const { payments, expectedVersion } = z
+          .object({
+            payments: z.unknown(),
+            expectedVersion: z.number().int().positive().optional(),
+          })
+          .parse(body);
         return reply(
-          await editBatch(
-            actor,
-            batchId,
-            z.object({ payments: z.unknown() }).parse(body).payments,
-          ),
+          await editBatch(actor, batchId, payments, expectedVersion),
         );
+      }
       if (operation === "verify")
         return reply(await verifyBeneficiaries(actor, batchId));
       if (operation === "approve") {
