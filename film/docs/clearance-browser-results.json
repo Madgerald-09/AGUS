@@ -1,0 +1,44 @@
+[
+  {
+    "mode": "fixture",
+    "width": 1440,
+    "disclosure": "Demo Operator Portal\nTransactions use local fixture simulation. No real funds move.",
+    "passed": true,
+    "approvalOrExecutionRequests": 0
+  },
+  {
+    "mode": "fixture",
+    "width": 390,
+    "disclosure": "Demo Operator Portal\nTransactions use local fixture simulation. No real funds move.",
+    "passed": true,
+    "approvalOrExecutionRequests": 0
+  },
+  {
+    "mode": "test",
+    "width": 1440,
+    "disclosure": "Paystack Test Portal\nTransactions use Paystack test mode. No real funds move.",
+    "passed": true,
+    "approvalOrExecutionRequests": 0
+  },
+  {
+    "mode": "test",
+    "width": 390,
+    "disclosure": "Paystack Test Portal\nTransactions use Paystack test mode. No real funds move.",
+    "passed": true,
+    "approvalOrExecutionRequests": 0
+  },
+  {
+    "mode": "live",
+    "width": 1440,
+    "disclosure": "Live Operator Portal\nLive payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required.",
+    "passed": true,
+    "approvalOrExecutionRequests": 0
+  },
+  {
+    "mode": "live",
+    "width": 390,
+    "disclosure": "Live Operator Portal\nLive payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required.",
+    "passed": true,
+    "approvalOrExecutionRequests": 0
+  }
+]

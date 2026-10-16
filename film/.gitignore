@@ -1,0 +1,5 @@
+node_modules/
+.remotion/
+raw/
+deliverables/*.mp4
+deliverables/*.zip

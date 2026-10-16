@@ -1,0 +1,118 @@
+{
+  "sourceCommit": "3ca4cba0da4c2417df417aaba2a515c23c7e1f55",
+  "sourceTree": "893b04995a77bc664bb9f5b20288e5be1b691bd5",
+  "mode": "fixture",
+  "aiProvider": "none",
+  "genuineModelCalls": 0,
+  "externalBrowserRequests": 0,
+  "approvalRequests": 1,
+  "executionRequests": 1,
+  "finalStatuses": [
+    "successful",
+    "processing"
+  ],
+  "browserErrors": [],
+  "capturedAt": "2026-10-16T05:36:57.367Z",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "shots": [
+    {
+      "name": "01-login",
+      "start": 0.429,
+      "end": 3.693,
+      "duration": 3.2640000000000002
+    },
+    {
+      "name": "02-welcome",
+      "start": 6.298,
+      "end": 9.551,
+      "duration": 3.253
+    },
+    {
+      "name": "03-food",
+      "start": 9.551,
+      "end": 13.392,
+      "duration": 3.8409999999999993
+    },
+    {
+      "name": "04-totals",
+      "start": 13.392,
+      "end": 17.149,
+      "duration": 3.7570000000000014
+    },
+    {
+      "name": "05-explain",
+      "start": 17.149,
+      "end": 20.359,
+      "duration": 3.210000000000001
+    },
+    {
+      "name": "06-boundary",
+      "start": 20.359,
+      "end": 23.982,
+      "duration": 3.6229999999999976
+    },
+    {
+      "name": "07-partial",
+      "start": 23.982,
+      "end": 27.831,
+      "duration": 3.849
+    },
+    {
+      "name": "08-details",
+      "start": 27.831,
+      "end": 32.867,
+      "duration": 5.035999999999998
+    },
+    {
+      "name": "09-draft",
+      "start": 32.868,
+      "end": 35.437,
+      "duration": 2.5689999999999955
+    },
+    {
+      "name": "10-verify",
+      "start": 35.437,
+      "end": 38.23,
+      "duration": 2.7929999999999993
+    },
+    {
+      "name": "11-approval",
+      "start": 38.23,
+      "end": 43.377,
+      "duration": 5.147000000000006
+    },
+    {
+      "name": "12-outcomes",
+      "start": 43.377,
+      "end": 47.001,
+      "duration": 3.6239999999999952
+    },
+    {
+      "name": "13-pending",
+      "start": 47.112,
+      "end": 51.174,
+      "duration": 4.061999999999998
+    },
+    {
+      "name": "14-persistence",
+      "start": 51.174,
+      "end": 53.988,
+      "duration": 2.814
+    },
+    {
+      "name": "15-activity",
+      "start": 53.988,
+      "end": 56.26,
+      "duration": 2.2719999999999985
+    },
+    {
+      "name": "16-insights",
+      "start": 56.26,
+      "end": 58.559,
+      "duration": 2.2989999999999995
+    }
+  ]
+}
