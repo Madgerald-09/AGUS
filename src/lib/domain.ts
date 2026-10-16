@@ -95,6 +95,12 @@ export interface Message {
   sourceRequest?: string;
   topic?: string;
   supersededBy?: string;
+  // Server-owned selection for an unambiguous conversational follow-up.
+  draftSelection?: {
+    draftId: string;
+    recipientIndex: number;
+    fingerprint: string;
+  };
 }
 export interface LedgerEntry {
   id: string;

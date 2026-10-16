@@ -41,7 +41,7 @@ it("uses server conversational language and bounded actor-owned context", async 
     response: "Hey there! What would you like help with today?",
   });
   expect((await chat(actor, "Hey.")).reply).toBe(
-    "Hey! What would you like help with today?",
+    "Hey! 👋 I’m Agus. Want to check your spending, prepare a payment, or follow up on a transfer?",
   );
   await mutate((s) =>
     s.messages.push({

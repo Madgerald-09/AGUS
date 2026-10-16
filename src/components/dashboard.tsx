@@ -206,6 +206,8 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [tab, setTab] = useState("Agent");
   const [menuOpen, setMenuOpen] = useState(false);
   const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
+  const [bankError, setBankError] = useState("");
+  const [bankLoading, setBankLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editor, setEditor] = useState<{ batchId?: string; rows: Row[] }>();
   const uploadInput = useRef<HTMLInputElement>(null);
@@ -233,13 +235,23 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
-  useEffect(() => {
-    if (state && banks.length === 0)
-      api<typeof banks>("banks")
-        .then(setBanks)
-        .catch((e) => setError(e.message));
-  }, [state, banks.length]);
   const authenticated = state !== null;
+  const loadBanks = useCallback(async () => {
+    setBankLoading(true);
+    setBankError("");
+    try {
+      const available = await api<{ name: string; code: string }[]>("banks");
+      if (!available.length) throw new Error("No institutions were returned. Try loading the bank list again.");
+      setBanks(available);
+    } catch (e) {
+      setBankError(e instanceof Error ? e.message : "Banks are unavailable");
+    } finally {
+      setBankLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (authenticated) void loadBanks();
+  }, [authenticated, loadBanks]);
   useEffect(() => {
     const viewport = window.visualViewport;
     const keepFocusedVisible = () => {
@@ -670,6 +682,9 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     }));
   const editorProps = {
     banks,
+    bankError,
+    bankLoading,
+    onRetryBanks: () => void loadBanks(),
     busy: !!busy,
     fixtures: state.fixtureBeneficiaries,
     maxPaymentKobo: state.maxPaymentKobo,
@@ -997,11 +1012,21 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                         />
                       </details>
                     ) : null}
+                    {m.supersededBy && (m.batchId || m.proposals?.length) ? (
+                      <p className="request-link">
+                        Draft details updated.{" "}
+                        <a href={`#message-${m.supersededBy}`}>
+                          View latest details
+                        </a>
+                      </p>
+                    ) : null}
                     {m.batchId &&
+                      !m.supersededBy &&
                       state.batches.find((b) => b.id === m.batchId) && (
                         <div id={`batch-${m.batchId}`} className="linked-batch">
                           <p className="request-link">
-                            <MessageSquare size={14} /> From your request: “
+                            <MessageSquare size={14} /> Original request (review
+                            current details below): “
                             {m.sourceRequest ?? "Payment request"}”
                           </p>
                           {renderBatch(
@@ -1438,6 +1463,9 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
 function PaymentEditor({
   initialRows,
   banks,
+  bankError,
+  bankLoading,
+  onRetryBanks,
   fixtures,
   busy,
   sourceRequest,
@@ -1450,6 +1478,9 @@ function PaymentEditor({
 }: {
   initialRows: Row[];
   banks: { name: string; code: string }[];
+  bankError: string;
+  bankLoading: boolean;
+  onRetryBanks: () => void;
   fixtures: Snapshot["fixtureBeneficiaries"];
   busy: boolean;
   sourceRequest?: string;
@@ -1512,12 +1543,27 @@ function PaymentEditor({
         )}
       </div>
       {sourceRequest && (
-        <p className="request-link">From your request: “{sourceRequest}”</p>
+        <p className="request-link">Original request: “{sourceRequest}”</p>
       )}
       <p className="muted">
-        Missing details stay empty. Saving creates an unverified draft.{" "}
+        Your label is separate from the verified account name. Save, then verify
+        the destination.{" "}
         {editing && "Editing invalidates verification and approval."}
       </p>
+      {bankError && (
+        <div className="alert" role="alert">
+          <p>Banks couldn’t be loaded. {bankError}</p>
+          <button
+            type="button"
+            className="secondary"
+            disabled={bankLoading || busy}
+            onClick={onRetryBanks}
+          >
+            <RefreshCw size={14} />{" "}
+            {bankLoading ? "Loading banks…" : "Retry bank loading"}
+          </button>
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -1650,15 +1696,25 @@ function PaymentEditor({
                 </label>
               ))}
               <label>
-                Bank
+                Financial institution
                 <select
                   required
                   aria-label="Bank"
+                  disabled={bankLoading || banks.length === 0}
                   value={r.bankCode}
                   onBlur={() => void persist()}
                   onChange={(e) => update(i, "bankCode", e.target.value)}
                 >
-                  <option value="">Bank required</option>
+                  <option value="">
+                    {bankLoading
+                      ? "Loading institutions…"
+                      : "Select institution"}
+                  </option>
+                  {r.bankCode && !banks.some((b) => b.code === r.bankCode) && (
+                    <option value={r.bankCode}>
+                      Institution code {r.bankCode} · unavailable
+                    </option>
+                  )}
                   {banks.map((b) => (
                     <option key={b.code} value={b.code}>
                       {b.name}
@@ -1690,7 +1746,7 @@ function PaymentEditor({
           >
             <Plus size={16} /> Add recipient
           </button>
-          <button className="primary" disabled={busy}>
+          <button className="primary" disabled={busy || bankLoading || banks.length === 0}>
             <Check size={16} />
             {editing ? "Save changes" : "Save draft"}
           </button>
@@ -1768,15 +1824,18 @@ function BatchCard({
             "Details saved",
             "Verify recipients",
             "Your approval",
+            "Submit separately",
             "Track outcomes",
           ].map((step, i) => {
-            const current = b.approval?.consumedAt
-              ? 3
-              : b.approval
-                ? 2
-                : b.payments.every((p) => p.verifiedName)
-                  ? 2
-                  : 1;
+            const current =
+              b.approval?.consumedAt ||
+              b.payments.every((p) => terminal(p.status))
+                ? 4
+                : b.approval
+                  ? 3
+                  : b.payments.every((p) => p.verifiedName)
+                    ? 2
+                    : 1;
             return (
               <li
                 key={step}
@@ -1819,6 +1878,7 @@ function BatchCard({
                   <ShieldCheck size={14} className="positive" />
                 )}
               </strong>
+              <small>Recipient label: {p.name}</small>
               <span>
                 {bankName(p.bankCode, banks)} · {p.accountNumber}
               </span>

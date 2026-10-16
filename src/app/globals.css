@@ -1909,7 +1909,7 @@ td code {
   padding: 0;
   margin: 20px 0 14px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 .workflow-steps li {
