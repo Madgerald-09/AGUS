@@ -2514,3 +2514,261 @@ td code {
   .conversation-turn:has(> .message.assistant):not(:has(~ .conversation-turn)) {
   min-height: calc(100cqh - 24px);
 }
+
+/* Agus workspace: restrained surfaces keep the conversation in focus. */
+.app-shell {
+  --surface: #0b0b0b;
+  --surface-raised: #161616;
+  --border: #272727;
+}
+.app-shell .sidebar {
+  background: #080808;
+  padding-top: 32px;
+}
+.app-shell .brand {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0 12px;
+}
+.brand-caption {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.app-shell .workspace-label {
+  margin-top: 42px;
+}
+.app-shell .nav-item {
+  min-height: 48px;
+  border: 1px solid transparent;
+}
+.app-shell .nav-item.active {
+  background: #171717;
+  border-color: #292929;
+}
+.app-shell .new-payment {
+  margin: 20px 0 12px;
+  min-height: 46px;
+}
+.app-shell .safety-card {
+  padding: 16px 10px;
+  margin: 24px 5px 16px;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: transparent;
+}
+.app-shell .safety-card > svg {
+  width: 18px;
+}
+.app-shell .safety-card strong {
+  margin-top: 8px;
+}
+.app-shell .topbar {
+  border-color: #1c1c1c;
+}
+.topbar .topbar-wordmark {
+  font-size: 24px;
+  letter-spacing: -1.3px;
+}
+.app-shell .context-bar {
+  border-bottom: 1px solid #191919;
+  padding: 4px 0 8px;
+  margin-bottom: 12px;
+}
+.app-shell .content:not(:has(.chat-panel)) {
+  max-width: 1200px;
+  padding-top: 32px;
+}
+.app-shell .page-heading {
+  margin-bottom: 24px;
+}
+.app-shell .page-heading h1 {
+  font-size: clamp(26px, 2.5vw, 34px);
+  letter-spacing: -1px;
+}
+.welcome-identity {
+  display: block;
+  margin-bottom: 20px;
+  color: #777777;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  line-height: 1;
+}
+.app-shell .welcome h1 {
+  font-size: clamp(26px, 3vw, 38px);
+  letter-spacing: -1.2px;
+  font-weight: 500;
+}
+.app-shell .welcome > p {
+  max-width: 44ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+.app-shell .composer {
+  background: #0d0d0d;
+  border-color: #484848;
+  border-radius: 18px;
+  transition: border-color 150ms ease;
+}
+.app-shell .composer:focus-within {
+  border-color: #aaaaaa;
+  box-shadow: 0 0 0 1px #ffffff18;
+}
+.app-shell .suggestions button {
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 8px 12px;
+}
+.app-shell .message {
+  padding: 16px 20px;
+}
+.app-shell .message.user {
+  border: 1px solid #2c2c2c;
+  border-radius: 18px 18px 4px 18px;
+  background: #171717;
+  width: fit-content;
+}
+.app-shell .message.assistant {
+  padding: 8px 0 16px;
+  max-width: 100%;
+}
+.app-shell .message.assistant > small {
+  letter-spacing: -0.2px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.app-shell .message time {
+  display: block;
+  margin-top: 10px;
+  color: #888888;
+}
+.app-shell .generation {
+  border-radius: 999px;
+  letter-spacing: 0;
+  font-size: 10px;
+  padding: 2px 8px;
+}
+.app-shell .compact-payment,
+.app-shell .panel,
+.app-shell .stat {
+  border-radius: 14px;
+  border-color: #303030;
+}
+.app-shell .compact-payment > summary:hover {
+  background: #141414;
+  border-radius: 14px;
+}
+.app-shell .compact-payment[open] > summary {
+  border-radius: 14px 14px 0 0;
+}
+.app-shell .recipient-form {
+  background: #080808;
+}
+.app-shell .form-grid label {
+  color: #bcbcbc;
+}
+.app-shell .form-grid input,
+.app-shell .form-grid select,
+.app-shell .approval-form input,
+.app-shell .otp-form input {
+  min-height: 46px;
+  border-color: #494949;
+  border-radius: 9px;
+}
+.app-shell .approval-form {
+  padding: 16px;
+  border: 1px solid #3a3a3a;
+  border-radius: 12px;
+  background: #111111;
+}
+.app-shell .badge {
+  border: 1px solid #454545;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+.app-shell .badge.unknown,
+.app-shell .badge.failed,
+.app-shell .badge.reversed {
+  border-style: dashed;
+  border-color: #888888;
+}
+.app-shell .badge.successful {
+  background: #eeeeee;
+  border-color: #eeeeee;
+  color: #111111;
+}
+.app-shell .stat > strong,
+.app-shell .payment-value > strong,
+.app-shell td:nth-child(2) {
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .table-wrap tbody tr:hover {
+  background: #151515;
+}
+.app-shell .request-progress {
+  min-height: 32px;
+}
+@media (max-width: 700px) {
+  .app-shell .sidebar .brand {
+    display: none;
+  }
+  .app-shell .sidebar.menu-open {
+    padding: 16px 12px;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+  .app-shell .context-bar {
+    padding: 0 0 4px;
+    margin-bottom: 6px;
+  }
+  .app-shell .welcome h1 {
+    font-size: 26px;
+    letter-spacing: -0.7px;
+  }
+  .welcome-identity {
+    margin-bottom: 16px;
+    font-size: 24px;
+  }
+  .app-shell .welcome > p {
+    font-size: 13px;
+  }
+  .app-shell .message {
+    padding: 12px 14px;
+  }
+  .app-shell .message.assistant {
+    padding: 6px 2px 12px;
+  }
+  .app-shell .message.user {
+    max-width: 92%;
+  }
+  .app-shell .content:not(:has(.chat-panel)) {
+    padding: 24px 14px;
+  }
+  .app-shell .approval-form {
+    padding: 12px;
+  }
+  .app-shell .audit-list summary {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .app-shell .audit-list time {
+    margin-left: 13px;
+    width: 100%;
+  }
+}
+@media (max-width: 700px) and (max-height: 600px) {
+  .welcome-identity {
+    display: none;
+  }
+  .app-shell .welcome h1 {
+    font-size: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-dot {
+    animation: none;
+  }
+}

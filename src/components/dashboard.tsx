@@ -12,7 +12,6 @@ import {
   ArrowDownLeft,
   ArrowRight,
   Paperclip,
-  Sparkles,
   Menu,
   Check,
   CircleAlert,
@@ -607,7 +606,7 @@ export function Dashboard() {
             <div className="footer-meta">
               <span className="footer-wordmark">agus.</span>
               <span className="footer-separator">·</span>
-              <span className="footer-label">Financial Agent</span>
+              <span className="footer-label">Agus</span>
               <span className="footer-tag">Hackaholics 7.0</span>
             </div>
             <p className="footer-security">
@@ -620,19 +619,7 @@ export function Dashboard() {
   const pending = state.batches.filter((b) =>
     b.payments.some((p) => !terminal(p.status)),
   );
-  const submitted = state.batches
-    .flatMap((b) => b.payments)
-    .filter((p) =>
-      [
-        "submitted",
-        "processing",
-        "successful",
-        "failed",
-        "reversed",
-        "unknown",
-        "awaiting_otp",
-      ].includes(p.status),
-    );
+  const savedPayments = state.batches.flatMap((b) => b.payments);
   const renderBatch = (b: ViewBatch) => {
     const card = (
       <BatchCard
@@ -689,12 +676,13 @@ export function Dashboard() {
       ref={appRef}
       className={`app-shell ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
     >
-      <aside className={`sidebar ${menuOpen ? "menu-open" : ""}`}>
+      <aside
+        id="workspace-navigation"
+        className={`sidebar ${menuOpen ? "menu-open" : ""}`}
+      >
         <Link className="brand" href="/">
-          <span className="brand-mark">
-            <Sparkles size={20} />
-          </span>
-          <span>Financial Agent</span>
+          <span className="agus-wordmark">agus.</span>
+          <span className="brand-caption">Your financial workspace</span>
         </Link>
         <p className="workspace-label">WORKSPACE</p>
         <nav aria-label="Workspace navigation">
@@ -745,7 +733,7 @@ export function Dashboard() {
             <ShieldCheck size={22} />
             <strong>You stay in control</strong>
             <p>
-              The agent prepares.
+              Agus prepares.
               <br />
               You review and authorize.
             </p>
@@ -760,16 +748,19 @@ export function Dashboard() {
               className="mobile-menu"
               aria-label="Toggle navigation"
               aria-expanded={menuOpen}
+              aria-controls="workspace-navigation"
               onClick={() => setMenuOpen(!menuOpen)}
             >
               <Menu size={21} />
             </button>
             <strong>
-              {tab === "Agent"
-                ? "Financial Agent"
-                : tab === "Payment jobs"
-                  ? "Payment history"
-                  : tab}
+              {tab === "Agent" ? (
+                <span className="agus-wordmark topbar-wordmark">agus.</span>
+              ) : tab === "Payment jobs" ? (
+                "Payment history"
+              ) : (
+                tab
+              )}
             </strong>
           </div>
           <div className="header-actions">
@@ -921,9 +912,13 @@ export function Dashboard() {
                 )}
                 {state.messages.length === 0 && !pendingMessage && !editor && (
                   <div className="welcome">
+                    <span className="welcome-identity" aria-hidden="true">
+                      agus.
+                    </span>
                     <h1>What can I help you take care of?</h1>
                     <p>
-                      Start with a message. We’ll take it one step at a time.
+                      Plan a payment, follow a transfer, or make sense of your
+                      spending.
                     </p>
                   </div>
                 )}
@@ -934,7 +929,7 @@ export function Dashboard() {
                       className={`message ${m.role}`}
                     >
                       <small>
-                        {m.role === "user" ? "You" : "Financial Agent"}
+                        {m.role === "user" ? "You" : "Agus"}
                         {m.role === "assistant" && (
                           <span className="generation">
                             {m.generation === "model"
@@ -1124,7 +1119,7 @@ export function Dashboard() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Tell me what you’d like to do…"
-                    aria-label="Message the financial agent"
+                    aria-label="Message Agus"
                     aria-describedby="composer-shortcuts"
                     rows={2}
                     maxLength={4000}
@@ -1189,12 +1184,6 @@ export function Dashboard() {
                         icon: Send,
                       },
                       {
-                        title: "Payment image",
-                        detail: "Review a screenshot together",
-                        text: "upload",
-                        icon: Paperclip,
-                      },
-                      {
                         title: "Pending transfers",
                         detail: "Pick up where you left off",
                         text: "What payments are still pending?",
@@ -1210,15 +1199,7 @@ export function Dashboard() {
                       <button
                         disabled={!!busy}
                         key={title}
-                        onClick={() =>
-                          text === "upload"
-                            ? state.aiEnabled
-                              ? uploadInput.current?.click()
-                              : setError(
-                                  "Image extraction requires a server-configured OpenAI or Gemini API key. Paste payment details into the conversation or select New payment details to continue in demo mode.",
-                                )
-                            : void send(text)
-                        }
+                        onClick={() => void send(text)}
                       >
                         <Icon size={19} />
                         <strong>{title}</strong>
@@ -1260,7 +1241,7 @@ export function Dashboard() {
                   <MessageSquare size={28} />
                   <h2>Your next payment starts with a conversation.</h2>
                   <button className="primary" onClick={() => navigate("Agent")}>
-                    Talk to the agent <ArrowRight size={16} />
+                    Talk to Agus <ArrowRight size={16} />
                   </button>
                 </div>
               )}
@@ -1270,8 +1251,8 @@ export function Dashboard() {
             <>
               <div className="section-heading">
                 <h2>
-                  Transfer history{" "}
-                  <span className="subtle">{submitted.length} records</span>
+                  Saved transfers{" "}
+                  <span className="subtle">{savedPayments.length} records</span>
                 </h2>
                 <a className="secondary" href="/api/reports" download>
                   <FileDown size={16} />
@@ -1300,7 +1281,9 @@ export function Dashboard() {
                             </details>
                           </td>
                           <td>{money(p.amountKobo)}</td>
-                          <td>{b.mode}</td>
+                          <td>
+                            {b.mode === "fixture" ? "Simulation" : b.mode}
+                          </td>
                           <td>
                             <Badge status={p.status} />
                           </td>
@@ -1355,13 +1338,15 @@ export function Dashboard() {
                 <div className="stat">
                   <span>This month’s spending</span>
                   <strong>{money(state.insights.monthlyKobo)}</strong>
-                  <small>Calculated in integer kobo</small>
+                  <small>Fictional debits</small>
                 </div>
               </div>
               <div className="insight-grid">
                 <section className="panel insight-card">
                   <h2>Spending by category</h2>
-                  <p className="muted">All seeded transactions</p>
+                  <p className="muted">
+                    Across the fictional demonstration ledger
+                  </p>
                   {state.insights.categories.map((c) => (
                     <div className="category" key={c.name}>
                       <div>
@@ -1371,7 +1356,7 @@ export function Dashboard() {
                       <div className="bar-track">
                         <div
                           style={{
-                            width: `${(c.amountKobo / state.insights.expenseKobo) * 100}%`,
+                            width: `${state.insights.expenseKobo > 0 ? (c.amountKobo / state.insights.expenseKobo) * 100 : 0}%`,
                           }}
                         />
                       </div>

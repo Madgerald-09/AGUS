@@ -8,7 +8,9 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 
 const base = "http://localhost:3104";
-const evidence = join(process.cwd(), "docs/integration");
+const evidence =
+  process.env.CONVERSATION_SCREENSHOT_DIR ??
+  join(process.cwd(), "docs/integration");
 await mkdir(evidence, { recursive: true });
 const browser = await chromium.launch({
   headless: true,
@@ -96,7 +98,7 @@ try {
         .getByLabel("Operator password", { exact: true })
         .fill(password);
       await page.getByRole("button", { name: "Sign in securely" }).click();
-      const composer = page.getByLabel("Message the financial agent");
+      const composer = page.getByLabel("Message Agus");
       await composer.waitFor();
       const idle = () =>
         page.waitForFunction(

@@ -75,7 +75,20 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base);
+  assert.equal(await page.title(), "Agus · Your financial workspace");
   await page.getByLabel("Operator password", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Show password", exact: true })
+    .click();
+  assert.equal(
+    await page
+      .getByLabel("Operator password", { exact: true })
+      .getAttribute("type"),
+    "text",
+  );
+  await page
+    .getByRole("button", { name: "Hide password", exact: true })
+    .click();
   await page.getByRole("button", { name: "Sign in securely" }).click();
   await page.getByRole("heading", { name: /What can I help you/ }).waitFor();
   const widths = [
@@ -195,7 +208,7 @@ try {
     if (req.url().endsWith("/execute")) executeCalls++;
   });
   const send = async (text) => {
-    await page.getByLabel("Message the financial agent").fill(text);
+    await page.getByLabel("Message Agus").fill(text);
     const response = page.waitForResponse(
       (r) => r.url() === `${base}/api/chat` && r.request().method() === "POST",
     );
@@ -368,6 +381,41 @@ try {
     await page.screenshot({
       path: join(screenshots, `${viewport.name}-follow-up.png`),
     });
+    // Secondary views must retain access to conversation and fit small screens.
+    for (const tab of ["Payment jobs", "Activity", "Insights"]) {
+      if (viewport.width < 700)
+        await page.getByRole("button", { name: "Toggle navigation" }).click();
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: tab, exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Back to conversation" })
+        .waitFor();
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > innerWidth,
+        ),
+        false,
+        `${viewport.name}: ${tab} fits`,
+      );
+      if (tab === "Activity") {
+        const rows = await page.locator(".table-wrap tbody tr").count();
+        await page.getByText(`${rows} records`, { exact: true }).waitFor();
+        assert.ok(
+          (await page
+            .getByRole("cell", { name: "Simulation", exact: true })
+            .count()) > 0,
+        );
+      }
+      await page.screenshot({
+        path: join(
+          screenshots,
+          `${viewport.name}-${tab.replaceAll(" ", "-").toLowerCase()}.png`,
+        ),
+      });
+      await page.getByRole("button", { name: "Back to conversation" }).click();
+    }
     results.push({
       viewport: viewport.name,
       width: viewport.width,
