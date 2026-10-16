@@ -1,18 +1,33 @@
 import type { Proposed } from "./intelligence";
+import type { Message } from "./domain";
 
-// Free model prose is reserved for ordinary conversation. Financial responses
-// are composed by the server. Fail closed on numbers, money, identities, result
-// language, links and instructions to authorize. This is defense in depth, not
-// a source of financial truth or permission to run a tool.
-export function safeConversation(text: string) {
-  return (
-    !/[\p{N}\p{Sc}]|https?:|www\.|@|\b(?:balance|account|bank|verified|verification|successful|success|approved|approval|submitted|completed|executed|transferred|sent|paid|debited|credited|processing|reversed|failed|fee|fees|income|expense|expenses|spent|spending|budget|saved|naira|kobo|dollars?|pounds?|euros?|received|recipient|beneficiary|funded|settled|done|password|otp|authorize|authorise|confirm|confirmation)\b/iu.test(
-      text,
-    ) &&
-    (!/\b(?:pay|payment|payments|send|transfer|money|funds)\b/i.test(text) ||
-      (/\?$/.test(text.trim()) &&
-        !/\b(?:I|we|your|have|has|will|did)\b/i.test(text)))
-  );
+// No model-authored prose crosses the narration boundary. Even ordinary
+// conversational intents are untrusted: an intent label cannot certify prose.
+export function composeConversation(request: string) {
+  if (/^\s*(?:thanks?|thank you)[.!\s]*$/i.test(request))
+    return "You’re welcome. What would you like to take care of next?";
+  if (/^\s*(?:hey|hi|hello)[.!\s]*$/i.test(request))
+    return "Hey! What would you like help with today?";
+  if (/what can you|how can you help|your capabilities/i.test(request))
+    return "Let’s take it one step at a time.";
+  return "I can help you prepare a draft or look up saved payment records. I can’t confirm an outcome from conversation alone. Open the payment card for its saved status and use Check provider for an unresolved transfer. I don’t have access to your bank balance.";
+}
+
+// Only server composition introduced by this repair may be presented as an
+// assistant answer. Older free prose is retained in storage, but quarantined
+// from both display and inference. Preserve draft links and editable fields.
+export function presentMessage(message: Message): Message {
+  if (message.role !== "assistant" || message.compositionVersion === 1)
+    return message;
+  return {
+    ...message,
+    content:
+      "This earlier assistant answer is unavailable because its financial claims cannot be trusted. Review the payment card for saved status, or ask for saved payment records or fictional spending insights.",
+    proposals: message.proposals?.map((p) => ({
+      ...p,
+      warnings: ["Unverified instructions. Review every field before saving."],
+    })),
+  };
 }
 
 const bankNames: Record<string, RegExp> = {

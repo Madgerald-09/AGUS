@@ -74,6 +74,8 @@ export interface Audit {
   details: unknown;
 }
 export interface Message {
+  // Server-only narration provenance; never accepted from client/model input.
+  compositionVersion?: 1;
   id: string;
   role: "user" | "assistant";
   content: string;
