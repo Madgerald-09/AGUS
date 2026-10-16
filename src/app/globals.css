@@ -519,6 +519,27 @@ svg {
   min-height: 40px;
   padding: 0;
 }
+.voice-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.voice-button:hover,
+.voice-button.listening {
+  color: var(--ink);
+}
+.voice-button.listening {
+  color: var(--ink);
+}
+.voice-status {
+  margin: 7px 2px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
 .send-button {
   background: var(--accent);
   color: #000000;

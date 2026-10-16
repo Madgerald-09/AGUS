@@ -28,6 +28,7 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  Mic,
   MessageSquare,
   Plus,
   RefreshCw,
@@ -56,6 +57,27 @@ type Row = {
   reason: string;
   warnings?: string[];
 };
+type SpeechRecognitionResult = {
+  isFinal: boolean;
+  0: { transcript: string };
+};
+type SpeechRecognitionEvent = {
+  results: ArrayLike<SpeechRecognitionResult>;
+};
+type SpeechRecognitionErrorEvent = { error: string };
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type Snapshot = {
   operator: string;
   mode: Mode;
@@ -210,12 +232,15 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [bankError, setBankError] = useState("");
   const [bankLoading, setBankLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState("");
+  const [listening, setListening] = useState(false);
   const [editor, setEditor] = useState<{
     batchId?: string;
     version?: number;
     rows: Row[];
   }>();
   const uploadInput = useRef<HTMLInputElement>(null);
+  const speechRecognition = useRef<SpeechRecognitionLike | null>(null);
   const refresh = useCallback(async (throwOnError = false) => {
     const request = ++snapshotRequest.current;
     try {
@@ -240,6 +265,26 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
+  useEffect(() => {
+    if (state && banks.length === 0)
+      api<typeof banks>("banks")
+        .then(setBanks)
+        .catch((e) => setError(e.message));
+  }, [state, banks.length]);
+  useEffect(
+    () => () => {
+      const recognition = speechRecognition.current;
+      speechRecognition.current = null;
+      if (recognition) {
+        recognition.onend = null;
+        recognition.onerror = null;
+        recognition.onresult = null;
+        recognition.onstart = null;
+        recognition.stop();
+      }
+    },
+    [],
+  );
   const authenticated = state !== null;
   const loadBanks = useCallback(async () => {
     setBankLoading(true);
@@ -365,6 +410,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   }
   async function send(text: string) {
     if (!text.trim() || operationInFlight.current) return;
+    speechRecognition.current?.stop();
     followLatest.current = true;
     const submittedText = text.trim();
     setPendingMessage({
@@ -428,6 +474,83 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         current ? { ...current, status: "failed" } : current,
       );
   }
+  function toggleVoiceInput() {
+    if (speechRecognition.current) {
+      speechRecognition.current.stop();
+      return;
+    }
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const SpeechRecognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceStatus(
+        "Voice input is unavailable in this browser. Type your payment details instead.",
+      );
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    let failed = false;
+    recognition.lang = "en-NG";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => {
+      setListening(true);
+      setVoiceStatus("Listening. Speak your request, then review the text.");
+    };
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .filter((result) => result.isFinal)
+        .map((result) => result[0].transcript.trim())
+        .filter(Boolean)
+        .join(" ");
+      if (!transcript) return;
+      setMessage((current) =>
+        current.trim() ? `${current.trim()} ${transcript}` : transcript,
+      );
+    };
+    recognition.onerror = (event) => {
+      failed = true;
+      const messages: Record<string, string> = {
+        "not-allowed":
+          "Microphone access was denied. Allow microphone access or type your request.",
+        "service-not-allowed":
+          "The browser speech service is unavailable. Type your request instead.",
+        "audio-capture":
+          "No microphone was available. Connect a microphone or type your request.",
+        "no-speech": "No speech was detected. Try again or type your request.",
+        network:
+          "The browser speech service could not be reached. Type your request instead.",
+      };
+      setVoiceStatus(
+        messages[event.error] ??
+          "Voice input failed. Try again or type your request.",
+      );
+    };
+    recognition.onend = () => {
+      if (speechRecognition.current === recognition) {
+        speechRecognition.current = null;
+        setListening(false);
+      }
+      if (!failed)
+        setVoiceStatus("Voice input stopped. Review the recognized text.");
+    };
+    speechRecognition.current = recognition;
+    setVoiceStatus("Starting voice input…");
+    try {
+      recognition.start();
+    } catch {
+      speechRecognition.current = null;
+      setListening(false);
+      setVoiceStatus(
+        "Could not start voice input. Try again or type your request.",
+      );
+    }
+  }
   function jumpToLatest() {
     followLatest.current = true;
     conversationRef.current?.scrollTo({
@@ -439,6 +562,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     setShowLatest(false);
   }
   function navigate(next: string) {
+    if (next !== "Agent") speechRecognition.current?.stop();
     setTab(next);
     setMenuOpen(false);
   }
@@ -1221,6 +1345,19 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                       }}
                     />
                     <button
+                      type="button"
+                      className={`voice-button${listening ? " listening" : ""}`}
+                      disabled={!!busy}
+                      aria-label={
+                        listening ? "Stop voice input" : "Start voice input"
+                      }
+                      aria-pressed={listening}
+                      onClick={toggleVoiceInput}
+                    >
+                      <Mic size={17} />
+                      {listening ? "Stop listening" : "Voice input"}
+                    </button>
+                    <button
                       className="send-button"
                       disabled={!!busy || !message.trim()}
                       aria-label="Send message"
@@ -1229,6 +1366,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                     </button>
                   </div>
                 </form>
+                {voiceStatus && (
+                  <p className="voice-status" role="status" aria-live="polite">
+                    {voiceStatus}
+                  </p>
+                )}
                 {state.messages.length === 0 && !pendingMessage && !editor && (
                   <div className="suggestions">
                     {[
@@ -1269,7 +1411,9 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                 </p>
                 <p className="chat-footnote">
                   <ShieldCheck size={13} />
-                  Every payment needs your review and approval.
+                  Voice fills the message only; review every detail before
+                  sending. Browser speech services may process audio. Every
+                  payment still needs your review and approval.
                 </p>
               </div>
             </section>

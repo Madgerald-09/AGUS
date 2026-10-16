@@ -22,6 +22,8 @@ Open http://localhost:3000 and sign in with your operator password. For proxy-ba
 
 The password helper accepts a password of at least 14 characters in your terminal. Its prompt warns that input is visible; do not run it in a shared recording. It prints a salted scrypt hash, not the password. Sessions are opaque, stored hashed in PostgreSQL, expire after one hour, and are revoked on logout. Password reauthentication is required for approval and provider OTP finalization. Login and reauthentication share a database-backed ten-attempt / fifteen-minute limit.
 
+The conversation composer supports browser voice dictation where the browser provides the Web Speech API. Dictation only fills the editable message; it never verifies a beneficiary, approves or submits a payment. Review the transcript and the provider-resolved beneficiary in the payment card, then approve with the operator password. Browser speech services may process audio outside this app. Paystack-required transfer OTP remains enabled and cannot be bypassed.
+
 ## Database
 
 Default `DATABASE_URL=pglite://.data/agent` runs persistent **embedded PostgreSQL** using PGlite and Drizzle. This development mode requires a single Node server process and durable local disk; do not use it on ephemeral or multi-instance hosts. Fixtures and history survive restarts. It is deliberately forbidden for live transfers.
