@@ -234,7 +234,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [message, setMessage] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
   const [listening, setListening] = useState(false);
-  const [editor, setEditor] = useState<{ batchId?: string; rows: Row[] }>();
+  const [editor, setEditor] = useState<{
+    batchId?: string;
+    version?: number;
+    rows: Row[];
+  }>();
   const uploadInput = useRef<HTMLInputElement>(null);
   const speechRecognition = useRef<SpeechRecognitionLike | null>(null);
   const refresh = useCallback(async (throwOnError = false) => {
