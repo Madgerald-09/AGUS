@@ -12,7 +12,6 @@ import {
   ArrowDownLeft,
   ArrowRight,
   Paperclip,
-  Sparkles,
   Menu,
   Check,
   CircleAlert,
@@ -23,6 +22,8 @@ import {
   Search,
   ChevronRight,
   Clock3,
+  Eye,
+  EyeOff,
   FileDown,
   LayoutDashboard,
   Loader2,
@@ -159,9 +160,7 @@ function Badge({ status }: { status: string }) {
 function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
   const operation = key.split("-")[0];
   const messages: Record<string, string> = {
-    chat: aiEnabled
-      ? "Waiting for the model response…"
-      : "Preparing a demo response…",
+    chat: aiEnabled ? "Thinking…" : "Preparing a demo response…",
     image: "Extracting details from your image…",
     save: "Saving your payment draft…",
     verify: fixture
@@ -181,10 +180,12 @@ function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
   };
   return messages[operation] ?? "Updating your saved workspace…";
 }
-export function Dashboard() {
+export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "live" }) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [progress, setProgress] = useState("");
@@ -357,9 +358,40 @@ export function Dashboard() {
     await run(
       "chat",
       async () => {
-        const response = await api<{ messageId: string }>("chat", {
-          message: submittedText,
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/x-ndjson",
+          },
+          body: JSON.stringify({ message: submittedText }),
         });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(
+            data.error ??
+              "The assistant is unavailable. Your input is preserved.",
+          );
+        }
+        const reader = res.body?.getReader();
+        if (!reader) throw new TypeError("Missing response");
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let response: { messageId: string } | undefined;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let end: number;
+          while ((end = buffer.indexOf("\n")) >= 0) {
+            const event = JSON.parse(buffer.slice(0, end));
+            buffer = buffer.slice(end + 1);
+            if (event.error) throw new Error(event.error);
+            if (event.activity) setProgress(event.activity);
+            if (event.result) response = event.result;
+          }
+        }
+        if (!response) throw new TypeError("Unconfirmed response");
         responseAnchor.current = response.messageId;
       },
       () => {
@@ -422,99 +454,212 @@ export function Dashboard() {
     return (
       <main className="login-shell">
         <div className="login-card">
-          <div className="brand-mark">
-            <Sparkles size={23} />
+          <header className="login-header">
+            <div className="brand-row">
+              <span className="agus-wordmark" aria-label="agus.">agus.</span>
+              <div className="demo-pill" role="status">
+                <span className="demo-dot" aria-hidden="true" />
+                <span>{paymentMode === "fixture" ? "Demo Access" : paymentMode === "test" ? "Test Access" : "Live Access"}</span>
+              </div>
+            </div>
+            <h1 className="login-title">
+              Vigilant financial intelligence.
+            </h1>
+            <p className="login-subtitle">
+              Agus safeguards Nigerian business transfers with continuous review and operator oversight.
+            </p>
+          </header>
+
+          <div className="demo-notice" role="note">
+            <ShieldCheck size={16} className="demo-notice-icon" aria-hidden="true" />
+            <div className="demo-notice-text">
+              <strong>{paymentMode === "fixture" ? "Demo Operator Portal" : paymentMode === "test" ? "Paystack Test Portal" : "Live Operator Portal"}</strong>
+              <span>{paymentMode === "fixture"
+                ? "Transactions use local fixture simulation. No real funds move."
+                : paymentMode === "test"
+                  ? "Transactions use Paystack test mode. No real funds move."
+                  : "Live payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}</span>
+            </div>
           </div>
-          <p className="eyebrow">FINANCIAL AGENT · HACKAHOLICS 7.0</p>
-          <h1>
-            Let’s take care of
-            <br />
-            your next payment.
-          </h1>
-          <p className="muted">
-            A conversation to prepare. A clear review to approve. Sign in as the
-            account operator to get started.
-          </p>
+
           {error && (
-            <div className="alert" role="alert">
-              {error}
+            <div className="login-alert" role="alert">
+              <CircleAlert size={16} className="alert-icon" aria-hidden="true" />
+              <div className="login-alert-body">
+                <strong>Authentication Notice</strong>
+                <p>{error}</p>
+              </div>
+              <button
+                type="button"
+                className="alert-dismiss"
+                aria-label="Dismiss error"
+                onClick={() => setError("")}
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
             </div>
           )}
+
           {signedOut ? (
             <form
+              className="login-form"
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
+                if (!password.trim()) {
+                  setValidationError("Please enter your operator password to continue.");
+                  return;
+                }
+                setValidationError("");
                 void run("login", async () => {
                   await api("session", { password });
                   setPassword("");
+                  setShowPassword(false);
                 });
               }}
             >
-              <label>
-                Operator password
-                <input
-                  required
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              <button className="primary full" disabled={!!busy}>
-                <ShieldCheck size={17} />{" "}
-                {busy === "login" ? "Signing you in…" : "Sign in securely"}{" "}
-                <ArrowRight size={17} />
+              <div className="field-group">
+                <label htmlFor="operator-password" className="field-label">
+                  Operator password
+                </label>
+                <div className="password-input-wrapper">
+                  <input
+                    id="operator-password"
+                    required
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    placeholder="Enter operator password"
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (validationError) setValidationError("");
+                      if (error) setError("");
+                    }}
+                    disabled={busy === "login"}
+                    className={`password-input ${validationError ? "input-has-error" : ""}`}
+                    aria-invalid={!!validationError}
+                    aria-describedby={validationError ? "operator-password-error" : undefined}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showPassword ? "Hide password" : "Show password"}
+                    disabled={busy === "login"}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} aria-hidden="true" />
+                    ) : (
+                      <Eye size={18} aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+                {validationError && (
+                  <p id="operator-password-error" className="field-error" role="alert">
+                    <CircleAlert size={13} aria-hidden="true" />
+                    <span>{validationError}</span>
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="primary full login-submit-btn"
+                disabled={!!busy}
+              >
+                {busy === "login" ? (
+                  <>
+                    <Loader2 size={16} className="spin" aria-hidden="true" />
+                    <span>Signing you in…</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} aria-hidden="true" />
+                    <span>Sign in securely</span>
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </>
+                )}
               </button>
             </form>
           ) : (
-            <p role="status">
-              <Loader2 size={18} className="spin" /> Connecting to saved
-              workspace…
-            </p>
+            <div className="login-connecting" role="status" aria-live="polite">
+              <Loader2 size={20} className="spin" aria-hidden="true" />
+              <span>Connecting to Agus workspace…</span>
+            </div>
           )}
+
           <details className="setup-note">
-            <summary>First-time operator setup</summary>
-            <p>
-              Configure <code>OPERATOR_PASSWORD_HASH</code> with{" "}
-              <code>npm run operator:password</code>. See the README. No
-              password is built in.
-            </p>
+            <summary>
+              <KeyRound size={14} aria-hidden="true" />
+              <span>First-time operator setup</span>
+              <ChevronRight size={13} className="disclosure-chevron" aria-hidden="true" />
+            </summary>
+            <div className="setup-body">
+              <p>
+                Configure <code>OPERATOR_PASSWORD_HASH</code> with:
+              </p>
+              <pre><code>npm run operator:password</code></pre>
+              <p className="subtle">
+                Passwords use scrypt hashing with a 16-byte cryptographically random salt. No password is built in.
+              </p>
+            </div>
           </details>
-          <div className="login-footer">
-            Financial Agent
-            <span>Fixture experience available without AI credentials.</span>
-          </div>
+
+          <footer className="login-footer">
+            <div className="footer-meta">
+              <span className="footer-wordmark">agus.</span>
+              <span className="footer-separator">·</span>
+              <span className="footer-label">Agus</span>
+              <span className="footer-tag">Hackaholics 7.0</span>
+            </div>
+            <p className="footer-security">
+              Manual draft preparation is available without AI credentials.
+            </p>
+          </footer>
         </div>
       </main>
     );
   const pending = state.batches.filter((b) =>
     b.payments.some((p) => !terminal(p.status)),
   );
-  const submitted = state.batches
-    .flatMap((b) => b.payments)
-    .filter((p) =>
-      [
-        "submitted",
-        "processing",
-        "successful",
-        "failed",
-        "reversed",
-        "unknown",
-        "awaiting_otp",
-      ].includes(p.status),
+  const savedPayments = state.batches.flatMap((b) => b.payments);
+  const renderBatch = (b: ViewBatch) => {
+    const card = (
+      <BatchCard
+        key={`${b.id}:${b.reviewDigest}`}
+        batch={b}
+        banks={banks}
+        busy={!!busy}
+        run={run}
+        edit={() => edit(b)}
+        mode={state.mode}
+        stopped={state.emergencyDisabled}
+      />
     );
-  const renderBatch = (b: ViewBatch) => (
-    <BatchCard
-      key={`${b.id}:${b.reviewDigest}`}
-      batch={b}
-      banks={banks}
-      busy={!!busy}
-      run={run}
-      edit={() => edit(b)}
-      mode={state.mode}
-      stopped={state.emergencyDisabled}
-    />
-  );
+    return tab === "Agent" ? (
+      <details className="compact-payment" key={b.id}>
+        <summary>
+          <span>
+            <strong>
+              {b.payments.map((p) => p.verifiedName ?? p.name).join(", ")}
+            </strong>
+            <small>
+              {money(b.payments.reduce((n, p) => n + p.amountKobo, 0))} before
+              fees · {b.mode === "fixture" ? "Simulation" : b.mode} ·{" "}
+              {label(b.status)}
+            </small>
+          </span>
+          <span className="detail-action">
+            Review details <ChevronRight size={15} />
+          </span>
+        </summary>
+        {card}
+      </details>
+    ) : (
+      card
+    );
+  };
   const linked = new Set(state.messages.map((m) => m.batchId).filter(Boolean));
   const proposals = (m: Message) =>
     (m.proposals ?? []).map((p) => ({
@@ -535,12 +680,13 @@ export function Dashboard() {
       ref={appRef}
       className={`app-shell ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
     >
-      <aside className={`sidebar ${menuOpen ? "menu-open" : ""}`}>
+      <aside
+        id="workspace-navigation"
+        className={`sidebar ${menuOpen ? "menu-open" : ""}`}
+      >
         <Link className="brand" href="/">
-          <span className="brand-mark">
-            <Sparkles size={20} />
-          </span>
-          <span>Financial Agent</span>
+          <span className="agus-wordmark">agus.</span>
+          <span className="brand-caption">Your financial workspace</span>
         </Link>
         <p className="workspace-label">WORKSPACE</p>
         <nav aria-label="Workspace navigation">
@@ -591,7 +737,7 @@ export function Dashboard() {
             <ShieldCheck size={22} />
             <strong>You stay in control</strong>
             <p>
-              The agent prepares.
+              Agus prepares.
               <br />
               You review and authorize.
             </p>
@@ -606,16 +752,19 @@ export function Dashboard() {
               className="mobile-menu"
               aria-label="Toggle navigation"
               aria-expanded={menuOpen}
+              aria-controls="workspace-navigation"
               onClick={() => setMenuOpen(!menuOpen)}
             >
               <Menu size={21} />
             </button>
             <strong>
-              {tab === "Agent"
-                ? "Financial Agent"
-                : tab === "Payment jobs"
-                  ? "Payment history"
-                  : tab}
+              {tab === "Agent" ? (
+                <span className="agus-wordmark topbar-wordmark">agus.</span>
+              ) : tab === "Payment jobs" ? (
+                "Payment history"
+              ) : (
+                tab
+              )}
             </strong>
           </div>
           <div className="header-actions">
@@ -767,9 +916,13 @@ export function Dashboard() {
                 )}
                 {state.messages.length === 0 && !pendingMessage && !editor && (
                   <div className="welcome">
+                    <span className="welcome-identity" aria-hidden="true">
+                      agus.
+                    </span>
                     <h1>What can I help you take care of?</h1>
                     <p>
-                      Start with a message. We’ll take it one step at a time.
+                      Plan a payment, follow a transfer, or make sense of your
+                      spending.
                     </p>
                   </div>
                 )}
@@ -780,7 +933,7 @@ export function Dashboard() {
                       className={`message ${m.role}`}
                     >
                       <small>
-                        {m.role === "user" ? "You" : "Financial Agent"}
+                        {m.role === "user" ? "You" : "Agus"}
                         {m.role === "assistant" && (
                           <span className="generation">
                             {m.generation === "model"
@@ -803,18 +956,46 @@ export function Dashboard() {
                     m.proposals?.length &&
                     !m.batchId &&
                     !m.supersededBy ? (
-                      <PaymentEditor
-                        key={m.id}
-                        {...editorProps}
-                        initialRows={proposals(m)}
-                        sourceRequest={m.sourceRequest}
-                        sourceMessageId={m.id}
-                        onSave={(payments) =>
-                          run("save", () =>
-                            api("batches", { payments, sourceMessageId: m.id }),
-                          )
-                        }
-                      />
+                      <details className="compact-payment proposal-summary">
+                        <summary>
+                          <span>
+                            <strong>
+                              {m.proposals
+                                .map((p) => p.name || "Recipient needed")
+                                .join(", ")}
+                            </strong>
+                            <small>
+                              {m.proposals.every((p) => p.amountNaira)
+                                ? `₦${m.proposals.map((p) => p.amountNaira).join(" + ₦")} · `
+                                : "Amount needed · "}
+                              {m.proposals.length} recipient
+                              {m.proposals.length === 1 ? "" : "s"} · Unverified
+                              proposal
+                              {m.proposals.some((p) => !p.accountNumber)
+                                ? " · Account needed"
+                                : ""}
+                            </small>
+                          </span>
+                          <span className="detail-action">
+                            Edit details <ChevronRight size={15} />
+                          </span>
+                        </summary>
+                        <PaymentEditor
+                          key={m.id}
+                          {...editorProps}
+                          initialRows={proposals(m)}
+                          sourceRequest={m.sourceRequest}
+                          sourceMessageId={m.id}
+                          onSave={(payments) =>
+                            run("save", () =>
+                              api("batches", {
+                                payments,
+                                sourceMessageId: m.id,
+                              }),
+                            )
+                          }
+                        />
+                      </details>
                     ) : null}
                     {m.batchId &&
                       state.batches.find((b) => b.id === m.batchId) && (
@@ -918,7 +1099,13 @@ export function Dashboard() {
                   aria-live="polite"
                   aria-atomic="true"
                 >
-                  {busy && <Clock3 size={15} aria-hidden="true" />}
+                  {busy && (
+                    <span className="activity-dots" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  )}
                   {progress || announcement}
                 </p>
                 <form
@@ -936,7 +1123,7 @@ export function Dashboard() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Tell me what you’d like to do…"
-                    aria-label="Message the financial agent"
+                    aria-label="Message Agus"
                     aria-describedby="composer-shortcuts"
                     rows={2}
                     maxLength={4000}
@@ -1001,12 +1188,6 @@ export function Dashboard() {
                         icon: Send,
                       },
                       {
-                        title: "Payment image",
-                        detail: "Review a screenshot together",
-                        text: "upload",
-                        icon: Paperclip,
-                      },
-                      {
                         title: "Pending transfers",
                         detail: "Pick up where you left off",
                         text: "What payments are still pending?",
@@ -1022,15 +1203,7 @@ export function Dashboard() {
                       <button
                         disabled={!!busy}
                         key={title}
-                        onClick={() =>
-                          text === "upload"
-                            ? state.aiEnabled
-                              ? uploadInput.current?.click()
-                              : setError(
-                                  "Image extraction requires a server-configured OpenAI or Gemini API key. Paste payment details into the conversation or select New payment details to continue in demo mode.",
-                                )
-                            : void send(text)
-                        }
+                        onClick={() => void send(text)}
                       >
                         <Icon size={19} />
                         <strong>{title}</strong>
@@ -1072,7 +1245,7 @@ export function Dashboard() {
                   <MessageSquare size={28} />
                   <h2>Your next payment starts with a conversation.</h2>
                   <button className="primary" onClick={() => navigate("Agent")}>
-                    Talk to the agent <ArrowRight size={16} />
+                    Talk to Agus <ArrowRight size={16} />
                   </button>
                 </div>
               )}
@@ -1082,8 +1255,8 @@ export function Dashboard() {
             <>
               <div className="section-heading">
                 <h2>
-                  Transfer history{" "}
-                  <span className="subtle">{submitted.length} records</span>
+                  Saved transfers{" "}
+                  <span className="subtle">{savedPayments.length} records</span>
                 </h2>
                 <a className="secondary" href="/api/reports" download>
                   <FileDown size={16} />
@@ -1112,7 +1285,9 @@ export function Dashboard() {
                             </details>
                           </td>
                           <td>{money(p.amountKobo)}</td>
-                          <td>{b.mode}</td>
+                          <td>
+                            {b.mode === "fixture" ? "Simulation" : b.mode}
+                          </td>
                           <td>
                             <Badge status={p.status} />
                           </td>
@@ -1167,13 +1342,15 @@ export function Dashboard() {
                 <div className="stat">
                   <span>This month’s spending</span>
                   <strong>{money(state.insights.monthlyKobo)}</strong>
-                  <small>Calculated in integer kobo</small>
+                  <small>Fictional debits</small>
                 </div>
               </div>
               <div className="insight-grid">
                 <section className="panel insight-card">
                   <h2>Spending by category</h2>
-                  <p className="muted">All seeded transactions</p>
+                  <p className="muted">
+                    Across the fictional demonstration ledger
+                  </p>
                   {state.insights.categories.map((c) => (
                     <div className="category" key={c.name}>
                       <div>
@@ -1183,7 +1360,7 @@ export function Dashboard() {
                       <div className="bar-track">
                         <div
                           style={{
-                            width: `${(c.amountKobo / state.insights.expenseKobo) * 100}%`,
+                            width: `${state.insights.expenseKobo > 0 ? (c.amountKobo / state.insights.expenseKobo) * 100 : 0}%`,
                           }}
                         />
                       </div>

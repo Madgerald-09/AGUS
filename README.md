@@ -1,6 +1,6 @@
-# Financial Agent — Hackaholics 7.0
+# Agus — Hackaholics 7.0
 
-A monochrome, chat-first Next.js financial workflow prototype: prepare payments, resolve beneficiaries, review and approve an immutable snapshot, explicitly submit individual Paystack transfers, and follow persisted outcomes. The agent never approves or executes payments.
+Agus is a monochrome, chat-first Next.js financial workflow prototype: prepare payments, resolve beneficiaries, review and approve an immutable snapshot, explicitly submit individual Paystack transfers, and follow persisted outcomes. The agent never approves or executes payments.
 
 **Default: fixtures. No real money moves. No live transfer was attempted or verified during implementation.** Real transfers can only come from an eligible, funded, authorized Paystack business account; this is not a way to debit arbitrary personal accounts.
 
@@ -103,3 +103,9 @@ See `ENGINEERING_HANDOFF.md`, `ARCHITECTURE.md`, `LIVE_READINESS.md`, `DEMO_SCRI
 See [CHAT_FIRST_REPORT.md](CHAT_FIRST_REPORT.md) for the experience changes, model/fallback boundary, verification results, screenshots and remaining P1 work.
 
 The [P1 chat UX refinement report](CHAT_UX_REFINEMENT_REPORT.md) includes before/after desktop and mobile screenshots, request/error/scroll behavior, and keyboard verification limits.
+
+## Hackaholics 7.0 integration
+
+See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) for the conversational architecture, exact incorporated PR commits, financial authority boundaries, four-viewport evidence, limitations and genuine Gemini testing instructions. `npm run test:browser` includes the required conversation journey using a test-only mocked Gemini transport.
+
+See [AGUS_DEMO.md](AGUS_DEMO.md) for the presentation walkthrough, redesign evidence and verification scope.

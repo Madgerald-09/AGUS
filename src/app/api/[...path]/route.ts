@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError, audit, digest, now } from "@/lib/domain";
+import { presentMessage } from "@/lib/conversation-policy";
 import { config } from "@/lib/config";
 import {
   operator,
@@ -101,7 +102,9 @@ async function handle(req: Request) {
         batches: s.batches
           .filter((b) => b.owner === actor)
           .map((b) => ({ ...b, reviewDigest: digest(b) })),
-        messages: s.messages.filter((m) => !m.owner || m.owner === actor),
+        messages: s.messages
+          .filter((m) => !m.owner || m.owner === actor)
+          .map(presentMessage),
         aiProvider: process.env.AI_PROVIDER ?? "none",
         ledger: s.ledger,
         insights: analyzeSpending(s.ledger),
@@ -141,6 +144,48 @@ async function handle(req: Request) {
       const { message } = z
         .object({ message: z.string().trim().min(1).max(4000) })
         .parse(await json(req));
+      if (req.headers.get("accept") === "application/x-ndjson") {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            let connected = true;
+            const emit = (event: unknown) => {
+              if (!connected) return;
+              try {
+                controller.enqueue(
+                  encoder.encode(JSON.stringify(event) + "\n"),
+                );
+              } catch {
+                connected = false;
+              }
+            };
+            try {
+              const result = await chat(actor, message, (activity) =>
+                emit({ activity }),
+              );
+              emit({ result });
+            } catch (e) {
+              // Same privacy boundary as ordinary responses: never expose raw
+              // model output, transport errors, prompts or credentials.
+              emit({
+                error:
+                  e instanceof AppError
+                    ? e.message
+                    : "The assistant response could not be completed. Your input is preserved.",
+              });
+            } finally {
+              if (connected) controller.close();
+            }
+          },
+        });
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "application/x-ndjson",
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      }
       return reply(await chat(actor, message));
     }
     if (action === "extract" && req.method === "POST") {
@@ -185,6 +230,7 @@ async function handle(req: Request) {
             .min(1)
             .max(10),
         })
+        .strict()
         .parse(await json(req));
       return reply(
         await mutate((s) => {

@@ -1,0 +1,110 @@
+Verified 15 October 2026. Inference transport mocked; payment mode fixture. No live model credentials or real transfers.
+Standalone typecheck: PASS (exit 0). Prettier changed-file checks: PASS. git diff --check: PASS.
+Initial restricted run could not spawn restart workers (EPERM); complete final suite reran with permitted process/network access. No tests disabled.
+Final focused unit/build/conversation rerun covers targeted missing-account wording and reduced-motion screenshot rendering.
+
+
+Unit, security, inference and persistence tests (exit 0)
+
+> hackaholics-financial-agent@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.4 /workspace/hackaholics-financial-agent
+
+
+ Test Files  7 passed (7)
+      Tests  121 passed (121)
+   Start at  22:22:42
+   Duration  78.48s (tests 93%, import 6%)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+
+ESLint (exit 0)
+
+> hackaholics-financial-agent@0.1.0 lint
+> eslint .
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+
+Production build and TypeScript (exit 0)
+
+> hackaholics-financial-agent@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.4.1 (webpack)
+✓ Running next.config.ts took 76ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.5s
+  Running TypeScript ...
+  Finished TypeScript in 5.7s ...
+  Collecting page data using 2 workers ...
+  Generating static pages using 2 workers (0/3) ...
+✓ Generating static pages using 2 workers (3/3) in 931ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+└ ƒ /api/[...path]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+
+Production HTTP smoke (exit 0)
+
+> hackaholics-financial-agent@0.1.0 test:http
+> node scripts/http-smoke.mjs
+
+PASS: production Next.js HTTP smoke — login, route protection, two recipients, verification, approval, explicit submission, duplicate rejection, reconciliation, persisted status chat, CSV. No provider network calls or real money.
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+
+Original two-session browser safety (exit 0)
+PASS: two authenticated browser sessions; unchanged polling; amount, beneficiary, bank/account and reason changes clear acknowledgment/password; stale submit blocked; renewed review submits the acknowledged digest. Fixture mode only.
+PASS: a confirmed 1,000-kobo fee renders as ₦10.00 in the payment card (controlled presentation response).
+
+
+PR #3 full fixture browser regression, four viewports (exit 0)
+PASS: desktop 1440px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: narrow-desktop 820px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: mobile-390 390px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+PASS: mobile-320 320px full fixture journey, reload persistence, no overflow, persistent composer and Sign out.
+
+
+PR #5 UX browser regression, four viewports (exit 0)
+PASS: desktop 1440px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
+PASS: narrow-desktop 820px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
+PASS: mobile-390 390px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
+PASS: mobile-320 320px P1 welcome, progress, errors, keyboard viewport, long conversation, proposal and authenticated fixture journey.
+
+
+Required conversational journey, mocked Gemini, four viewports (exit 0)
+PASS desktop: required conversation, compact details, persisted edits and authenticated simulated payment
+PASS narrow-desktop: required conversation, compact details, persisted edits and authenticated simulated payment
+PASS mobile-390: required conversation, compact details, persisted edits and authenticated simulated payment
+PASS mobile-320: required conversation, compact details, persisted edits and authenticated simulated payment

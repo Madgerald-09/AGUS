@@ -22,7 +22,7 @@ beforeEach(async () => {
   await mutate((s) => Object.assign(s, seedState()));
   token = await login(password);
 });
-const request = (path: string, body: unknown) =>
+const request = (path: string, body: unknown, accept?: string) =>
   POST(
     new Request(`http://localhost:3000/api/${path}`, {
       method: "POST",
@@ -30,6 +30,7 @@ const request = (path: string, body: unknown) =>
         Origin: "http://localhost:3000",
         Cookie: `ha_session=${token}`,
         "Content-Type": "application/json",
+        ...(accept ? { Accept: accept } : {}),
       },
       body: JSON.stringify(body),
     }),
@@ -190,7 +191,7 @@ it("never turns a conversational approval request into payment authority", async
   );
 });
 
-it("uses a real adapter response for model clarification and labels its provenance", async () => {
+it("uses model classification with server clarification and labels its provenance", async () => {
   process.env.AI_PROVIDER = "openai";
   process.env.AI_API_KEY = "test-only-not-a-real-key";
   const transport = vi.fn(async () =>
@@ -213,7 +214,7 @@ it("uses a real adapter response for model clarification and labels its provenan
   vi.stubGlobal("fetch", transport);
   const result = await chat(actor, "Help me settle an invoice");
   expect(transport).toHaveBeenCalledOnce();
-  expect(result.reply).toContain("Which supplier");
+  expect(result.reply).toContain("Who should be paid");
   expect((await readState()).messages[1].generation).toBe("model");
   expect((await readState()).batches).toHaveLength(0);
 });
@@ -284,4 +285,49 @@ it("persists partly entered draft fields without accepting them as payment instr
     ).status,
   ).toBe(400);
   expect((await readState()).batches).toHaveLength(0);
+});
+
+it("streams only real operation labels and a final saved result", async () => {
+  const response = await request(
+    "chat",
+    { message: "How much did I spend on food?" },
+    "application/x-ndjson",
+  );
+  expect(response.headers.get("content-type")).toBe("application/x-ndjson");
+  const events = (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(events.filter((e) => e.activity).map((e) => e.activity)).toEqual([
+    "Loading saved context…",
+    "Preparing a demo response…",
+    "Calculating spending…",
+  ]);
+  expect(events.at(-1).result.messageId).toBe(
+    (await readState()).messages.at(-1)?.id,
+  );
+  expect(events.some((e) => e.activity === "Thinking…")).toBe(false);
+});
+
+it("streamed model failure is private, preserves state and emits no fabricated result", async () => {
+  process.env.AI_PROVIDER = "gemini";
+  process.env.AI_API_KEY = "private-stream-test-key";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      throw new TypeError("private-stream-test-key secret prompt");
+    }),
+  );
+  const before = structuredClone(await readState());
+  const response = await request(
+    "chat",
+    { message: "Hey." },
+    "application/x-ndjson",
+  );
+  const content = await response.text();
+  expect(content).toContain("Thinking…");
+  expect(content).toContain("Your input is preserved");
+  expect(content).not.toContain("private-stream-test-key");
+  expect(content).not.toContain('"result"');
+  expect(await readState()).toEqual(before);
 });

@@ -266,7 +266,10 @@ it("creates a single unverified draft after inference recovery and never approve
       }),
     );
   vi.stubGlobal("fetch", transport);
-  await chat("operator", "Prepare payment");
+  await chat(
+    "operator",
+    "Prepare ₦500 for Test recipient; bank: 035; account: 0000000001; reason: Test",
+  );
   expect(transport).toHaveBeenCalledTimes(2);
   const state = await readState();
   expect(state.batches).toHaveLength(1);

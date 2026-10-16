@@ -75,11 +75,25 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base);
+  assert.equal(await page.title(), "Agus · Your financial workspace");
   await page.getByLabel("Operator password", { exact: true }).fill(password);
+  await page
+    .getByRole("button", { name: "Show password", exact: true })
+    .click();
+  assert.equal(
+    await page
+      .getByLabel("Operator password", { exact: true })
+      .getAttribute("type"),
+    "text",
+  );
+  await page
+    .getByRole("button", { name: "Hide password", exact: true })
+    .click();
   await page.getByRole("button", { name: "Sign in securely" }).click();
   await page.getByRole("heading", { name: /What can I help you/ }).waitFor();
   const widths = [
     { width: 1440, height: 1000, name: "desktop" },
+    { width: 820, height: 900, name: "narrow-desktop" },
     { width: 390, height: 844, name: "mobile-390" },
     { width: 320, height: 740, name: "mobile-320" },
   ];
@@ -194,7 +208,7 @@ try {
     if (req.url().endsWith("/execute")) executeCalls++;
   });
   const send = async (text) => {
-    await page.getByLabel("Message the financial agent").fill(text);
+    await page.getByLabel("Message Agus").fill(text);
     const response = page.waitForResponse(
       (r) => r.url() === `${base}/api/chat` && r.request().method() === "POST",
     );
@@ -213,6 +227,7 @@ try {
       name: "Payment proposal",
       exact: true,
     });
+    await page.locator(".proposal-summary > summary").last().click();
     await proposal.waitFor();
     assert.equal(
       await proposal
@@ -261,6 +276,7 @@ try {
     await proposal.getByLabel("Description", { exact: true }).nth(1).click();
     assert.equal((await savedEdits).status(), 200);
     await page.reload();
+    await page.locator(".proposal-summary > summary").last().click();
     await proposal.waitFor();
     assert.equal(
       await proposal
@@ -288,6 +304,10 @@ try {
       .getByRole("button", { name: "Save draft", exact: true })
       .click();
     await proposal.waitFor({ state: "detached" });
+    await page
+      .locator(".compact-payment:not(.proposal-summary) > summary")
+      .last()
+      .click();
     const card = page.locator(".batch-card").last();
     await card
       .getByRole("button", { name: "Verify beneficiaries", exact: true })
@@ -361,6 +381,41 @@ try {
     await page.screenshot({
       path: join(screenshots, `${viewport.name}-follow-up.png`),
     });
+    // Secondary views must retain access to conversation and fit small screens.
+    for (const tab of ["Payment jobs", "Activity", "Insights"]) {
+      if (viewport.width < 700)
+        await page.getByRole("button", { name: "Toggle navigation" }).click();
+      await page
+        .getByRole("navigation")
+        .getByRole("button", { name: tab, exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Back to conversation" })
+        .waitFor();
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > innerWidth,
+        ),
+        false,
+        `${viewport.name}: ${tab} fits`,
+      );
+      if (tab === "Activity") {
+        const rows = await page.locator(".table-wrap tbody tr").count();
+        await page.getByText(`${rows} records`, { exact: true }).waitFor();
+        assert.ok(
+          (await page
+            .getByRole("cell", { name: "Simulation", exact: true })
+            .count()) > 0,
+        );
+      }
+      await page.screenshot({
+        path: join(
+          screenshots,
+          `${viewport.name}-${tab.replaceAll(" ", "-").toLowerCase()}.png`,
+        ),
+      });
+      await page.getByRole("button", { name: "Back to conversation" }).click();
+    }
     results.push({
       viewport: viewport.name,
       width: viewport.width,

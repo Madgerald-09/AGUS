@@ -1,0 +1,37 @@
+{
+  "mode": "fixture",
+  "genuineModelCalls": 0,
+  "visualIdentity": "Strict monochrome: pitch-black background, white primary controls, grayscale surfaces/text/borders; status icons and explicit text",
+  "results": [
+    {
+      "viewport": "desktop",
+      "width": 1440,
+      "result": "PASS",
+      "journey": "request → missing fields → persisted edits/reload → linked draft → verification → password approval → explicit simulated submission → successful/processing outcomes → persisted unresolved follow-up",
+      "layout": "No document/conversation overflow; composer and Sign out visible"
+    },
+    {
+      "viewport": "narrow-desktop",
+      "width": 820,
+      "result": "PASS",
+      "journey": "request → missing fields → persisted edits/reload → linked draft → verification → password approval → explicit simulated submission → successful/processing outcomes → persisted unresolved follow-up",
+      "layout": "No document/conversation overflow; composer and Sign out visible"
+    },
+    {
+      "viewport": "mobile-390",
+      "width": 390,
+      "result": "PASS",
+      "journey": "request → missing fields → persisted edits/reload → linked draft → verification → password approval → explicit simulated submission → successful/processing outcomes → persisted unresolved follow-up",
+      "layout": "No document/conversation overflow; composer and Sign out visible"
+    },
+    {
+      "viewport": "mobile-320",
+      "width": 320,
+      "result": "PASS",
+      "journey": "request → missing fields → persisted edits/reload → linked draft → verification → password approval → explicit simulated submission → successful/processing outcomes → persisted unresolved follow-up",
+      "layout": "No document/conversation overflow; composer and Sign out visible"
+    }
+  ],
+  "browserErrors": [],
+  "additional": "320px secondary navigation, truthful attachment unavailability and Sign out"
+}
