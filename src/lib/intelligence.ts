@@ -1,8 +1,13 @@
 import { z } from "zod";
+import { editConversationDraft } from "./conversation-edits";
+import { mentionedBanks, resolveBankName } from "./draft-edits";
+import { provider } from "./paystack";
 import { inferenceRequest } from "./ai-inference";
 import { modelResponse } from "./ai-response";
 import {
   composeConversation,
+  conversationalIntent,
+  describePaymentStatus,
   presentMessage,
   groundProposal,
 } from "./conversation-policy";
@@ -214,8 +219,7 @@ export function fixturePlan(text: string, previous: Proposed[] = []): Plan {
     period: "all",
     category: null,
   };
-  if (/^(?:hey|hi|hello|thanks|thank you)[.!\s]*$/i.test(text.trim()))
-    return { ...base, intent: "conversation" };
+  if (conversationalIntent(text)) return { ...base, intent: "conversation" };
   if (
     /don.t understand|explain (?:that|it|your|the previous)|what (?:does|did) (?:that|you) mean/i.test(
       text,
@@ -331,6 +335,8 @@ export async function chat(
   const enabled =
     !!process.env.AI_API_KEY &&
     ["openai", "gemini"].includes(process.env.AI_PROVIDER ?? "");
+  const correction = await editConversationDraft(actor, text, state, enabled);
+  if (correction) return correction;
   const context = {
     messages: state.messages
       .filter((m) => !m.owner || m.owner === actor)
@@ -363,6 +369,7 @@ export async function chat(
   const plan = enabled
     ? await modelPlan(text, context)
     : fixturePlan(text, previous);
+  if (conversationalIntent(text)) plan.intent = "conversation";
   // A model extraction is evidence, never a source of payment facts. Null any
   // field absent from the explicit request or the proposal being continued.
   if (enabled && plan.intent === "prepare") {
@@ -370,6 +377,37 @@ export async function chat(
     plan.payments = plan.payments.map((p) =>
       groundProposal(p, text, continuing ? previous[0] : undefined),
     );
+  }
+  if (plan.intent === "prepare" && plan.payments.length) {
+    try {
+      const banks = await provider().banks();
+      const mentioned = mentionedBanks(text, banks);
+      for (const p of plan.payments) {
+        if (mentioned.length === 1 && plan.payments.length === 1)
+          p.bankCode = mentioned[0].code;
+        if (p.bankCode && !banks.some((b) => b.code === p.bankCode))
+          p.bankCode = null;
+        if (
+          p.name &&
+          resolveBankName(p.name, banks).length &&
+          !/\b(?:name|label)\s*[:=]/i.test(text)
+        )
+          p.name = "";
+        if (
+          !p.name &&
+          plan.payments.length === 1 &&
+          /\bmy\b.{0,50}\baccount\b/i.test(text)
+        )
+          p.name = "My account";
+      }
+    } catch {
+      for (const p of plan.payments) {
+        p.bankCode = null;
+        p.warnings = [
+          "Bank list unavailable. Retry loading banks before selecting an institution.",
+        ];
+      }
+    }
   }
   // A financial explanation always follows the authoritative composition path,
   // even if inference incorrectly labels it as ordinary conversation.
@@ -408,7 +446,7 @@ export async function chat(
       "Let’s prepare that together. Who should be paid, how much, and to which bank and 10-digit account number? Complete the missing fields below; I’ll keep them empty until you provide them.";
     const missing = new Set<string>();
     for (const p of proposals) {
-      if (!p.name.trim()) missing.add("recipient name");
+      if (!p.name.trim()) missing.add("recipient label");
       if (!p.amountNaira) missing.add("amount");
       if (!p.bankCode) missing.add("bank");
       if (!p.accountNumber) missing.add("10-digit account number");
@@ -452,26 +490,38 @@ export async function chat(
         ? await listPendingPayments(actor)
         : getTransactionHistory(state, actor);
     batches = batches.filter((b) => dateMatch(b.createdAt, plan.period));
+    const unresolved = batches.some((b) =>
+      b.payments.some((p) =>
+        ["submitted", "processing", "unknown"].includes(p.status),
+      ),
+    );
+    const intro =
+      "Here’s what your saved payment records show:" +
+      (unresolved
+        ? "\nSome outcomes are unresolved. Use Check provider in the payment card before taking further action."
+        : "");
     reply = batches.length
-      ? "Here are your saved payment outcomes. Processing and unknown payments remain unresolved; check the provider from the payment card before taking any further action.\n" +
+      ? intro +
+        "\n" +
         batches
           .slice(0, 10)
           .map(
             (b) =>
-              `Batch ${b.id.slice(0, 8)} (${b.mode}): ${b.payments.map((p) => `${p.verifiedName ?? p.name} — ${money(p.amountKobo)} — ${p.status.replaceAll("_", " ")} [${p.reference}]`).join("; ")}`,
+              `Batch ${b.id.slice(0, 8)} (${b.mode}): ${b.payments.map((p) => `${p.verifiedName ?? p.name} — ${money(p.amountKobo)} — ${describePaymentStatus(p.status, b.mode)} [${p.reference}]`).join("; ")}`,
           )
           .join("\n")
-      : "No matching persisted payment jobs. These results come from saved records; use “Check provider” to refresh unfinished transfers.";
+      : "I couldn’t find a saved payment matching that request. If you were still entering details, look for its editable draft in the conversation.";
     if (batches.length)
       conversationReply =
-        "Here are your saved payment outcomes. Processing and unknown payments remain unresolved; check the provider from the payment card before taking any further action.\n" +
+        intro +
+        "\n" +
         batches
           .slice(0, 10)
           .map((b) =>
             b.payments
               .map(
                 (p) =>
-                  `${p.verifiedName ?? p.name} · ${money(p.amountKobo)} · ${p.status.replaceAll("_", " ")}`,
+                  `${p.verifiedName ?? p.name} · ${money(p.amountKobo)} · ${describePaymentStatus(p.status, b.mode)}`,
               )
               .join("\n"),
           )
@@ -495,18 +545,31 @@ export async function chat(
     const category = insights.categories.find(
       (c) => c.name.toLowerCase() === plan.category?.toLowerCase(),
     );
+    const period = {
+      all: "across all saved dates",
+      week: "over the last seven days",
+      month: "this month",
+      yesterday: "yesterday",
+    }[plan.period];
     reply =
       plan.category && !category
         ? `I don’t see that category in the fictional demonstration ledger. Available categories: ${insights.categories.map((c) => c.name).join(", ")}.`
         : plan.category
-          ? `In the fictional demonstration ledger, ${category!.name} spending is ${money(category!.amountKobo)} for ${plan.period === "all" ? "all saved dates" : plan.period}. This is seeded sample data, not spending from your bank account.`
-          : `The fictional demonstration ledger shows ${money(insights.expenseKobo)} in expenses and ${money(insights.incomeKobo)} in income. ${insights.categories.map((c) => `${c.name}: ${money(c.amountKobo)}`).join("; ")}. These are seeded transactions, not personal-bank data.`;
+          ? `In the fictional demonstration ledger, you spent ${money(category!.amountKobo)} on ${category!.name.toLowerCase()} ${period}. Want to compare it with your other spending categories?`
+          : `In the fictional demonstration ledger, spending totals ${money(insights.expenseKobo)} ${period}, against ${money(insights.incomeKobo)} in income. ${
+              insights.categories.length
+                ? `The biggest categories are ${insights.categories
+                    .slice(0, 3)
+                    .map(
+                      (c) => `${c.name.toLowerCase()} (${money(c.amountKobo)})`,
+                    )
+                    .join(", ")}.`
+                : "There are no expenses in this period."
+            } Want to look more closely at a category?`;
   } else if (plan.intent === "beneficiaries")
     reply = JSON.stringify(listBeneficiaries(state, actor));
   if (["conversation", "clarify"].includes(plan.intent)) {
     reply = composeConversation(text);
-    if (/what can you|how can you help|your capabilities/i.test(text))
-      reply = `${reply} I can prepare individual or multi-recipient payment drafts, extract draft details from screenshots when a model is connected, check saved payment records and explain fictional spending insights. You review and authorize payments separately. Budgeting, savings plans, recurring bills and bank-account management are future directions; I don’t have access to your bank balance.`;
   }
   if (plan.intent === "explain") {
     const last = context.messages.findLast((m) => m.role === "assistant");
@@ -514,9 +577,11 @@ export async function chat(
     reply = last
       ? last.topic === "insights"
         ? "The spending figures come from the app’s fictional sample ledger. They do not describe your real bank account. Ask for spending insights to calculate the figures again from that ledger."
-        : last.proposals?.length && !last.batchId
-          ? "That is an editable proposal. Blank fields still need your input; a proposal does not verify a recipient or send money. Review every field before saving."
-          : "Payment answers must come from saved payment records. A draft has not been sent; processing or unknown means the outcome is unresolved. Open the payment card for current saved status and use Check provider to reconcile it. I cannot confirm an outcome or a bank balance from earlier conversation."
+        : ["conversation", "clarify"].includes(last.topic ?? "")
+          ? "Tell me what you want to do in your own words. We can look at sample spending, prepare a payment draft, or check saved transfers. I’ll ask for any missing details as we go."
+          : last.proposals?.length && !last.batchId
+            ? "That is an editable proposal. Blank fields still need your input; a proposal does not verify a recipient or send money. Review every field before saving."
+            : "Payment answers must come from saved payment records. A draft has not been sent; processing or unknown means the outcome is unresolved. Open the payment card for current saved status and use Check provider to reconcile it. I cannot confirm an outcome or a bank balance from earlier conversation."
       : "Which part would you like me to explain? We can take it one step at a time.";
   }
   if (!enabled)

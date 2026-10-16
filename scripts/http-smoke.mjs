@@ -128,7 +128,9 @@ try {
     message: "What happened to those payments?",
   });
   assert.match(chat.data.reply, /successful/);
-  assert.match(chat.data.reply, /processing/);
+  assert.match(chat.data.reply, /processing/i);
+  assert.match(chat.data.reply, /Simulation/);
+  assert.match(chat.data.reply, /outcome unresolved/);
   const report = await fetch(`${base}/api/reports`, {
     headers: { Cookie: cookie },
   });

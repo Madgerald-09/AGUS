@@ -1,16 +1,75 @@
 import type { Proposed } from "./intelligence";
-import type { Message } from "./domain";
+import type { Message, Mode, Status } from "./domain";
 
 // No model-authored prose crosses the narration boundary. Even ordinary
 // conversational intents are untrusted: an intent label cannot certify prose.
+export function conversationalIntent(request: string) {
+  if (
+    /^\s*(?:thanks?|thank you)(?: so much| a lot)?(?:[ ,]+agus)?[.!?👋\s]*$/iu.test(
+      request,
+    )
+  )
+    return "thanks";
+  if (
+    /^\s*(?:hey|hi|hello|good morning|good afternoon|good evening)(?:[ ,!]+agus)?[.!?👋\s]*$/iu.test(
+      request,
+    )
+  )
+    return "greeting";
+  if (
+    /^(?:agus[, ]+)?(?:what can you (?:do(?: for me)?|help.*)|what do you do|how can you help.*|who are you|(?:what are )?your capabilities)[.!?\s]*$/i.test(
+      request.trim(),
+    )
+  )
+    return "capabilities";
+  if (
+    /^(?:how are you|how.s it going|what.s up)(?:[ ,]+agus)?[.!?\s]*$/i.test(
+      request.trim(),
+    )
+  )
+    return "smalltalk";
+  return null;
+}
 export function composeConversation(request: string) {
-  if (/^\s*(?:thanks?|thank you)[.!\s]*$/i.test(request))
-    return "You’re welcome. What would you like to take care of next?";
-  if (/^\s*(?:hey|hi|hello)[.!\s]*$/i.test(request))
-    return "Hey! What would you like help with today?";
-  if (/what can you|how can you help|your capabilities/i.test(request))
-    return "Let’s take it one step at a time.";
-  return "I can help you prepare a draft or look up saved payment records. I can’t confirm an outcome from conversation alone. Open the payment card for its saved status and use Check provider for an unresolved transfer. I don’t have access to your bank balance.";
+  const intent = conversationalIntent(request);
+  if (intent === "thanks")
+    return "You’re welcome! What would you like to take care of next?";
+  if (intent === "greeting")
+    return "Hey! 👋 I’m Agus. Want to check your spending, prepare a payment, or follow up on a transfer?";
+  if (intent === "capabilities")
+    return "I can help you understand spending from the sample ledger, prepare payment drafts for one or several recipients, and follow up on saved transfers. You can correct a draft in chat or edit its card, then verify the recipient and review it before approving. Submission is a separate step. What would you like to start with?";
+  if (intent === "smalltalk")
+    return "I’m here and ready to help. What would you like to take care of today?";
+  if (
+    /balance|did.*(?:go through|receiv)|has it|went through|confirm.*(?:payment|transfer)|successful|settled/i.test(
+      request,
+    )
+  )
+    return "I can check saved payment records, but I can’t confirm a transfer or your bank balance from chat alone. Open the payment card for its saved status; use Check provider if the outcome is unresolved.";
+  return "Tell me a little more. Are you looking at spending, preparing a payment, or following up on a saved transfer?";
+}
+
+export function describePaymentStatus(status: Status, mode: Mode) {
+  const labels: Record<Status, string> = {
+    draft: "Draft · not submitted",
+    awaiting_beneficiary_verification: "Draft · needs recipient verification",
+    awaiting_user_approval: "Verified draft · needs your approval",
+    approved: "Approved · not submitted",
+    submitted: "Submitted · outcome unresolved",
+    processing: "Processing · outcome unresolved",
+    successful: "successful",
+    failed: "failed",
+    reversed: "reversed",
+    unknown: "Unknown · needs a provider check",
+    awaiting_otp: "Awaiting provider OTP · not completed",
+  };
+  const environment =
+    mode === "fixture"
+      ? "Simulation"
+      : mode === "test"
+        ? "Paystack test"
+        : "Live";
+  return `${environment} · ${labels[status] ?? "Status unavailable"}`;
 }
 
 // Only server composition introduced by this repair may be presented as an

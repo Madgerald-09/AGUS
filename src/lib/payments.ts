@@ -16,6 +16,7 @@ import {
   terminal,
   transition,
   type Batch,
+  type Message,
   type Payment,
   type State,
   type WebhookWork,
@@ -48,6 +49,7 @@ export async function preparePaymentBatch(
   actor: string,
   input: unknown,
   sourceMessageId?: string,
+  expectedProposals?: Message["proposals"],
 ) {
   const values = z.array(instructionSchema).min(1).max(10).parse(input);
   const c = config();
@@ -86,6 +88,14 @@ export async function preparePaymentBatch(
           "Proposal already saved or continued. Review its latest payment card.",
           409,
         );
+      if (
+        expectedProposals &&
+        JSON.stringify(message.proposals) !== JSON.stringify(expectedProposals)
+      )
+        throw new AppError(
+          "This draft changed. Review its latest details and try again.",
+          409,
+        );
       message.batchId = b.id;
     }
     s.batches.unshift(b);
@@ -103,10 +113,16 @@ export async function editBatch(
   actor: string,
   batchId: string,
   input: unknown,
+  expectedVersion?: number,
 ) {
   const values = z.array(instructionSchema).min(1).max(10).parse(input);
   return mutate((s) => {
     const b = findBatch(s, batchId, actor);
+    if (expectedVersion !== undefined && b.version !== expectedVersion)
+      throw new AppError(
+        "This draft changed. Review its latest details and try again.",
+        409,
+      );
     if (
       b.payments.some(
         (p) =>

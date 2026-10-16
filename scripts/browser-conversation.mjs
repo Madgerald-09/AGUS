@@ -154,7 +154,10 @@ try {
         });
       };
       assert.match(await send("Hey."), /Hey!/);
-      assert.match(await send("What can you help me with?"), /multi-recipient/);
+      assert.match(
+        await send("What can you help me with?"),
+        /one or several recipients/,
+      );
       assert.match(
         await send("How much did I spend on food?"),
         /fictional demonstration ledger/,

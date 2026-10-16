@@ -95,6 +95,21 @@ export interface Message {
   sourceRequest?: string;
   topic?: string;
   supersededBy?: string;
+  // Server-owned selection for an unambiguous conversational follow-up.
+  draftSelection?: {
+    draftId: string;
+    recipientIndex: number;
+    fingerprint: string;
+    awaiting?: "bank" | "accountNumber" | "amountNaira";
+  };
+  pendingDraftEdit?: {
+    bankQuery?: string;
+    bankCode?: string;
+    accountNumber?: string;
+    amountNaira?: string;
+    name?: string;
+    missing?: string;
+  };
 }
 export interface LedgerEntry {
   id: string;
