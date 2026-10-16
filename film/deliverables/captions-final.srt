@@ -1,0 +1,104 @@
+1
+00:00:00,000 --> 00:00:03,000
+You sent the money.
+
+
+2
+00:00:03,000 --> 00:00:06,000
+But did it arrive?
+
+
+3
+00:00:06,000 --> 00:00:11,000
+And when you’re paying several people?
+
+
+4
+00:00:11,000 --> 00:00:15,000
+agus.
+A clearer way to follow through.
+
+5
+00:00:15,000 --> 00:00:25,000
+Your financial workflow assistant.
+Ask → Prepare → Review → Follow through. One clear workflow, with you in control.
+
+6
+00:00:25,000 --> 00:00:38,000
+“How much did I spend on food?”
+Food spending, calculated from the fictional ledger. The figure and its source stay together. Food spending: ₦36,600. Fictional ledger.
+
+7
+00:00:38,000 --> 00:00:50,000
+Income. Expenses. In perspective.
+Ask for income and expenses. The figures come from the saved sample ledger. Income: ₦300,000. Expenses: ₦131,600. Fictional ledger.
+
+8
+00:00:50,000 --> 00:01:00,000
+“Explain that.”
+Grounded answers. Clear sources. A next step you can understand.
+
+9
+00:01:00,000 --> 00:01:11,000
+Clear sources. Clear limits.
+Saved records and fictional insights are available. A personal bank balance is not connected.
+
+10
+00:01:11,000 --> 00:01:25,000
+Start with what you know.
+“Prepare 500 to Ada at Wema.” Missing account details stay empty for review.
+
+11
+00:01:25,000 --> 00:01:39,000
+One draft. Two recipients.
+Choose labelled fictional recipients. Add a second payment and check every field.
+
+12
+00:01:39,000 --> 00:01:50,000
+Saved is not submitted.
+The draft is now a payment job. Verification and your authorization still come next.
+
+13
+00:01:50,000 --> 00:02:02,000
+Review the details that matter.
+Verify beneficiaries. Review names, accounts, amounts and fee reserves. Human approval comes next.
+
+14
+00:02:02,000 --> 00:02:15,000
+Your review. Your approval.
+Acknowledge the details and approve with the operator password. Submission remains separate.
+
+15
+00:02:15,000 --> 00:02:31,000
+Successful. Processing.
+Track each recipient. Processing remains unresolved. Check status before retrying. Ada: successful. Chidi: processing. Local simulation only.
+
+16
+00:02:31,000 --> 00:02:44,000
+Processing means unresolved.
+Follow up on the existing payment. Preserve uncertainty; never assume success or resend blindly.
+
+17
+00:02:44,000 --> 00:02:55,000
+Come back. Keep context.
+Reload the workspace. The conversation and payment status are still there.
+
+18
+00:02:55,000 --> 00:03:07,000
+A record you can return to.
+Activity brings saved transfers, references and individual outcomes together.
+
+19
+00:03:07,000 --> 00:03:16,000
+Questions to understanding. Details to action.
+A connected workflow around the financial decisions you need to make.
+
+20
+00:03:16,000 --> 00:03:22,000
+agus.
+Your money, and what's next.
+
+21
+00:03:22,000 --> 00:03:30,000
+A PROJECT BY APORIA
+Gerald · Francis · Lucy — HACKAHOLICS 7.0 · 2026

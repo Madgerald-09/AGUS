@@ -4,7 +4,11 @@ import { createHash } from "node:crypto";
 import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 const root = resolve(import.meta.dirname, ".."),
-  movie = join(root, "deliverables/agus-hackaholics-7.mp4");
+  movie = join(
+    root,
+    "deliverables",
+    process.argv[2] || "agus-aporia-demo-final.mp4",
+  );
 const data = JSON.parse(
   execFileSync(
     "ffprobe",
@@ -49,7 +53,11 @@ assert.ok(
   atoms.indexOf("moov") >= 0 && atoms.indexOf("moov") < atoms.indexOf("mdat"),
 );
 const hashes = {};
-for (const name of ["agus-hackaholics-7.mp4", "poster.png", "captions.srt"]) {
+for (const name of [
+  process.argv[2] || "agus-aporia-demo-final.mp4",
+  "agus-aporia-poster.png",
+  "captions-final.srt",
+]) {
   const path = join(root, "deliverables", name);
   hashes[name] = {
     sha256: createHash("sha256")
@@ -58,7 +66,19 @@ for (const name of ["agus-hackaholics-7.mp4", "poster.png", "captions.srt"]) {
     bytes: (await stat(path)).size,
   };
 }
+const originalManifest = JSON.parse(
+  await readFile(join(root, "deliverables/verification.json")),
+);
+const fallbackHash = createHash("sha256")
+  .update(await readFile(join(root, "deliverables/agus-hackaholics-7.mp4")))
+  .digest("hex");
+assert.equal(
+  fallbackHash,
+  originalManifest.hashes["agus-hackaholics-7.mp4"].sha256,
+);
 const report = {
+  originalFallbackPreserved: true,
+  fallbackSha256: fallbackHash,
   passed: true,
   video: {
     width: 1920,
@@ -81,7 +101,7 @@ const report = {
   hashes,
 };
 await writeFile(
-  join(root, "deliverables/verification.json"),
+  join(root, "deliverables/verification-final.json"),
   JSON.stringify(report, null, 2) + "\n",
 );
 console.log(JSON.stringify(report, null, 2));

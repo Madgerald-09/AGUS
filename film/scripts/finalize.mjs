@@ -2,7 +2,11 @@ import { execFileSync } from "node:child_process";
 import { rename } from "node:fs/promises";
 import { resolve, join } from "node:path";
 const root = resolve(import.meta.dirname, ".."),
-  movie = join(root, "deliverables/agus-hackaholics-7.mp4");
+  movie = join(
+    root,
+    "deliverables",
+    process.argv[2] || "agus-aporia-demo-final.mp4",
+  );
 const info = JSON.parse(
   execFileSync(
     "ffprobe",
@@ -21,7 +25,7 @@ const info = JSON.parse(
   ),
 ).streams[0];
 if (info.pix_fmt === "yuvj420p" || info.color_range === "pc") {
-  const tmp = join(root, "deliverables/agus-compatible.mp4");
+  const tmp = join(root, "deliverables/agus-aporia-compatible.mp4");
   execFileSync(
     "ffmpeg",
     [

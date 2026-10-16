@@ -288,3 +288,168 @@
   top: 200px;
   width: 1240px;
 }
+
+/* Final creative pass: editorial emphasis over preserved product captures. */
+.hook-copy {
+  position: absolute;
+  inset: 365px 100px auto;
+  text-align: center;
+  white-space: pre-line;
+  font-size: 91px;
+  line-height: 1.22;
+  font-weight: 700;
+  letter-spacing: -4px;
+  color: #f5f5f5;
+}
+.disclosure {
+  font-size: 19px;
+  letter-spacing: 0.3px;
+  color: #c5c5c5;
+}
+.footnote {
+  font-size: 20px;
+  color: #b4b4b4;
+}
+.editorial p {
+  color: #c1c1c1;
+}
+.fact-tag {
+  color: #ddd;
+  font-size: 21px;
+}
+.ledger-focus {
+  position: absolute;
+  left: 850px;
+  top: 620px;
+  width: 900px;
+  padding: 26px 32px;
+  border: 1px solid #777;
+  border-radius: 15px;
+  background: #111;
+  box-shadow: 0 18px 45px #0008;
+}
+.focus-label {
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: #bdbdbd;
+  margin-bottom: 22px;
+}
+.figure-pair {
+  display: flex;
+  align-items: center;
+  gap: 75px;
+}
+.figure-pair span {
+  display: block;
+  font-size: 24px;
+  color: #c7c7c7;
+  margin-bottom: 8px;
+}
+.figure-pair strong {
+  font-size: 61px;
+  letter-spacing: -2px;
+  line-height: 1.2;
+}
+.figure-pair p {
+  font-size: 24px;
+  line-height: 1.5;
+  color: #c7c7c7;
+  margin: 0;
+}
+.outcome-focus {
+  position: absolute;
+  left: 58px;
+  top: 765px;
+  width: 382px;
+  display: grid;
+  gap: 12px;
+}
+.outcome-focus > div {
+  border: 1px solid #aaa;
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: #131313;
+}
+.outcome-focus span {
+  display: block;
+  font-size: 20px;
+  color: #c8c8c8;
+  margin-bottom: 5px;
+}
+.outcome-focus strong {
+  font-size: 29px;
+  letter-spacing: -0.5px;
+}
+.outcome-focus > div:first-child {
+  background: #eee;
+  color: #080808;
+}
+.outcome-focus > div:first-child span {
+  color: #414141;
+}
+.editorial-note {
+  position: absolute;
+  left: 58px;
+  top: 820px;
+  width: 375px;
+  border-top: 1px solid #777;
+  padding-top: 20px;
+  font-size: 27px;
+  line-height: 1.4;
+  color: #f4f4f4;
+}
+.closing-brand {
+  position: absolute;
+  inset: 325px 60px auto;
+  text-align: center;
+}
+.closing-brand p {
+  font-size: 48px;
+  letter-spacing: -1.5px;
+  margin: 36px 0 0;
+  color: #e8e8e8;
+}
+.credit-slate {
+  position: absolute;
+  inset: 245px 100px auto;
+  text-align: center;
+}
+.credit-kicker {
+  font-size: 26px;
+  letter-spacing: 8px;
+  color: #bfbfbf;
+}
+.aporia-wordmark {
+  font-size: 160px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 22px;
+  margin: 24px 0 27px;
+  padding-left: 22px;
+}
+.credit-rule {
+  width: 100px;
+  height: 1px;
+  background: #777;
+  margin: 0 auto 35px;
+}
+.credit-names {
+  font-size: 42px;
+  letter-spacing: 1px;
+}
+.credit-event {
+  font-size: 27px;
+  letter-spacing: 5px;
+  color: #bababa;
+  margin-top: 38px;
+}
+.closing-disclosure {
+  position: absolute;
+  bottom: 65px;
+  left: 100px;
+  right: 100px;
+  text-align: center;
+  font-size: 23px;
+  line-height: 1.65;
+  color: #bdbdbd;
+}

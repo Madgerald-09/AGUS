@@ -8,7 +8,6 @@ import {
   spring,
   staticFile,
   useCurrentFrame,
-  useVideoConfig,
 } from "remotion";
 import { FPS, scenes } from "./scenes";
 import evidence from "../public/captures/evidence.json";
@@ -31,8 +30,8 @@ const Atmosphere: React.FC<{ frame: number; light?: boolean }> = ({
         left: 450 + Math.sin(frame / 190) * 130,
         top: -500,
         background: light
-          ? "radial-gradient(ellipse, #c9d5e0 0%, transparent 62%)"
-          : "radial-gradient(ellipse, #26323d66 0%, #15101f44 32%, transparent 64%)",
+          ? "radial-gradient(ellipse, #d1d1d1 0%, transparent 62%)"
+          : "radial-gradient(ellipse, #30303066 0%, #18181844 32%, transparent 64%)",
         transform: `rotate(${frame / 30}deg)`,
       }}
     />
@@ -98,11 +97,9 @@ const FrameLabel: React.FC<{ chapter: string }> = ({ chapter }) => (
 );
 const Disclosure = () => (
   <div className="disclosure">
-    <span className="disclosure-dot" /> VERIFIED FIXTURE DEMO{" "}
+    <span className="disclosure-dot" /> OFFLINE PARSER · FIXTURE DEMO{" "}
     <span className="sep">/</span> NO LIVE AI{" "}
-    <span className="footnote">
-      Fictional ledger & recipients · No real funds moved
-    </span>
+    <span className="footnote">Fictional data · No real funds moved</span>
   </div>
 );
 const Plate: React.FC<{ shot: string; frames: number; wide: boolean }> = ({
@@ -157,8 +154,8 @@ const Plate: React.FC<{ shot: string; frames: number; wide: boolean }> = ({
               width: "100%",
               height: "100%",
               display: "block",
-              transform: /03-|04-|05-|06-|13-|14-/.test(shot)
-                ? `scale(${1 + ease(f, playing, Math.max(1, frames - playing - 24)) * 0.16})`
+              transform: /03-|04-|05-|06-|07-|08-|10-|12-|13-|14-/.test(shot)
+                ? `scale(${1 + ease(f, playing, Math.max(1, frames - playing - 24)) * (/03-|04-/.test(shot) ? 0.28 : 0.14)})`
                 : undefined,
               transformOrigin: "66% 32%",
             }}
@@ -199,6 +196,7 @@ const Product: React.FC<{ scene: any }> = ({ scene }) => {
       )}
       <Plate shot={scene.shot} frames={frames} wide={wide} />
       {wide && <div className="wide-tag">{scene.tag}</div>}
+      <EditorialEvidence shot={scene.shot} frame={f} />
       <Disclosure />
       <div
         className="scene-progress"
@@ -207,108 +205,169 @@ const Product: React.FC<{ scene: any }> = ({ scene }) => {
     </Fade>
   );
 };
+const EditorialEvidence: React.FC<{ shot: string; frame: number }> = ({
+  shot,
+  frame,
+}) => {
+  const show = ease(frame, /12-/.test(shot) ? 10 : 90, 22);
+  const style = {
+    opacity: show,
+    transform: `translateY(${(1 - show) * 14}px)`,
+  };
+  if (shot === "03-food" || shot === "04-totals")
+    return (
+      <div className="ledger-focus" style={style}>
+        <div className="focus-label">
+          FICTIONAL LEDGER · FIGURES FROM THE CAPTURE
+        </div>
+        {shot === "03-food" ? (
+          <div className="figure-pair">
+            <div>
+              <span>Food spending</span>
+              <strong>₦36,600</strong>
+            </div>
+            <p>
+              All saved dates.
+              <br />
+              Seeded sample data.
+            </p>
+          </div>
+        ) : (
+          <div className="figure-pair">
+            <div>
+              <span>Income</span>
+              <strong>₦300,000</strong>
+            </div>
+            <div>
+              <span>Expenses</span>
+              <strong>₦131,600</strong>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  if (shot === "12-outcomes")
+    return (
+      <div className="outcome-focus" style={style}>
+        <div>
+          <span>Ada Okafor · ₦500</span>
+          <strong>✓ Successful</strong>
+        </div>
+        <div>
+          <span>Chidi Nwosu · ₦700</span>
+          <strong>◷ Processing</strong>
+        </div>
+      </div>
+    );
+  const note: Record<string, string> = {
+    "02-welcome": "Ask → Prepare → Review → Follow through",
+    "07-partial": "Missing account? Keep it empty.",
+    "08-details": "Two recipients. One editable draft.",
+    "10-verify": "Verification ≠ approval ≠ submission.",
+    "11-approval": "Submit separately. Always.",
+    "13-pending": "Uncertain does not mean successful.",
+  };
+  return note[shot] ? (
+    <div className="editorial-note" style={style}>
+      {note[shot]}
+    </div>
+  ) : null;
+};
 const Intro = () => {
   const f = useCurrentFrame();
-  const stage = f < 108 ? 0 : f < 216 ? 1 : 2;
+  const beats = [
+    { start: 0, end: 72, text: "You sent the money." },
+    { start: 72, end: 144, text: "But did it arrive?" },
+    { start: 144, end: 264, text: "And when you’re paying\nseveral people?" },
+  ];
   return (
     <Fade frames={15 * FPS}>
       <Atmosphere frame={f} />
-      <FrameLabel chapter="HACKAHOLICS 7.0 / PRODUCT FILM" />
+      <FrameLabel chapter="HACKAHOLICS 7.0 / AGUS" />
       <div
         className="intro-orbit"
         style={{
-          transform: `translate(-50%,-50%) rotate(${f / 8}deg) scale(${0.75 + ease(f, 150, 120) * 0.25})`,
-          opacity: stage === 2 ? 0.3 : 0.13,
+          transform: `translate(-50%,-50%) rotate(${f / 10}deg)`,
+          opacity: 0.15,
         }}
       >
         <i />
         <i />
         <i />
       </div>
-      {stage === 0 && (
-        <div
-          className="intro-copy"
-          style={{
-            opacity: interpolate(f, [0, 18, 90, 107], [0, 1, 1, 0], clamp),
-            transform: `translateY(${(1 - ease(f, 0, 30)) * 28}px)`,
-          }}
-        >
-          Your money.
-          <br />
-          <span>More than a balance.</span>
-        </div>
+      {beats.map((b, i) =>
+        f >= b.start && f < b.end ? (
+          <div
+            key={i}
+            className="hook-copy"
+            style={{
+              opacity: interpolate(
+                f,
+                [b.start, b.start + 10, b.end - 10, b.end - 1],
+                [0, 1, 1, 0],
+                clamp,
+              ),
+              transform: `translateY(${(1 - ease(f, b.start, 20)) * 18}px)`,
+            }}
+          >
+            {b.text}
+          </div>
+        ) : null,
       )}
-      {stage === 1 && (
-        <div
-          className="intro-copy"
-          style={{
-            opacity: interpolate(f, [108, 126, 198, 215], [0, 1, 1, 0], clamp),
-          }}
-        >
-          Questions. Decisions.
-          <br />
-          <span>A clearer next step.</span>
-        </div>
-      )}
-      {stage === 2 && (
+      {f >= 264 && (
         <div
           className="brand-lockup"
           style={{
-            opacity: ease(f, 216, 24),
-            transform: `translateY(${(1 - ease(f, 216, 36)) * 22}px)`,
+            opacity: ease(f, 264, 20),
+            transform: `translateY(${(1 - ease(f, 264, 28)) * 18}px)`,
           }}
         >
           <Wordmark />
-          <p>Your financial workspace.</p>
-          <div className="brand-kicker">
-            ASK · PREPARE · REVIEW · FOLLOW THROUGH
-          </div>
+          <p>A clearer way to follow through.</p>
         </div>
       )}
       <div className="intro-bottom">
-        A working product demonstration · Fixture mode · No live AI
+        Offline parser · Fixture simulation · No live AI or real money movement
       </div>
     </Fade>
   );
 };
 const Outro = () => {
   const f = useCurrentFrame();
+  const brandOpacity = interpolate(f, [0, 16, 128, 148], [0, 1, 1, 0], clamp);
+  const creditOpacity = ease(f, 144, 18);
   return (
-    <Fade frames={14 * FPS}>
-      <Atmosphere frame={f} light />
-      <FrameLabel chapter="AGUS / HACKAHOLICS 7.0" />
-      <div className="outro-wrap">
-        <div className="outro-line" style={{ opacity: ease(f, 0, 24) }}>
-          A clearer path from
-          <br />
-          <b>question to next step.</b>
-        </div>
-        <div
-          style={{
-            marginTop: 40,
-            opacity: ease(f, 26, 25),
-            transform: `translateY(${(1 - ease(f, 26, 32)) * 25}px)`,
-          }}
-        >
-          <Wordmark size={260} dark />
-        </div>
-        <div className="outro-promise">
-          Understand the source. Review the details. Stay in control.
-        </div>
-        <div className="outro-proof">
-          <span>FINAL INTERFACE ON MAIN</span>
-          <span>WORKING FIXTURE DEMONSTRATION</span>
-          <span>HACKAHOLICS 7.0</span>
-        </div>
-        <p className="outro-disclosure">
-          Local payment simulation and fictional ledger data. No real money
-          moved.
-          <br />
-          Offline demonstration parser; genuine Gemini connectivity and external
-          integrations are unverified.
-        </p>
+    <AbsoluteFill>
+      <Atmosphere frame={f} />
+      <div
+        className="closing-brand"
+        style={{
+          opacity: brandOpacity,
+          transform: `translateY(${(1 - ease(f, 0, 30)) * 20}px)`,
+        }}
+      >
+        <Wordmark size={270} />
+        <p>Your money, and what's next.</p>
       </div>
-    </Fade>
+      <div
+        className="credit-slate"
+        style={{
+          opacity: creditOpacity,
+          transform: `translateY(${(1 - ease(f, 144, 28)) * 16}px)`,
+        }}
+      >
+        <div className="credit-kicker">A PROJECT BY</div>
+        <div className="aporia-wordmark">APORIA</div>
+        <div className="credit-rule" />
+        <div className="credit-names">Gerald · Francis · Lucy</div>
+        <div className="credit-event">HACKAHOLICS 7.0 · 2026</div>
+      </div>
+      <div className="closing-disclosure">
+        Offline parser · Fictional ledger · Simulated payments
+        <br />
+        No live AI. No real funds moved.
+      </div>
+    </AbsoluteFill>
   );
 };
 export const AgusFilm: React.FC = () => {

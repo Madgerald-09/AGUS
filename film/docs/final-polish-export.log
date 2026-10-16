@@ -1,0 +1,46 @@
+
+> agus-hackaholics-demo-film@1.0.0 verify
+> node scripts/verify.mjs agus-aporia-demo-final.mp4
+
+{
+  "originalFallbackPreserved": true,
+  "fallbackSha256": "68375bdf7c025dbfd2fd16d0c7febdb2d98c5bbdb9b91975495c7ff96a2f819a",
+  "passed": true,
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 24,
+    "durationSeconds": 210,
+    "frames": 5040,
+    "codec": "H.264",
+    "pixelFormat": "yuv420p",
+    "silent": true,
+    "fullDecode": "passed",
+    "fastStart": true,
+    "colorRange": "limited"
+  },
+  "sourceCommit": "3ca4cba0da4c2417df417aaba2a515c23c7e1f55",
+  "sourceTree": "893b04995a77bc664bb9f5b20288e5be1b691bd5",
+  "mode": "fixture",
+  "liveAI": false,
+  "realFundsMoved": false,
+  "hashes": {
+    "agus-aporia-demo-final.mp4": {
+      "sha256": "62999e3b962bfa4f009e6f8afce81ce8066ca11176c0ae51cfb992052cf48f53",
+      "bytes": 36838193
+    },
+    "agus-aporia-poster.png": {
+      "sha256": "d9d9ceb9a8254fe191a23a36b619a15ee5bffd831ed4bf5daa5fb1d09740eb45",
+      "bytes": 679279
+    },
+    "captions-final.srt": {
+      "sha256": "fe39f55b9f0837672017a2b2bcc20cf1116134647a401e6ed2ff315863fc98e6",
+      "bytes": 2802
+    }
+  }
+}
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

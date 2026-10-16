@@ -1,13 +1,14 @@
 # Agus · Hackaholics 7.0 demo film
 
-A 3:30 silent product film at 1920×1080, 24fps, H.264/yuv420p MP4. Editable Remotion source and genuine application recordings. The visual treatment uses restrained monochrome, orbital brand motion, moving detail views, readable editorial captions and smooth fades. No soundtrack is required for comprehension.
+A 3:30 silent product film at 1920×1080, 24fps, H.264/yuv420p MP4. Editable Remotion source and genuine application recordings. The visual treatment uses restrained monochrome, orbital brand motion, moving detail views, readable editorial captions and smooth fades. No soundtrack is required for comprehension. The final polish adds the payment-problem hook, large evidence callouts, explicit successful/processing outcomes and the Aporia credit ending.
 
 Application source: final main at `3ca4cba0da4c2417df417aaba2a515c23c7e1f55`; tree `893b04995a77bc664bb9f5b20288e5be1b691bd5`. See [clearance and integration](docs/CLEARANCE.md).
 
 ## Watch and edit
 
-- `deliverables/agus-hackaholics-7.mp4` — finished playable master (kept outside Git).
-- `deliverables/poster.png` — brand frame.
+- `deliverables/agus-aporia-demo-final.mp4` — polished finished master (kept outside Git).
+- `deliverables/agus-hackaholics-7.mp4` — original fallback, preserved byte for byte.
+- `deliverables/agus-aporia-poster.png` — brand frame.
 - `NARRATION.md` — concise optional presentation script.
 - `src/scenes.ts` — timing, chapter labels, on-screen copy.
 - `src/movie.tsx`, `src/style.css` — layouts and animation.
@@ -56,3 +57,5 @@ These are successful local fixture demonstrations of the real interface, with th
 The capture asserts missing account fields; zero approval/execution before review; approval without execution; explicit separate simulation submission; successful/processing outcomes; persistence after reload; Simulation labels; no browser errors and no external browser requests. See `public/captures/evidence.json`. No fixtures or model transport mocks were added to the financial application.
 
 The production branch changes only `film/`. The final application on main remains untouched by film production.
+
+Final captions are in `deliverables/captions-final.srt`; `SHOTLIST.md` and `NARRATION.md` follow the updated edit. The edit preserves all 210 seconds of the timeline and the original captured media. No application recapture or financial application changes are part of this polish.
