@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  AccountSummarySchema,
   HistoryQuerySchema,
   type AccountRecord,
   type BankingDataSource,
@@ -9,7 +10,13 @@ import {
   type PermissionContext,
   type Scope,
 } from "./contracts";
-import { fail, fingerprint, transactionTime, trustedNow } from "./core";
+import {
+  fail,
+  fingerprint,
+  parseProvider,
+  transactionTime,
+  trustedNow,
+} from "./core";
 import { createAuthorizer } from "./permissions";
 import { MemoryFinancialRepository, type FixtureDataset } from "./repository";
 
@@ -295,8 +302,13 @@ export function createFixtureDataSource(options: {
         if (
           found.expires <= Date.parse(trustedNow(clock)) ||
           found.revision !== revision
-        )
+        ) {
+          cursors.delete(q.cursor);
           fail("SNAPSHOT_EXPIRED");
+        }
+        // Reclaim the consumed capability, including terminal-page cursors.
+        // No await between lookup and claim, so concurrent replay cannot fork it.
+        cursors.delete(q.cursor);
         snapshot = found;
       } else {
         const rows = (
@@ -349,10 +361,15 @@ export function createFixtureDataSource(options: {
       const items = structuredClone(
         snapshot.rows.slice(snapshot.offset, snapshot.offset + q.limit),
       );
+      await auth.recheck(ctx, bindings, ["transactions:read"]);
+      if (revision !== (await repository.getRevision(ctx, q.accountIds)))
+        fail("SNAPSHOT_EXPIRED");
+      const now = Date.parse(trustedNow(clock));
+      if (snapshot.expires <= now) fail("SNAPSHOT_EXPIRED");
       let nextCursor: string | null = null;
       if (snapshot.offset + items.length < snapshot.rows.length) {
         for (const [token, s] of cursors)
-          if (s.expires <= Date.parse(trustedNow(clock))) cursors.delete(token);
+          if (s.expires <= now) cursors.delete(token);
         if (cursors.size >= 200) fail("LIMIT_EXCEEDED");
         nextCursor = randomUUID();
         cursors.set(nextCursor, {
@@ -360,9 +377,6 @@ export function createFixtureDataSource(options: {
           offset: snapshot.offset + items.length,
         });
       }
-      await auth.recheck(ctx, bindings, ["transactions:read"]);
-      if (revision !== (await repository.getRevision(ctx, q.accountIds)))
-        fail("SNAPSHOT_EXPIRED");
       return {
         items,
         nextCursor,
@@ -415,6 +429,7 @@ export function createFixtureDataSource(options: {
         simulated: true,
         unavailableReason: "not_provided",
       };
+      summary = parseProvider(AccountSummarySchema, summary);
       if (
         summary.asOf &&
         Date.parse(trustedNow(clock)) - Date.parse(summary.asOf) > 86400000

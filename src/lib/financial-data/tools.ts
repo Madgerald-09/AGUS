@@ -107,6 +107,7 @@ function view(
     currency: t.currency,
     direction: t.direction,
     status: t.status,
+    reversalOfId: t.reversalOfId,
     occurredAt: t.occurredAt,
     bookedAt: t.bookedAt,
     dateBasis: t.bookedAt
@@ -221,6 +222,8 @@ export function createReadTools(options: {
     input: unknown,
   ): Promise<ToolResult<ToolData[ToolName]>> {
     const deadline = Date.now() + timeoutMs;
+    let pendingSnapshot: SearchSnapshot | undefined;
+    let searchExpires: number | undefined;
     let callId = "invalid-call";
     const baseMeta: ToolResult<unknown>["meta"] = {
       resultId: randomUUID(),
@@ -409,8 +412,12 @@ export function createReadTools(options: {
             if (
               cached.expires <= Date.parse(trustedNow(clock)) ||
               cached.revision !== revision
-            )
+            ) {
+              snapshots.delete(f.cursor);
               fail("SNAPSHOT_EXPIRED");
+            }
+            // Claim synchronously before any further await: concurrent reuse fails closed.
+            snapshots.delete(f.cursor);
             snapshot = cached;
           } else {
             const all = await gather(f),
@@ -447,6 +454,7 @@ export function createReadTools(options: {
               coverage: all.coverage,
             };
           }
+          searchExpires = snapshot.expires;
           baseMeta.coverage = snapshot.coverage;
           const matches = snapshot.rows
             .slice(snapshot.offset, snapshot.offset + f.limit)
@@ -480,15 +488,11 @@ export function createReadTools(options: {
           data.hasMore =
             snapshot.offset + matches.length < snapshot.rows.length;
           if (data.hasMore) {
-            for (const [token, s] of snapshots)
-              if (s.expires <= Date.parse(trustedNow(clock)))
-                snapshots.delete(token);
-            if (snapshots.size >= 100) fail("LIMIT_EXCEEDED");
             baseMeta.nextCursor = randomUUID();
-            snapshots.set(baseMeta.nextCursor, {
+            pendingSnapshot = {
               ...snapshot,
               offset: snapshot.offset + matches.length,
-            });
+            };
           }
           if (data.selection === "ambiguous")
             baseMeta.warnings.push("SELECTION_REQUIRED");
@@ -705,6 +709,16 @@ export function createReadTools(options: {
       )
         fail("INVALID_PROVIDER_DATA");
       if (byteSize(answer) > 16384) fail("LIMIT_EXCEEDED");
+      const now = Date.parse(trustedNow(clock));
+      if (searchExpires !== undefined && searchExpires <= now)
+        fail("SNAPSHOT_EXPIRED");
+      // Publish only after authorization, revision and result checks all succeed.
+      if (pendingSnapshot) {
+        for (const [token, s] of snapshots)
+          if (s.expires <= now) snapshots.delete(token);
+        if (snapshots.size >= 100) fail("LIMIT_EXCEEDED");
+        snapshots.set(baseMeta.nextCursor!, pendingSnapshot);
+      }
       return structuredClone(answer);
     } catch (error) {
       const code =
