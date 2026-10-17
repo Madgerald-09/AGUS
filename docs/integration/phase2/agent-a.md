@@ -9,14 +9,20 @@ PROVISIONAL; no integration, release or real-data approval is implied.**
 - Branch: `feat/agus-financial-data`.
 - Exact base: `45f553177f86c2a40de6885304ed9bd47a5af5de`.
 - Target: `docs/agus-phase1-foundation-20261017` (Phase 1 PR #13).
-- Contract-only commit: **`e9041da4c71be5316f382f9d987624cd7aff9966`**.
-  `src/lib/financial-data/contracts.ts` remains unchanged after that commit.
-  Initial proposal `e37a13708006ab2a3001a93e87c9dc744385f933` is its parent; the
-  final contract-only amendment rejects sub-millisecond timestamps before date
-  arithmetic can truncate them. Neither proposal is recorded as approved.
-- Worktree: `/workspace/agus-financial-data`; the original checkout and Gerald's
-  branch are unchanged. The implementation commit is the commit adding this handoff;
-  subsequent documentation-only verification updates do not amend the contract.
+- Replacement contract-only commit: **`08fd872cdf666964ca6625b2b09bc4c7180c682a`**.
+  This provisional repair amendment adds required nullable `TransactionView.reversalOfId`
+  and requires a valid `asOf` whenever either balance is numeric, regardless of
+  `unavailableReason`. `src/lib/financial-data/contracts.ts` is unchanged after it.
+  It supersedes `e9041da4c71be5316f382f9d987624cd7aff9966` (millisecond timestamp
+  validation) and initial proposal `e37a13708006ab2a3001a93e87c9dc744385f933`.
+  No proposal or amendment is recorded as approved; protocol/schema version 1
+  remains provisional and requires Gerald/founder review before adoption.
+- Initial implementation worktree: `/workspace/agus-financial-data`. This repair
+  uses `/workspace/hackaholics-financial-agent` on the existing feature branch;
+  Gerald's branch is unchanged. Original implementation:
+  `5947e7efd2eb01af346941407bf9de30c043379d`. P2 repair implementation/tests:
+  `9136c754d7f8f6ea9f7c97ea0a7c7008c4cb2514`. Documentation-only verification
+  updates do not amend the contract.
 
 Read all four requested Phase 1 documents before implementation. GitHub inspection
 found no approved newer `integration/agus-financial-memory` base. The docs branch and
@@ -72,7 +78,10 @@ revisions or changed identity fail. Zero monetary records are omitted with
   `ambiguous`. One displayed row can still be ambiguous. A candidate does not prove
   payment or recipient credit. Zero matches invite refinement, not a claim of absence.
 - `get_transaction`: sanitized details, record revision, date basis, safe source and
-  evidence IDs. Cross-owner and absent individual IDs return `NOT_FOUND`.
+  evidence IDs. Search and detail views include validated `reversalOfId`, even when
+  the original debit is outside the search interval. A posted credit with a non-null
+  link represents returned funds and must not be presented as ordinary income.
+  Cross-owner and absent individual IDs return `NOT_FOUND`.
 - `calculate_spending`: authoritative integer-kobo expense, income, net and grouped
   totals over **all** provider pages. Posted debits/credits only; non-posted statuses,
   undated records and linked reversal credits excluded and counted. Original reversed
@@ -85,7 +94,10 @@ revisions or changed identity fail. Zero monetary records are omitted with
   evidence returns `empty`, not an invented receipt.
 - `get_account_summary`: up to five summaries, sources, sync times and explicit null
   balances. Known signed balances are allowed; missing balances never become zero
-  or a transaction sum. Balances over 24 hours old are withheld as `stale`.
+  or a transaction sum. Numeric balances without valid observation timestamps are
+  rejected as `INVALID_PROVIDER_DATA` at ingestion and read boundaries. This includes
+  partial balances and zero/negative amounts, even with an unavailable reason.
+  Balances over 24 hours old are withheld as `stale`.
 
 Every account is bound to one authoritative source and one active consent. The
 current permission design allows only `ctx.actorId === ownerId` in the same tenant;
@@ -99,7 +111,15 @@ changes and relevant record changes suppress in-flight results and invalidate cu
 Server-issued search cursors are random references to private 15-minute snapshots,
 bound to principal, exact parsed filters/page size, consent/account/data revision and
 ordering. Fixture-provider cursors are separate opaque server-side references and
-never enter tool output. No model-visible URL is fetched. Cycles/no progress,
+never enter tool output. Both cursor types are single-use: an authorized, validated
+continuation atomically consumes its token before further I/O; replay and concurrent
+reuse return `CURSOR_INVALID`. Wrong-principal/filter attempts do not consume the
+valid token. Terminal pages release the snapshot; nonterminal pages replace it with
+one fresh token sharing the original expiry. Successor tokens are published only
+after final authorization/revision/result checks. Failure after a claim requires a
+new search, never replay of the consumed token. The unchanged limits (100 search,
+200 provider) count outstanding continuations, not historical pages. Expired entries
+are reclaimed before capacity checks. No model-visible URL is fetched. Cycles/no progress,
 conflicting duplicates, schema/currency/source/owner violations and inconsistent page
 coverage fail closed. Max 50 records/page, 100 pages and 5,000 raw records across an
 entire tool call. Maximum 10 seconds includes repository authorization and provider
@@ -183,7 +203,7 @@ const result = await tools.execute(fixturePrincipal, {
 
 ## Exact contract dependencies for Agent B
 
-1. Review **`e9041da4c71be5316f382f9d987624cd7aff9966`** with Gerald/founder. Do not
+1. Review **`08fd872cdf666964ca6625b2b09bc4c7180c682a`** with Gerald/founder. Do not
    silently treat this as frozen/approved, or make another transaction/tool union.
 2. Import `ToolCall`, `ToolArgs`, `ToolData`, `ToolName`, `ToolResult`,
    `ReadToolDispatcher`, `TransactionView`, `EvidenceView`, `PermissionContext`,
@@ -195,6 +215,9 @@ const result = await tools.execute(fixturePrincipal, {
    Render partial totals as available records. Do not infer absence from empty searches,
    select the first ambiguous candidate, treat `single_candidate` as proof of payment,
    or promote source status/synthetic evidence into recipient-credit confirmation.
+   Treat non-null `TransactionView.reversalOfId` as a validated returned-funds link,
+   not ordinary income. Include explicit nulls in fake/tool result fixtures. Numeric
+   balances always require valid observation timestamps, including partial results.
 5. Recheck selections with `get_transaction` and current server authorization on each
    turn; compare `revision`, account and candidate IDs. Bind stored context to tenant,
    actor, account, consent version and expiry using Gerald's server-side resolver.
@@ -246,7 +269,72 @@ const result = await tools.execute(fixturePrincipal, {
 - These are review decisions, not blockers to this authorized isolated fixture module.
   Founder/Gerald approval is required before common-contract adoption or integration.
 
-## Verification evidence
+## P2 repair verification — 17 October 2026
+
+Repairs update existing draft PR #14 on `feat/agus-financial-data`, based on
+`5947e7efd2eb01af346941407bf9de30c043379d`. No duplicate PR, merge, deployment,
+real account access or Agent B launch. All edits are in Agent A-owned files:
+
+- `src/lib/financial-data/contracts.ts`
+- `src/lib/financial-data/tools.ts`
+- `src/lib/financial-data/fixture.ts`
+- `tests/financial-data/repair-regressions.test.ts`
+- `docs/integration/phase2/agent-a.md`
+
+The replacement **PROVISIONAL** contract SHA is
+**`08fd872cdf666964ca6625b2b09bc4c7180c682a`**. Review/adoption remains outstanding.
+The original same-account, reversed-debit, equal-amount link validation runs before
+exposing `reversalOfId`. Calculations continue excluding reversal credits from income.
+Summary schema refinement applies to storage, tool results and direct fixture reads;
+all-null undated summaries remain valid, while dated partial and signed balances
+retain the exact 24-hour freshness boundary.
+
+The initial 15-test regression run on the unmodified implementation had **8 failures,
+7 passes** (`/tmp/agus-repair-before.log`): missing search reversal link, two unavailable
+reason bypasses at ingestion, undated partial balances, search page 101 hitting the
+100-entry cursor cache, calculation 201 hitting the 200-entry provider cache, and
+concurrent reuse of both cursor types succeeding twice. All three reported defects
+were reproduced before repair. Final tests add direct-adapter validation and both
+unchanged capacity/expiry checks, for **18 new regressions** in total.
+
+Regression coverage includes a 125-page search with distinct rows and only three
+provider calls; 205 repeated calculations with exact independent fixture totals;
+single-use/concurrent replay rejection; terminal-page reclamation; active cache
+limits of 100/200; expiry reclamation; principal/filter binding; revocation; invalid
+reversal targets; ordinary credits with explicit null links; missing/invalid balance
+timestamps, including zero and negative partial balances; and freshness at exactly
+24 hours and one millisecond beyond. Existing revision, consent-in-flight, budget,
+pagination-cycle and safe-arithmetic regressions pass unchanged.
+
+| Command / check                                                                                                     | Exact outcome                                 | Evidence                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `npm ci --cache /tmp/agus-repair-npm-cache`                                                                         | PASS, exit 0; 247 packages                    | Supported network permission; lockfile unchanged.                                                                                   |
+| `npm test -- tests/financial-data`                                                                                  | PASS, exit 0; 136 tests / 6 files             | `/tmp/agus-repair-focused.log`; 5.67s.                                                                                              |
+| `npm test`                                                                                                          | PASS, exit 0; 351 tests / 17 files            | `/tmp/agus-repair-full-tests-network.log`; 69.47s; 136 financial-data + 215 unchanged existing tests.                               |
+| `npm run typecheck`                                                                                                 | PASS, exit 0                                  | `/tmp/agus-repair-typecheck.log`.                                                                                                   |
+| `node_modules/.bin/eslint src/lib/financial-data tests/financial-data`                                              | PASS, exit 0                                  | `/tmp/agus-repair-eslint.log`; no errors or warnings.                                                                               |
+| `node_modules/.bin/prettier --check src/lib/financial-data tests/financial-data docs/integration/phase2/agent-a.md` | PASS, exit 0                                  | `/tmp/agus-repair-prettier.log`.                                                                                                    |
+| `NEXT_TELEMETRY_DISABLED=1 npm run build`                                                                           | PASS, exit 0                                  | `/tmp/agus-repair-build-network.log`; generated `next-env.d.ts` restored.                                                           |
+| `npm run test:http`                                                                                                 | PASS, exit 0                                  | `/tmp/agus-repair-http.log`; existing authenticated production fixture workflow, no provider calls or real money.                   |
+| `npm run lint`                                                                                                      | FAIL, exit 1; exactly 3 existing parse errors | `/tmp/agus-repair-full-lint.log`; same `.history` merge markers listed in historical verification below; protected files unchanged. |
+| `git diff --check` and changed-path review                                                                          | PASS, exit 0                                  | Exactly the five owned files above relative to the pre-repair head.                                                                 |
+
+Bounded environment/debugging retries are not passing evidence: the first full unit
+run in the default sandbox had 346 passes and 5 failures in unchanged persistence/
+restart tests, all from `spawnSync ... EPERM`. The first build could not parse its
+TypeScript `--showConfig` subprocess output. Both commands passed with the supported
+runtime network permission, without configuration/test changes. An initial typecheck
+found a TypeScript inference cycle in the new test's cursor loop; an explicit result
+type fixed it before final verification. Logs with the final outcomes above supersede
+those attempts.
+
+No Agent A repair blocker remains. Repository-wide lint remains Gerald's G0 blocker.
+Browser checks were not rerun for this isolated data-module repair; the previously
+confirmed bank-retry failure below remains unaddressed, not newly verified. Contract
+approval and integrated SQL/API/release review remain outstanding. These results do
+not establish connected bank/model functionality or release authorization.
+
+## Original implementation verification evidence (historical)
 
 Commands and final outcomes are recorded below after execution. Local logs under
 `/tmp/agus-a-*` are ephemeral evidence, not deployment artifacts. Existing tests and
