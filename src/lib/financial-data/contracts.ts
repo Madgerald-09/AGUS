@@ -260,6 +260,11 @@ export const AccountSummarySchema = z
   })
   .refine(
     (v) =>
+      (v.availableKobo === null && v.currentKobo === null) || v.asOf !== null,
+    "Numeric balances require an observation timestamp",
+  )
+  .refine(
+    (v) =>
       v.unavailableReason === null
         ? v.availableKobo !== null && v.currentKobo !== null && v.asOf !== null
         : true,
@@ -371,6 +376,7 @@ export const TransactionViewSchema = z.strictObject({
   amountKobo: KoboSchema,
   direction: z.enum(["debit", "credit"]),
   status: StatusSchema,
+  reversalOfId: IdSchema.nullable(),
   occurredAt: InstantSchema.nullable(),
   bookedAt: InstantSchema.nullable(),
   dateBasis: z.enum(["bookedAt", "occurredAt", "unknown"]),
