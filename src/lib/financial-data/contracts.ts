@@ -8,7 +8,10 @@ export const IdSchema = z
   .regex(/^[A-Za-z0-9_.:-]+$/);
 export const InstantSchema = z.iso
   .datetime({ precision: undefined })
-  .refine((s) => Number.isFinite(Date.parse(s)), "Invalid UTC instant");
+  .refine(
+    (s) => Number.isFinite(Date.parse(s)) && !/\.\d{4,}Z$/.test(s),
+    "UTC instant must have at most millisecond precision",
+  );
 export const KoboSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 export const SignedKoboSchema = z
   .number()
