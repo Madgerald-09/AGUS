@@ -4,6 +4,7 @@ import { ToolCallSchema, IdSchema } from "../financial-data/contracts";
 export const RouteSchema = z.strictObject({
   route: z.enum([
     "general",
+    "financial_education",
     "product",
     "financial_read",
     "payment_draft",
@@ -120,6 +121,20 @@ export function paymentIntent(
 }
 export function actionClaim(text: string) {
   return /\bI(?:'ve| have)?\s+(?:approved|submitted|executed|sent|paid|verified)\b/i.test(
+    text,
+  );
+}
+
+/** Education can discuss money, but cannot disclose personal facts or recommendations. */
+export function personalFinancialLanguage(text: string) {
+  return /\b(?:my|mine|our|ours|your|yours|you|I|we|me|AGUS)\b|\b(?:recommend|should|guarantee|guaranteed|submitted|executed|verified|approved|credited|debited|successful)\w*\b|[₦$€£]|\b(?:otp|password|token|secret)\b|\b(?:payment|transfer|transaction)\b.{0,40}\b(?:went through|reached|settled|complete|paid)\w*\b/i.test(
+    text,
+  );
+}
+
+/** Teaching requests addressed to the assistant need no personal records. */
+export function personalFinancialRequest(text: string) {
+  return /\b(?:my|mine|our|ours)\b|\b(?:I|we)\s+(?:have|had|earn|earned|spend|spent|paid|pay|owe|own)\b|\b(?:should|recommend|advise)\b|\b(?:this|that|those|smaller|larger|first|second)\b.{0,30}\b(?:payment|transaction|transfer|account|one)\b/i.test(
     text,
   );
 }

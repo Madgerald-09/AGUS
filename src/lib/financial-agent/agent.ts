@@ -33,6 +33,8 @@ import {
   AgentError,
   bytes,
   financialLanguage,
+  personalFinancialLanguage,
+  personalFinancialRequest,
   actionClaim,
   paymentIntent,
   scrub,
@@ -251,6 +253,8 @@ export function createFinancialAgent(options: AgentOptions) {
               )))
         )
           route = "financial_read";
+        if (route === "financial_education" && personalFinancialRequest(text))
+          route = "financial_read";
         if (route === "payment_draft") {
           selection = null;
           const value = reply(
@@ -273,19 +277,29 @@ export function createFinancialAgent(options: AgentOptions) {
             .parse(await model("product", { text }));
           return await finish(reply("product", productAnswer(topic)));
         }
-        if (route === "general") {
+        if (route === "general" || route === "financial_education") {
+          const educational = route === "financial_education";
+          // Education never receives persisted financial context, even after revocation.
+          if (educational) selection = null;
           const draft = GeneralSchema.parse(
-            await model("general", { text, history }),
+            await model("general", {
+              text,
+              history: educational ? [] : history,
+              educational,
+            }),
           );
           const review = ReviewSchema.parse(
             await model("review_general", {
               question: text,
               answer: draft.text,
+              educational,
             }),
           );
           if (
             !review.safeGeneralConversation ||
-            financialLanguage(draft.text) ||
+            (educational
+              ? personalFinancialLanguage(draft.text)
+              : financialLanguage(draft.text)) ||
             actionClaim(draft.text) ||
             scrub(draft.text) !== draft.text
           )

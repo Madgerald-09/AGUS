@@ -73,12 +73,13 @@ try {
     text: string,
     accepts: (r: AgentReply) => boolean,
     conversationId = id,
+    accountIds = ["amina-current"],
   ) {
     const begin = performance.now();
     const result = await agent.turn({
       ctx: fixturePrincipal,
       conversationId,
-      accountIds: ["amina-current"],
+      accountIds,
       text,
     });
     const pass = accepts(result);
@@ -105,6 +106,23 @@ try {
       r.kind === "general" &&
       r.text !== replies[0].text &&
       r.evidence.toolCalls === 0,
+  );
+  await check(
+    "education-no-account",
+    "What is inflation?",
+    (r) => r.kind === "general" && r.evidence.toolCalls === 0,
+    "education-no-account",
+    [],
+  );
+  await check(
+    "personal-no-account",
+    "What did I spend last month?",
+    (r) =>
+      r.kind === "clarify" &&
+      r.evidence.toolCalls === 0 &&
+      r.text.includes("authorized account"),
+    "personal-no-account",
+    [],
   );
   await check(
     "product",
