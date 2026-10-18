@@ -22,6 +22,7 @@ import {
 } from "./context";
 import { makeFact, canonical, type Fact, type ReadResult } from "./facts";
 import { PRODUCT_KNOWLEDGE, productAnswer } from "./knowledge";
+import { resolveDateWindow } from "./date-window";
 import {
   RouteSchema,
   DecisionSchema,
@@ -337,11 +338,10 @@ export function createFinancialAgent(options: AgentOptions) {
         // No approximate tolerance, ambiguous weekday or missing account scope is silently inferred.
         if (/\b(?:about|around|roughly|approximately)\b/i.test(text))
           return await finish(reply("clarify", QUESTIONS.amount));
-        if (
-          /\blast (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(
-            text,
-          )
-        )
+        // Resolve before disclosure scrubbing, which can redact date-only ISO
+        // strings as long numbers. Only validated endpoints leave the resolver.
+        const dateWindow = resolveDateWindow(input.text);
+        if (dateWindow.kind === "clarify")
           return await finish(reply("clarify", QUESTIONS.date));
         const facts = new Map<string, Fact>();
         const calls = new Set<string>(),
@@ -423,6 +423,8 @@ export function createFinancialAgent(options: AgentOptions) {
               history,
               now: ctx().now,
               timezone: "Africa/Lagos",
+              dateWindow:
+                dateWindow.kind === "resolved" ? dateWindow.interval : null,
               accountIds: input.accountIds,
               selection: selection
                 ? {
@@ -470,7 +472,20 @@ export function createFinancialAgent(options: AgentOptions) {
               ),
             );
           }
-          const call = ToolCallSchema.parse(decision.call);
+          let call = ToolCallSchema.parse(decision.call);
+          if (
+            call.name === "search_transactions" ||
+            call.name === "calculate_spending"
+          ) {
+            if (dateWindow.kind !== "resolved")
+              return await finish(reply("clarify", QUESTIONS.date));
+            // Only interval fields are authoritative here. Keep account scope and
+            // all other model filters subject to the existing validation/checks.
+            call = ToolCallSchema.parse({
+              ...call,
+              args: { ...call.args, ...dateWindow.interval },
+            });
+          }
           const result = await execute(call);
           if (result.error)
             return await finish(

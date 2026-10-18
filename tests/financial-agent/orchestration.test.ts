@@ -148,7 +148,7 @@ describe("isolated routing and genuine-model protocol (scripted transport in uni
     );
     const r = await s.agent().turn({
       ...s.input,
-      text: "Find Ada Okafor October transaction and its evidence",
+      text: "Find Ada Okafor October 2026 transaction and its evidence",
     });
     expect(r.kind).toBe("financial");
     expect(r.evidence.toolCalls).toBe(3);

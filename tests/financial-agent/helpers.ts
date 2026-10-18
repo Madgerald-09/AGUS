@@ -85,7 +85,7 @@ export function setup<M extends AgentModel>(
   const input = {
     ctx: fixturePrincipal,
     conversationId: "chat-1",
-    text: "Check October spending",
+    text: "Check October 2026 spending",
     accountIds: ["amina-current"],
   };
   return {
