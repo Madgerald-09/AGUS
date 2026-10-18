@@ -38,6 +38,7 @@ import {
   personalFinancialRequest,
   actionClaim,
   paymentIntent,
+  historicalReadIntent,
   scrub,
   type AgentModel,
   type ModelTask,
@@ -239,6 +240,13 @@ export function createFinancialAgent(options: AgentOptions) {
         ).route;
         const payment = paymentIntent(text);
         if (payment) route = payment;
+        else if (
+          (route === "payment_action" || route === "payment_draft") &&
+          historicalReadIntent(input.text)
+        )
+          // Inspect original text so scrubbing cannot hide action intent. This
+          // only enters the existing permission-checked, read-only tool loop.
+          route = "financial_read";
         if (
           route === "general" &&
           (/\bAGUS\b/i.test(text) ||

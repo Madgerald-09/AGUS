@@ -119,6 +119,43 @@ export function paymentIntent(
     return "payment_draft";
   return null;
 }
+/** Narrow correction for payment-route false positives, never authorization.
+ * Unknown clauses and even negated action words deliberately fail closed.
+ */
+export function historicalReadIntent(text: string): boolean {
+  if (
+    paymentIntent(text) ||
+    /\b(?:initiat\w*|start\w*|creat\w*|schedul\w*|process\w*|execut\w*|submi\w*|retry\w*|retried|retries|approv\w*|authori[sz]\w*|send\w*|pay|paying|draft\w*|prepar\w*|wir\w*|remit\w*|transferr\w*|mov\w*|confirm\w*|complet\w*|proceed\w*|continu\w*|handl\w*|resolv\w*|repeat\w*|rerun\w*|do|make|otp)\b|\b(?:go ahead|take care|set up)\b/i.test(
+      text,
+    ) ||
+    !/\b(?:transactions?|payments?|transfers?|receipts?|exact\s+reference)\b/i.test(
+      text,
+    )
+  )
+    return false;
+
+  // Each instruction must be an explicit read. Allow only a small noun-only
+  // continuation for "retrieve transaction details and payment evidence".
+  const clauses = text
+    .split(
+      /[,.!?;:\n&]+|\b(?:and(?:\s+then)?|then|but|also|or|otherwise|afterwards|before|after|once|if|when|so)\b/i,
+    )
+    .map((clause) => clause.replace(/^[\s,]+|[\s,]+$/g, ""))
+    .filter(Boolean);
+  const read =
+    /^(?:(?:can|could|would) you\s+)?(?:please\s+)?(?:search|find|look up|list|show|retrieve|fetch|explain)\b/i;
+  return (
+    clauses.length > 0 &&
+    read.test(clauses[0]) &&
+    clauses.every(
+      (clause) =>
+        read.test(clause) ||
+        /^(?:(?:the|its|their)\s+)?(?:payment evidence|evidence|receipts?|transaction details)(?:\s+for\s+.+)?$/i.test(
+          clause,
+        ),
+    )
+  );
+}
 export function actionClaim(text: string) {
   return /\bI(?:'ve| have)?\s+(?:approved|submitted|executed|sent|paid|verified)\b/i.test(
     text,
