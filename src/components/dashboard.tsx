@@ -265,12 +265,6 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
-  useEffect(() => {
-    if (state && banks.length === 0)
-      api<typeof banks>("banks")
-        .then(setBanks)
-        .catch((e) => setError(e.message));
-  }, [state, banks.length]);
   useEffect(
     () => () => {
       const recognition = speechRecognition.current;
