@@ -287,6 +287,69 @@ describe("grounding, injection and permissions", () => {
   });
 });
 
+describe("persisted-context disclosure validation", () => {
+  it("rejects a stored candidate outside the selection account scope", async () => {
+    const s = setup(scripted(financial, search()));
+    await s.agent().turn(s.input);
+    const key = {
+      tenantId: s.input.ctx.tenantId,
+      actorId: s.input.ctx.actorId,
+      conversationId: "chat-1",
+    };
+    const row = ContextSchema.parse(await s.store.load(key));
+    row.selection!.candidates[0].accountId = "tunde-current";
+    s.options.store = {
+      async load() {
+        return row;
+      },
+      async compareAndSwap() {
+        return true;
+      },
+    };
+    s.model.generate.mockClear();
+    const r = await s.agent().turn({ ...s.input, text: "The smaller one" });
+    expect(r.kind).toBe("unavailable");
+    expect(s.model.generate).not.toHaveBeenCalled();
+  });
+  it("scrubs previously persisted messages again before disclosure", async () => {
+    const s = setup(
+      scripted(
+        { route: "general" },
+        { text: "Hello!" },
+        { safeGeneralConversation: true },
+      ),
+    );
+    s.options.store = {
+      async load() {
+        return {
+          tenantId: s.input.ctx.tenantId,
+          actorId: s.input.ctx.actorId,
+          conversationId: "chat-1",
+          schemaVersion: 1,
+          revision: 1,
+          selection: null,
+          messages: [
+            {
+              role: "user",
+              text: "password=rawsecret 0123456789 https://private.example",
+            },
+          ],
+        };
+      },
+      async compareAndSwap() {
+        return true;
+      },
+    };
+    expect((await s.agent().turn({ ...s.input, text: "Hello" })).kind).toBe(
+      "general",
+    );
+    const prompts = JSON.stringify(s.model.generate.mock.calls);
+    expect(prompts).not.toContain("rawsecret");
+    expect(prompts).not.toContain("0123456789");
+    expect(prompts).not.toContain("https://private.example");
+  });
+});
+
 describe("bounded execution and honest failure", () => {
   it("does not claim transport failure succeeded", async () => {
     const s = setup(
