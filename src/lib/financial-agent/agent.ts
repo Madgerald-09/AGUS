@@ -164,7 +164,12 @@ export function createFinancialAgent(options: AgentOptions) {
           throw new AgentError("CONTEXT_SCOPE");
         let selection = context?.selection ?? null;
         const text = scrub(input.text);
-        const history = boundedMessages(context?.messages ?? []);
+        const history = boundedMessages(
+          (context?.messages ?? []).map((message) => ({
+            ...message,
+            text: scrub(message.text),
+          })),
+        );
         let access: AccessSnapshot | null = null;
         const used = new Map<
           string,
@@ -404,7 +409,19 @@ export function createFinancialAgent(options: AgentOptions) {
               timezone: "Africa/Lagos",
               accountIds: input.accountIds,
               selection: selection
-                ? { candidates: selection.candidates, filter: selection.filter }
+                ? {
+                    candidates: selection.candidates.map((candidate) => ({
+                      ...candidate,
+                      untrustedCounterpartyLabel:
+                        candidate.untrustedCounterpartyLabel
+                          ? scrub(candidate.untrustedCounterpartyLabel).slice(
+                              0,
+                              100,
+                            )
+                          : null,
+                    })),
+                    filter: selection.filter,
+                  }
                 : null,
               results: [...facts.values()].map((f) => ({
                 resultId: f.resultId,

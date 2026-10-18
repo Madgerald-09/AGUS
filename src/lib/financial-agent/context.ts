@@ -12,25 +12,42 @@ export const ContextKeySchema = z.strictObject({
   conversationId: IdSchema,
 });
 export type ContextKey = z.infer<typeof ContextKeySchema>;
-export const SelectionSchema = z.strictObject({
-  resultId: IdSchema,
-  accountIds: z.array(IdSchema).min(1).max(5),
-  candidates: z
-    .array(
-      z.strictObject({
-        accountId: IdSchema,
-        transactionId: IdSchema,
-        untrustedCounterpartyLabel: z.string().max(100).nullable(),
-        revision: z.number().int().positive(),
-        amountKobo: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-      }),
-    )
-    .min(1)
-    .max(25),
-  filter: ReadFilterSchema.nullable(),
-  accessVersion: z.string().min(1).max(256),
-  expiresAt: InstantSchema,
-});
+export const SelectionSchema = z
+  .strictObject({
+    resultId: IdSchema,
+    accountIds: z.array(IdSchema).min(1).max(5),
+    candidates: z
+      .array(
+        z.strictObject({
+          accountId: IdSchema,
+          transactionId: IdSchema,
+          untrustedCounterpartyLabel: z.string().max(100).nullable(),
+          revision: z.number().int().positive(),
+          amountKobo: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+        }),
+      )
+      .min(1)
+      .max(25),
+    filter: ReadFilterSchema.nullable(),
+    accessVersion: z.string().min(1).max(256),
+    expiresAt: InstantSchema,
+  })
+  .refine(
+    (selection) =>
+      selection.candidates.every((candidate) =>
+        selection.accountIds.includes(candidate.accountId),
+      ) &&
+      new Set(
+        selection.candidates.map(
+          (candidate) => `${candidate.accountId}:${candidate.transactionId}`,
+        ),
+      ).size === selection.candidates.length &&
+      (!selection.filter ||
+        selection.filter.accountIds.every((id) =>
+          selection.accountIds.includes(id),
+        )),
+    "Selection scope mismatch",
+  );
 export const ContextSchema = z
   .strictObject({
     ...ContextKeySchema.shape,
