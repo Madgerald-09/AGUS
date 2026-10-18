@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { operator, sameOrigin } from "@/lib/auth";
+import { chatHistory } from "@/lib/chat-history/store";
 import { AppError } from "@/lib/domain";
 import {
   ConversationInput,
@@ -28,7 +29,7 @@ const reply = (data: object, status = 200) =>
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    await operator(req);
+    const owner = await operator(req);
     requireFinancialDemo();
     if (new URL(req.url).search) throw new SyntaxError();
     if (
@@ -53,9 +54,24 @@ export async function POST(req: Request) {
     const input = ConversationInput.parse(
       JSON.parse(Buffer.concat(chunks).toString("utf8")),
     );
-    const result = await conversationTurn(req, input);
+    const history = chatHistory(owner);
+    const lease = await history.claim(input.conversationId, input.text);
+    let result;
+    let turn;
+    try {
+      result = await conversationTurn(req, input);
+      turn = await history.finish(
+        input.conversationId,
+        lease,
+        input.text,
+        result,
+      );
+    } catch (error) {
+      await history.release(input.conversationId, lease);
+      throw error;
+    }
     return reply(
-      { conversationId: input.conversationId, reply: result },
+      { conversationId: input.conversationId, reply: result, turn },
       result.kind === "conflict"
         ? 409
         : result.kind === "unavailable"
@@ -76,9 +92,11 @@ export async function POST(req: Request) {
           ? "FORBIDDEN"
           : status === 400
             ? "INVALID_ARGUMENT"
-            : status === 413
-              ? "REQUEST_TOO_LARGE"
-              : "UNAVAILABLE";
+            : status === 409
+              ? "CHAT_BUSY"
+              : status === 413
+                ? "REQUEST_TOO_LARGE"
+                : "UNAVAILABLE";
     return reply({ error: { code } }, status);
   }
 }
