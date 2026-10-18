@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createConfiguredModel } from "../../src/lib/financial-agent";
+import {
+  createConfiguredModel,
+  PRODUCT_KNOWLEDGE,
+} from "../../src/lib/financial-agent";
+import { setup } from "./helpers";
 
 afterEach(() => vi.unstubAllGlobals());
 const signal = () => AbortSignal.timeout(1000);
@@ -12,6 +16,50 @@ const openai = (content: unknown, finish_reason = "stop") =>
     }),
   );
 describe("bounded provider adapter (HTTP mocked only in these unit tests)", () => {
+  it.each(["openai", "gemini"])(
+    "sends reviewed knowledge only to product selection through %s (mocked HTTP)",
+    async (provider) => {
+      const outputs = [{ route: "product" }, { topic: "data" }];
+      const prompts: { task: string; data: Record<string, unknown> }[] = [];
+      const request = vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        const prompt =
+          provider === "openai"
+            ? body.messages[1].content
+            : body.contents[0].parts[0].text;
+        prompts.push(JSON.parse(prompt));
+        const output = outputs.shift();
+        return provider === "openai"
+          ? openai(output)
+          : new Response(
+              JSON.stringify({
+                candidates: [
+                  {
+                    finishReason: "STOP",
+                    content: { parts: [{ text: JSON.stringify(output) }] },
+                  },
+                ],
+              }),
+            );
+      });
+      vi.stubGlobal("fetch", request);
+      const s = setup(
+        createConfiguredModel({
+          AI_PROVIDER: provider,
+          AI_API_KEY: "test-only",
+        }),
+      );
+      const text = "What does AGUS document about bank data connections?";
+      const result = await s.agent().turn({ ...s.input, accountIds: [], text });
+      expect(prompts.map((p) => p.task)).toEqual(["classify", "product"]);
+      expect(prompts[0].data).not.toHaveProperty("knowledge");
+      expect(prompts[1].data).toEqual({ text, knowledge: PRODUCT_KNOWLEDGE });
+      expect(result.kind).toBe("product");
+      expect(result.text).toContain(PRODUCT_KNOWLEDGE.entries.data);
+      expect(result.evidence.toolCalls).toBe(0);
+      expect(request).toHaveBeenCalledTimes(2);
+    },
+  );
   it("reports missing model configuration without HTTP", async () => {
     const request = vi.fn();
     vi.stubGlobal("fetch", request);

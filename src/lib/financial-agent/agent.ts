@@ -21,7 +21,7 @@ import {
   type ConversationContext,
 } from "./context";
 import { makeFact, canonical, type Fact, type ReadResult } from "./facts";
-import { productAnswer } from "./knowledge";
+import { PRODUCT_KNOWLEDGE, productAnswer } from "./knowledge";
 import {
   RouteSchema,
   DecisionSchema,
@@ -274,7 +274,9 @@ export function createFinancialAgent(options: AgentOptions) {
         if (route === "product") {
           const { topic } = z
             .strictObject({ topic: ProductTopicSchema })
-            .parse(await model("product", { text }));
+            .parse(
+              await model("product", { text, knowledge: PRODUCT_KNOWLEDGE }),
+            );
           return await finish(reply("product", productAnswer(topic)));
         }
         if (route === "general" || route === "financial_education") {

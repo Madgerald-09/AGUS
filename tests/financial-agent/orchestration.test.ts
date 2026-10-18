@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createFinancialAgent,
   MemoryContextStore,
+  PRODUCT_KNOWLEDGE,
 } from "../../src/lib/financial-agent";
 import { fixtureOtherPrincipal } from "../../src/lib/financial-data";
 import {
@@ -52,14 +53,27 @@ describe("isolated routing and genuine-model protocol (scripted transport in uni
     expect(s.tools.dispatch).not.toHaveBeenCalled();
     expect(JSON.stringify(model.generate.mock.calls)).not.toContain("tenantId");
   });
-  it("answers product questions from versioned local knowledge", async () => {
-    const s = setup(scripted({ route: "product" }, { topic: "data" }));
-    const r = await s
-      .agent()
-      .turn({ ...s.input, text: "Does AGUS have real bank connections?" });
+  it.each([
+    ["product", "Does AGUS provide verified Wema or Mono account connections?"],
+    ["product", "Does AGUS have real bank connections?"],
+    ["general", "Can AGUS link a Mono account?"],
+    ["general", "Are Wema connections supported by AGUS?"],
+  ])("grounds product selection after route %s: %s", async (route, text) => {
+    const model = scripted({ route }, { topic: "data" });
+    const s = setup(model);
+    const r = await s.agent().turn({ ...s.input, accountIds: [], text });
+    expect(model.generate.mock.calls[1]).toEqual([
+      "product",
+      { text, knowledge: PRODUCT_KNOWLEDGE },
+      expect.any(AbortSignal),
+    ]);
     expect(r.kind).toBe("product");
     expect(r.text).toContain("fictional");
     expect(r.text).toContain("agus-product-v1.0.0");
+    expect(r.text).toContain(
+      "Wema and Mono account connections are not verified or supplied by this module.",
+    );
+    expect(r.evidence).toMatchObject({ modelCalls: 2, toolCalls: 0 });
     expect(s.tools.dispatch).not.toHaveBeenCalled();
   });
   it("does not invent unsupported product terms", async () => {
