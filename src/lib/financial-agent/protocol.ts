@@ -162,10 +162,30 @@ export function actionClaim(text: string) {
   );
 }
 
-/** Education can discuss money, but cannot disclose personal facts or recommendations. */
+/** Lexical backstop, not a factuality proof: semantic review is still required.
+ * Generic pronouns and example amounts do not establish personal financial facts.
+ */
 export function personalFinancialLanguage(text: string) {
-  return /\b(?:my|mine|our|ours|your|yours|you|I|we|me|AGUS)\b|\b(?:recommend|should|guarantee|guaranteed|submitted|executed|verified|approved|credited|debited|successful)\w*\b|[₦$€£]|\b(?:otp|password|token|secret)\b|\b(?:payment|transfer|transaction)\b.{0,40}\b(?:went through|reached|settled|complete|paid)\w*\b/i.test(
-    text,
+  const prose = text.replace(/\s+/g, " ").replace(/’/g, "'");
+  return (
+    /\bAGUS\b|\b(?:recommend|should|guarantee|guaranteed|submitted|executed|verified|approved|credited|debited|successful)\w*\b|\b(?:otp|password|token|secret|pin|api[ _-]?key)\b|\b(?:payment|transfer|transaction)\b.{0,40}\b(?:went through|reached|settled|complete|paid|sent|succeeded)\w*\b/i.test(
+      prose,
+    ) ||
+    // Ownership plus a financial assertion, rather than "your purchasing power"
+    // or "plan your spending". Do not exempt a claim labelled "for example".
+    /\b(?:my|our|your|his|her|their|\w+'s)\s+(?:\w+\s+){0,3}(?:balance|accounts?|bank|payments?|transfers?|transactions?|salary|income|expenses?|spending|savings|debt|portfolio|returns?|credit score)\b(?:\s*[:=]|\s+(?:\w+\s+){0,3}(?:is|are|was|were|has|have|had|equals?|totals?|stands?|shows?|contains?|increased|decreased|rose|fell)\b)/i.test(
+      prose,
+    ) ||
+    /(?<!\bif )\b(?:I|we|you|he|she|they)(?:'ve|'re|'m|'s)?\s+(?:(?:have|has|had)\s+)?(?:earned?|spen[dt]|owe|own|hold|received?|paid|sent|approved|submitted|executed|verified|completed|processed|initiated|scheduled|authori[sz]ed)\b/i.test(
+      prose,
+    ) ||
+    /(?<!\bif )\b(?:I|we|you)\s+have\s+(?:[₦$€£]|\d|NGN\b|an?\s+(?:account|balance|loan)\b)/i.test(
+      prose,
+    ) ||
+    // Concrete payment instructions never belong in the education channel.
+    /\b(?:send|pay|transfer|wire|remit|move|deposit|withdraw)\s+(?:(?:the|your|our|my|some|all)\s+)?(?:money\b|funds\b|cash\b|[₦$€£]|\d|NGN\b)|\b(?:click|tap|press)\s+(?:the\s+)?(?:send|pay|transfer|submit|approve)\b/i.test(
+      prose,
+    )
   );
 }
 

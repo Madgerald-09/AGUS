@@ -17,6 +17,85 @@ const openai = (content: unknown, finish_reason = "stop") =>
   );
 describe("bounded provider adapter (HTTP mocked only in these unit tests)", () => {
   it.each(["openai", "gemini"])(
+    "carries isolated education through generation and strict review via %s (mocked HTTP)",
+    async (provider) => {
+      const text =
+        "In a hypothetical example, your ₦100 buys less if prices rise.";
+      const outputs = [
+        { route: "financial_education" },
+        { text },
+        { safeGeneralConversation: true },
+      ];
+      const prompts: {
+        task: string;
+        data: Record<string, unknown>;
+        schema: unknown;
+      }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init: RequestInit) => {
+          const body = JSON.parse(String(init.body));
+          prompts.push(
+            JSON.parse(
+              provider === "openai"
+                ? body.messages[1].content
+                : body.contents[0].parts[0].text,
+            ),
+          );
+          const output = outputs.shift();
+          return provider === "openai"
+            ? openai(output)
+            : new Response(
+                JSON.stringify({
+                  candidates: [
+                    {
+                      finishReason: "STOP",
+                      content: { parts: [{ text: JSON.stringify(output) }] },
+                    },
+                  ],
+                }),
+              );
+        }),
+      );
+      const s = setup(
+        createConfiguredModel({
+          AI_PROVIDER: provider,
+          AI_API_KEY: "test-only",
+        }),
+      );
+      const question = "What is inflation?";
+      const reply = await s
+        .agent()
+        .turn({ ...s.input, text: question, accountIds: [] });
+      expect(reply).toMatchObject({
+        kind: "general",
+        text,
+        evidence: { modelCalls: 3, toolCalls: 0 },
+      });
+      expect(prompts.map((p) => p.task)).toEqual([
+        "classify",
+        "general",
+        "review_general",
+      ]);
+      expect(prompts[1].data).toEqual({
+        text: question,
+        history: [],
+        educational: true,
+      });
+      expect(prompts[2].data).toEqual({
+        question,
+        answer: text,
+        educational: true,
+      });
+      expect(prompts[2].schema).toMatchObject({
+        type: "object",
+        properties: { safeGeneralConversation: { type: "boolean" } },
+        required: ["safeGeneralConversation"],
+        additionalProperties: false,
+      });
+    },
+  );
+  it.each(["openai", "gemini"])(
     "sends reviewed knowledge only to product selection through %s (mocked HTTP)",
     async (provider) => {
       const outputs = [{ route: "product" }, { topic: "data" }];

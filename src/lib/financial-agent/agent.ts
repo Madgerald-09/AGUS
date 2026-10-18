@@ -306,15 +306,25 @@ export function createFinancialAgent(options: AgentOptions) {
               educational,
             }),
           );
+          // Fixed codes only: no draft, question, provider body or record in diagnostics.
+          if (!review.safeGeneralConversation)
+            throw new AgentError("GENERAL_MODEL_REJECTED");
           if (
-            !review.safeGeneralConversation ||
-            (educational
+            educational
               ? personalFinancialLanguage(draft.text)
-              : financialLanguage(draft.text)) ||
-            actionClaim(draft.text) ||
-            scrub(draft.text) !== draft.text
+              : financialLanguage(draft.text)
           )
-            throw new AgentError("GENERAL_REJECTED");
+            throw new AgentError(
+              educational
+                ? "GENERAL_POLICY_EDUCATION"
+                : "GENERAL_POLICY_FINANCIAL",
+            );
+          if (actionClaim(draft.text))
+            throw new AgentError("GENERAL_POLICY_ACTION");
+          // Normal prose formatting is safe; retain every disclosure/control check.
+          const disclosureText = draft.text.replace(/[\r\n\t]/g, " ");
+          if (scrub(disclosureText) !== disclosureText)
+            throw new AgentError("GENERAL_POLICY_DISCLOSURE");
           return await finish(reply("general", draft.text));
         }
         if (!input.accountIds.length)
