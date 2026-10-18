@@ -116,7 +116,7 @@ export function createContextStore(
   }
   return {
     async load(id) {
-      IdSchema.parse(id);
+      id = `selection.${IdSchema.parse(id)}`;
       const d = await db();
       const result = await d.execute(
         sql`SELECT revision, payload FROM fm_context WHERE tenant=${principal.tenantId} AND owner=${principal.actorId} AND id=${id} AND expires_at > ${clock()}::timestamptz`,
@@ -132,7 +132,7 @@ export function createContextStore(
       return { revision: row.revision, state };
     },
     async save(id, expectedRevision, input) {
-      IdSchema.parse(id);
+      id = `selection.${IdSchema.parse(id)}`;
       z.number().int().min(0).max(2147483646).parse(expectedRevision);
       const state = ConversationStateSchema.parse(input);
       if (Buffer.byteLength(JSON.stringify(state.messages)) > 12288)

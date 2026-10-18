@@ -8,6 +8,8 @@ import {
   initializeFinancialStorage,
 } from "../../src/lib/financial-integration/storage";
 import { createContextStore } from "../../src/lib/financial-integration/context-store";
+import { createContextPersistence } from "../../src/lib/financial-integration/context-persistence";
+import { TestContextSchema } from "./persistence-codec";
 import { createReadTools } from "../../src/lib/financial-data/tools";
 import {
   createFixtureDataSource,
@@ -31,6 +33,16 @@ const ctx = await financialContext(
 const repository = createDurableRepository();
 const clock = () => FIXTURE_NOW;
 const context = createContextStore(ctx, repository, clock);
+const persistence = createContextPersistence(
+  ctx,
+  TestContextSchema.parse,
+  clock,
+);
+const persistentKey = {
+  tenantId: ctx.tenantId,
+  actorId: ctx.actorId,
+  conversationId: "generic-context",
+};
 const tools = createReadTools({
   repository,
   sources: [createFixtureDataSource({ repository, clock })],
@@ -50,6 +62,12 @@ const call = {
   },
 };
 if (action === "seed") {
+  await persistence.compareAndSwap(persistentKey, null, {
+    ...persistentKey,
+    schemaVersion: 1,
+    revision: 1,
+    transcript: "Untrusted persisted general conversation",
+  });
   await context.save("restart-conversation", 0, {
     schemaVersion: 1,
     accountIds: ["amina-current"],
@@ -113,6 +131,7 @@ writeFileSync(
   1,
   JSON.stringify({
     actorId: ctx.actorId,
+    genericContext: await persistence.load(persistentKey),
     contextOutcome,
     consentState: consent?.state,
     continuationError: continuation.error?.code ?? null,

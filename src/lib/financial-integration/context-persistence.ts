@@ -1,0 +1,77 @@
+import { sql } from "drizzle-orm";
+import { db } from "../db";
+import { AppError } from "../domain";
+import { IdSchema, type Principal } from "../financial-data/contracts";
+
+type ContextKey = Principal & { conversationId: string };
+type VersionedContext = ContextKey & { schemaVersion: 1; revision: number };
+
+/** Lossless SQL CAS adapter for a server-injected context schema. No model/client
+ * may provide the parser. B remains responsible for scrubbing and current access
+ * checks; storage alone never makes persisted selections authoritative facts. */
+export function createContextPersistence<T extends VersionedContext>(
+  principal: Principal,
+  parse: (input: unknown) => T,
+  clock = () => new Date().toISOString(),
+) {
+  const owner = Object.freeze({ ...principal });
+  function key(input: ContextKey) {
+    IdSchema.parse(input.conversationId);
+    if (input.tenantId !== owner.tenantId || input.actorId !== owner.actorId)
+      throw new AppError("Context scope rejected", 403);
+    // Distinct namespace from the foundation's authorized-selection store.
+    return `agentb.${input.conversationId}`;
+  }
+  function validate(input: unknown, k: ContextKey, revision: number) {
+    const value = parse(input);
+    if (
+      value.tenantId !== owner.tenantId ||
+      value.actorId !== owner.actorId ||
+      value.conversationId !== k.conversationId ||
+      value.schemaVersion !== 1 ||
+      value.revision !== revision
+    )
+      throw new AppError("Context scope or revision rejected", 409);
+    return value;
+  }
+  return Object.freeze({
+    async load(k: ContextKey): Promise<T | null> {
+      const id = key(k);
+      const d = await db();
+      const result = await d.execute(
+        sql`SELECT revision, payload FROM fm_context WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND expires_at > ${clock()}::timestamptz`,
+      );
+      if (!result.rows.length) return null;
+      const row = result.rows[0] as { revision: number; payload: unknown };
+      return validate(row.payload, k, row.revision);
+    },
+    async compareAndSwap(
+      k: ContextKey,
+      expected: number | null,
+      next: T,
+    ): Promise<boolean> {
+      const id = key(k);
+      if (
+        expected !== null &&
+        (!Number.isInteger(expected) || expected < 1 || expected >= 2147483647)
+      )
+        throw new AppError("Invalid context revision", 400);
+      const revision = (expected ?? 0) + 1;
+      const value = validate(next, k, revision);
+      const payload = JSON.stringify(value);
+      if (Buffer.byteLength(payload) > 32768)
+        throw new AppError("Context too large", 413);
+      const now = clock();
+      const expiry = new Date(Date.parse(now) + 15 * 60000).toISOString();
+      const d = await db();
+      const result =
+        expected === null
+          ? await d.execute(sql`INSERT INTO fm_context VALUES (${owner.tenantId}, ${owner.actorId}, ${id}, 1, ${expiry}::timestamptz, ${payload}::jsonb)
+          ON CONFLICT (tenant,owner,id) DO UPDATE SET revision=1, expires_at=excluded.expires_at, payload=excluded.payload
+          WHERE fm_context.expires_at <= ${now}::timestamptz RETURNING revision`)
+          : await d.execute(sql`UPDATE fm_context SET revision=${revision}, expires_at=${expiry}::timestamptz, payload=${payload}::jsonb
+          WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND revision=${expected} AND expires_at > ${now}::timestamptz RETURNING revision`);
+      return result.rows.length === 1;
+    },
+  });
+}

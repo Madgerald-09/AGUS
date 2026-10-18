@@ -36,6 +36,10 @@ it("retains sessions, principal mapping, data, context and revocation across pro
     expect(seeded.counts).toEqual({ transactions: 77, seeds: 1 });
     const restored = run("read");
     expect(restored.contextOutcome).toEqual(seeded.contextOutcome);
+    expect(restored.genericContext).toEqual(seeded.genericContext);
+    expect(restored.genericContext.transcript).toBe(
+      "Untrusted persisted general conversation",
+    );
     expect(restored.actorId).toBe("fictional-amina");
     expect(restored.continuationError).toBe("CURSOR_INVALID");
     expect(restored.counts).toEqual(seeded.counts);

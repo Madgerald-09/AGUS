@@ -27,6 +27,8 @@ import { readState } from "../../src/lib/db";
 import type { Principal } from "../../src/lib/financial-data/contracts";
 import { authorizedFinancialAccess } from "../../src/lib/financial-integration/access";
 import { readFile } from "node:fs/promises";
+import { createContextPersistence } from "../../src/lib/financial-integration/context-persistence";
+import { TestContextSchema } from "./persistence-codec";
 
 let dir: string, token: string;
 const base = "http://localhost:3000/api/financial-agent";
@@ -261,6 +263,54 @@ it("calculates exact totals from persisted pages and withholds stale balances", 
     currentKobo: null,
     unavailableReason: "stale",
   });
+});
+
+it("supports a lossless injected context schema with scoped CAS and no account-grant requirement for general conversation", async () => {
+  const key = { ...fixturePrincipal, conversationId: "schema-injection" };
+  const store = createContextPersistence(
+    fixturePrincipal,
+    TestContextSchema.parse,
+    () => FIXTURE_NOW,
+  );
+  const next = {
+    tenantId: key.tenantId,
+    actorId: key.actorId,
+    conversationId: key.conversationId,
+    schemaVersion: 1 as const,
+    revision: 1,
+    transcript: "Untrusted general education conversation; no account data.",
+  };
+  expect(await store.compareAndSwap(key, null, next)).toBe(true);
+  expect(await store.load(key)).toEqual(next);
+  const results = await Promise.all([
+    store.compareAndSwap(key, 1, { ...next, revision: 2 }),
+    store.compareAndSwap(key, 1, { ...next, revision: 2 }),
+  ]);
+  expect(results.sort()).toEqual([false, true]);
+  await expect(
+    store.load({ ...key, actorId: fixtureOtherPrincipal.actorId }),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    store.compareAndSwap(key, 2, {
+      ...next,
+      revision: 3,
+      actorId: fixtureOtherPrincipal.actorId,
+    }),
+  ).rejects.toMatchObject({ status: 409 });
+  await expect(
+    store.compareAndSwap(key, 2, {
+      ...next,
+      revision: 3,
+      transcript: "x".repeat(40000),
+    }),
+  ).rejects.toMatchObject({ status: 413 });
+  const expired = createContextPersistence(
+    fixturePrincipal,
+    TestContextSchema.parse,
+    () => "2026-10-17T10:15:00.000Z",
+  );
+  expect(await expired.load(key)).toBeNull();
+  expect(await expired.compareAndSwap(key, null, next)).toBe(true);
 });
 
 it("suppresses a result when consent is revoked during persisted provider I/O", async () => {
