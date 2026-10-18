@@ -67,8 +67,7 @@ export function createContextPersistence<T extends VersionedContext>(
       const result =
         expected === null
           ? await d.execute(sql`INSERT INTO fm_context VALUES (${owner.tenantId}, ${owner.actorId}, ${id}, 1, ${expiry}::timestamptz, ${payload}::jsonb)
-          ON CONFLICT (tenant,owner,id) DO UPDATE SET revision=1, expires_at=excluded.expires_at, payload=excluded.payload
-          WHERE fm_context.expires_at <= ${now}::timestamptz RETURNING revision`)
+          ON CONFLICT DO NOTHING RETURNING revision`)
           : await d.execute(sql`UPDATE fm_context SET revision=${revision}, expires_at=${expiry}::timestamptz, payload=${payload}::jsonb
           WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND revision=${expected} AND expires_at > ${now}::timestamptz RETURNING revision`);
       return result.rows.length === 1;

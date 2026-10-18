@@ -310,7 +310,19 @@ it("supports a lossless injected context schema with scoped CAS and no account-g
     () => "2026-10-17T10:15:00.000Z",
   );
   expect(await expired.load(key)).toBeNull();
-  expect(await expired.compareAndSwap(key, null, next)).toBe(true);
+  // An expired ID is a tombstone: reusing revision 1 could admit an old stale
+  // writer after expiry. Start a new conversation ID instead.
+  expect(await expired.compareAndSwap(key, null, next)).toBe(false);
+  expect(await expired.compareAndSwap(key, 2, { ...next, revision: 3 })).toBe(
+    false,
+  );
+  const renewedKey = { ...key, conversationId: "new-conversation" };
+  expect(
+    await expired.compareAndSwap(renewedKey, null, {
+      ...next,
+      conversationId: renewedKey.conversationId,
+    }),
+  ).toBe(true);
 });
 
 it("suppresses a result when consent is revoked during persisted provider I/O", async () => {
