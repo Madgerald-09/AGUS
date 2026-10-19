@@ -65,6 +65,7 @@ export function useVoiceInput(options: {
   const transcriptionRequest = useRef<AbortController | null>(null);
   const captureTimeout = useRef<number | null>(null);
   const recordingText = useRef("");
+  const pendingMicrophone = useRef(false);
   function releaseVoiceCapture() {
     if (captureTimeout.current !== null)
       window.clearTimeout(captureTimeout.current);
@@ -146,6 +147,7 @@ export function useVoiceInput(options: {
   // Stop still accepts the final transcript for explicit review before Send.
   const discardVoiceCapture = useCallback(() => {
     voiceEpoch.current += 1;
+    pendingMicrophone.current = false;
     transcriptionRequest.current?.abort();
     transcriptionRequest.current = null;
     voiceSession.current += 1;
@@ -254,7 +256,7 @@ export function useVoiceInput(options: {
           setRequestingVoice(false);
           setListening(true);
           setVoiceStatus(
-            "Listening… your words will appear in the message as you speak.",
+            "Listening… your draft is preserved until you stop recording.",
           );
         };
         recognition.onresult = (event) => {
@@ -351,6 +353,7 @@ export function useVoiceInput(options: {
       );
       return;
     }
+    pendingMicrophone.current = true;
     setVoiceStatus("Requesting microphone access…");
     setRequestingVoice(true);
     const session = ++voiceSession.current;
@@ -503,7 +506,10 @@ export function useVoiceInput(options: {
             : "Could not start voice recording. Check your microphone and try again.",
       );
     } finally {
-      if (epoch === voiceEpoch.current) setRequestingVoice(false);
+      if (epoch === voiceEpoch.current) {
+        pendingMicrophone.current = false;
+        setRequestingVoice(false);
+      }
     }
   }
   useEffect(() => {
@@ -514,7 +520,21 @@ export function useVoiceInput(options: {
       discardVoiceCapture();
     };
   }, [discardVoiceCapture]);
+  // Synchronous API refs protect programmatic composer edits before a React
+  // state render can disable controls (including permission/transcription).
+  function isVoiceLocked() {
+    return !!(
+      speechRecognition.current ||
+      voiceRecorder.current ||
+      transcriptionRequest.current ||
+      pendingMicrophone.current ||
+      requestingVoice ||
+      listening ||
+      transcribingVoice
+    );
+  }
   return {
+    isVoiceLocked,
     setVoiceStatus,
     setRequestingVoice,
     voiceStatus,

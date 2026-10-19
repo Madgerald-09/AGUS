@@ -151,6 +151,7 @@ export function FinancialConversation({
   }, [id, restoreSelection]);
   const busy = !!operation;
   const updateText = (value: string) => {
+    if (voice.isVoiceLocked()) return;
     setText(value);
     drafts.set(id, value);
   };
@@ -158,9 +159,12 @@ export function FinancialConversation({
   const [aiEnabled, setAiEnabled] = useState(false);
   const voice = useVoiceInput({
     text,
-    onText: updateText,
+    onText: (value) => {
+      setText(value);
+      drafts.set(id, value);
+    },
     aiEnabled,
-    disabled: busy || loading || !authenticated,
+    disabled: busy || loading || !!unknown || !authenticated,
     focus: () => composer.current?.focus({ preventScroll: true }),
   });
   const { discardVoiceCapture } = voice;
@@ -382,6 +386,7 @@ export function FinancialConversation({
       paymentHistory.current?.showModal();
   }, [authenticated]);
   function choose(value: string) {
+    if (voice.isVoiceLocked()) return;
     if (text.trim()) {
       setError(
         "Your draft is preserved. Clear it before choosing a suggestion.",
@@ -532,7 +537,7 @@ export function FinancialConversation({
     }
   }
   async function checkSaved() {
-    if (!unknown) return;
+    if (!unknown || voice.isVoiceLocked()) return;
     const version = privacyVersion.current,
       request = requestVersion.current;
     setOperation("check");
@@ -1158,7 +1163,11 @@ export function FinancialConversation({
           {empty && (
             <div className="agus-suggestions">
               {suggestions.map(({ title, text: prompt }) => (
-                <button key={title} onClick={() => choose(prompt)}>
+                <button
+                  key={title}
+                  disabled={voiceBusy}
+                  onClick={() => choose(prompt)}
+                >
                   <span>{title}</span>
                 </button>
               ))}
@@ -1307,7 +1316,14 @@ export function FinancialConversation({
         {accountQuestion?.chat === id && (
           <button
             className="agus-secondary"
-            disabled={!account || busy || loading || !!unknown || !!text.trim()}
+            disabled={
+              !account ||
+              busy ||
+              loading ||
+              voiceBusy ||
+              !!unknown ||
+              !!text.trim()
+            }
             onClick={() => {
               const question = accountQuestion.text;
               setAccountQuestion(null);

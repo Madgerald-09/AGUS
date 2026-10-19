@@ -1,0 +1,40 @@
+{
+  "baseSha": "61c1add9f74b6562cd45800e4af815e42672b365",
+  "branch": "fix/agus-pr32-review-remediation-20261019",
+  "baseBranch": "fix/agus-founder-financial-routing-20261019",
+  "fullSuite": {
+    "passed": 901,
+    "total": 901,
+    "files": 40,
+    "failed": 0
+  },
+  "financialSafetyOwnershipIntegration": {
+    "passed": 339,
+    "total": 339,
+    "files": 11,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "productionBuild": "passed",
+  "diffCheck": "passed",
+  "browser": {
+    "widths": [
+      1440,
+      820,
+      390,
+      320
+    ],
+    "groups": 46,
+    "pageErrors": 0,
+    "automaticRetries": 0,
+    "executionPostsPerWidth": 2,
+    "executionExplanation": "one confirmed pre-claim rejection and one later explicit submit; no duplicate replay"
+  },
+  "limitations": [
+    "Fictional data only",
+    "Mocked Gemini, provider transport, speech and clipboard",
+    "No genuine provider or physical-device testing",
+    "Independent review still required"
+  ]
+}

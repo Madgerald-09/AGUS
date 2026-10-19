@@ -192,7 +192,7 @@ it("extracts a payment handoff without authorizing or reading bank records", asy
   expect(s.tools.dispatch).not.toHaveBeenCalled();
 });
 
-it("preserves user-provided assumptions across turns without exposing record selections", async () => {
+it("requires explicit linkage before reusing earlier numerical assumptions", async () => {
   const s = setup(
     scripted(
       financial,
@@ -222,7 +222,7 @@ it("preserves user-provided assumptions across turns without exposing record sel
     reasoning: true,
     source: "unverified_user_statements",
   });
-  expect(JSON.stringify(data)).toContain("70,000");
+  expect(JSON.stringify(data)).not.toContain("70,000");
   expect(JSON.stringify(data)).not.toMatch(
     /ada-okafor-oct|accessVersion|candidates|resultId/,
   );

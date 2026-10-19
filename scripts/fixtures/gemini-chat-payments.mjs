@@ -10,6 +10,43 @@ globalThis.fetch = async (input, init) => {
   const prompt = JSON.parse(init.body).contents[0].parts[0].text;
   try {
     const envelope = JSON.parse(prompt);
+    if (/How much did I pay Musa last week/i.test(envelope.data.text)) {
+      const answer =
+        envelope.task === "classify"
+          ? { route: "payment_draft" }
+          : envelope.task === "plan"
+            ? envelope.data.results.length
+              ? {
+                  kind: "respond",
+                  resultIds: envelope.data.results.map((r) => r.resultId),
+                }
+              : {
+                  kind: "call_tool",
+                  call: {
+                    protocolVersion: 1,
+                    callId: "musa-history",
+                    name: "search_transactions",
+                    args: {
+                      accountIds: envelope.data.accountIds,
+                      from: "2026-09-30T23:00:00Z",
+                      toExclusive: "2026-10-31T23:00:00Z",
+                      query: "Musa",
+                      limit: 10,
+                      cursor: null,
+                    },
+                  },
+                }
+            : null;
+      if (answer)
+        return Response.json({
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: { parts: [{ text: JSON.stringify(answer) }] },
+            },
+          ],
+        });
+    }
     if (envelope.task === "reason") {
       return Response.json({
         candidates: [

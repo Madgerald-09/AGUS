@@ -27,6 +27,7 @@ import {
   recordsRequest,
   reasoningRequest,
   calculateIllustration,
+  calculationContext,
   unsafeReasoning,
 } from "./reasoning";
 import {
@@ -325,6 +326,16 @@ export function createFinancialAgent(options: AgentOptions) {
         let route = RouteSchema.parse(
           await model("classify", { text, history }),
         ).route;
+        if (
+          /\b(?:did I (?:pay|send)|have I (?:paid|sent))\b/i.test(input.text) &&
+          !historicalReadIntent(input.text)
+        )
+          return await finish(
+            reply(
+              "clarify",
+              "Are you asking about a past payment, or asking to prepare a new payment? Please ask these separately so I can keep the record search and payment draft distinct.",
+            ),
+          );
         const payment = paymentIntent(text);
         if (payment) route = payment;
         else if (
@@ -339,8 +350,7 @@ export function createFinancialAgent(options: AgentOptions) {
           route !== "payment_action" &&
           route !== "payment_draft"
         ) {
-          if (recordsRequest(text) && financialLanguage(text))
-            route = "financial_read";
+          if (recordsRequest(text)) route = "financial_read";
           else if (reasoningRequest(text)) route = "financial_reasoning";
         }
         if (
@@ -393,7 +403,7 @@ export function createFinancialAgent(options: AgentOptions) {
           selection = null;
           // User statements are assumptions, never verified records. No backend
           // results, selections or assistant financial prose reach this channel.
-          const assumptions = history.filter((m) => m.role === "user");
+          const assumptions = calculationContext(text, history);
           const draft = ReasoningSchema.parse(
             await model("reason", {
               text,
@@ -706,6 +716,17 @@ export function createFinancialAgent(options: AgentOptions) {
           error instanceof AgentError
             ? error.code
             : "VALIDATION_OR_DEPENDENCY_FAILURE";
+        if (
+          code.startsWith("CALCULATION_") ||
+          (error instanceof z.ZodError &&
+            error.issues.some((issue) => issue.path.includes("calculation")))
+        )
+          return reply(
+            "clarify",
+            "Please confirm the calculation figures with their roles and units: naira amounts, monthly income or savings, savings percentage or annual interest rate, and duration in months. Include any starting savings and target. I couldn’t safely match the proposed inputs to your request.",
+            [],
+            code,
+          );
         return reply("unavailable", UNAVAILABLE, [], code);
       }
     },

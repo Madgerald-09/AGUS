@@ -20,10 +20,13 @@ export function messagePlainText(root: HTMLElement): string {
   function read(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
     if (!(node instanceof HTMLElement)) return "";
+    // Closed disclosure bodies can still report rectangles in synthetic DOMs
+    // and some browser layouts. Apply semantics before CSS/geometry checks.
+    if (node.tagName === "DETAILS" && !node.hasAttribute("open")) return "";
     if (node.tagName === "BR") return "\n";
     if (
       node.matches(
-        "button, input, select, textarea, summary, script, style, [hidden], [aria-hidden='true'], .agus-sources, .agus-sr-only",
+        "button, input, select, textarea, summary, script, style, [hidden], [aria-hidden='true'], .agus-sources, .agus-sr-only, [data-copy-exclude], [data-redacted], .batch-card, .payment-editor",
       )
     )
       return "";

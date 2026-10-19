@@ -1,5 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  executionRecoveryPending,
+  type ExecutionAttempt,
+} from "./payment-recovery";
 import type { Message } from "@/lib/domain";
 import {
   BatchCard,
@@ -26,11 +30,13 @@ export function useConversationPayments(
   const active = useRef(false);
   const version = useRef(0);
   const refreshVersion = useRef(0);
-  const unresolvedExecution = useRef<string | null>(null);
+  const unresolvedExecution = useRef<ExecutionAttempt | null>(null);
+  const blocked = useRef(false);
   const reset = useCallback(() => {
     ++version.current;
     ++refreshVersion.current;
     active.current = false;
+    blocked.current = false;
     setSnapshot(null);
     setBanks([]);
     setError("");
@@ -58,12 +64,11 @@ export function useConversationPayments(
       const data: PaymentSnapshot = await response.json();
       if (token === version.current && request === refreshVersion.current) {
         setSnapshot(data);
-        const pendingBatch =
-          unresolvedExecution.current &&
-          data.batches.find((b) => b.id === unresolvedExecution.current);
-        const unresolved =
-          !!unresolvedExecution.current &&
-          (!pendingBatch || !pendingBatch.approval?.consumedAt);
+        const unresolved = executionRecoveryPending(
+          unresolvedExecution.current,
+          data,
+        );
+        blocked.current = unresolved;
         if (!unresolved) unresolvedExecution.current = null;
         setUncertain(unresolved);
         if (!preserveError && !unresolved) {
@@ -111,7 +116,7 @@ export function useConversationPayments(
     };
   }, [authenticated, refresh, loadBanks, reset]);
   const run = async (key: string, action: () => Promise<unknown>) => {
-    if (active.current || uncertain) return;
+    if (active.current || blocked.current) return;
     active.current = true;
     setBusy(true);
     setError("");
@@ -124,14 +129,20 @@ export function useConversationPayments(
         setErrorKey(key);
         // A lost execute response must never offer another submit while the
         // persisted one-use claim/outcome is still unconfirmed.
-        if (key.includes(":execute-"))
-          unresolvedExecution.current = key.split(":")[1];
+        if (key.includes(":execute-")) {
+          const parts = key.split(":");
+          unresolvedExecution.current = {
+            batchId: parts[1],
+            attemptId: parts[3],
+          };
+        }
         setError(
           `${e instanceof Error ? e.message : "Payment response unconfirmed."} Check saved payment status before repeating an action.`,
         );
       }
     } finally {
       if (token === version.current) {
+        blocked.current = true;
         setUncertain(true);
         try {
           await refresh(true);

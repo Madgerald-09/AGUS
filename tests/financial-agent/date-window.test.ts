@@ -245,3 +245,112 @@ describe("deterministic orchestration date windows", () => {
     expect(s.tools.dispatch).not.toHaveBeenCalled();
   });
 });
+
+describe("review: relative calendar boundaries", () => {
+  it.each([
+    [
+      "last week",
+      "2026-10-19T12:00:00Z",
+      "2026-10-11T23:00:00.000Z",
+      "2026-10-18T23:00:00.000Z",
+    ],
+    [
+      "last week",
+      "2026-10-25T12:00:00Z",
+      "2026-10-11T23:00:00.000Z",
+      "2026-10-18T23:00:00.000Z",
+    ],
+    [
+      "last week",
+      "2026-01-01T12:00:00Z",
+      "2025-12-21T23:00:00.000Z",
+      "2025-12-28T23:00:00.000Z",
+    ],
+    [
+      "last week",
+      "2028-03-06T12:00:00Z",
+      "2028-02-27T23:00:00.000Z",
+      "2028-03-05T23:00:00.000Z",
+    ],
+    [
+      "this week",
+      "2026-10-18T22:59:59Z",
+      "2026-10-11T23:00:00.000Z",
+      "2026-10-18T23:00:00.000Z",
+    ],
+    [
+      "this week",
+      "2026-10-18T23:00:00Z",
+      "2026-10-18T23:00:00.000Z",
+      "2026-10-19T23:00:00.000Z",
+    ],
+    [
+      "past seven days",
+      "2026-10-19T12:00:00Z",
+      "2026-10-12T23:00:00.000Z",
+      "2026-10-19T23:00:00.000Z",
+    ],
+    [
+      "last seven days",
+      "2026-10-25T12:00:00Z",
+      "2026-10-18T23:00:00.000Z",
+      "2026-10-25T23:00:00.000Z",
+    ],
+    [
+      "last month",
+      "2028-03-01T00:00:00Z",
+      "2028-01-31T23:00:00.000Z",
+      "2028-02-29T23:00:00.000Z",
+    ],
+    [
+      "this month",
+      "2027-01-01T00:00:00Z",
+      "2026-12-31T23:00:00.000Z",
+      "2027-01-01T23:00:00.000Z",
+    ],
+  ])("resolves %s at %s", (period, now, from, toExclusive) => {
+    expect(resolveDateWindow(period, now)).toEqual({
+      kind: "resolved",
+      interval: { from, toExclusive },
+    });
+  });
+  it.each([
+    ["last week", 700],
+    ["past seven days", 1100],
+  ])(
+    "sums fictional transactions exactly at %s boundaries",
+    async (period, total) => {
+      const s = setup(scripted(financial, calc, respond), (data) => {
+        const template = data.transactions.find(
+          (t) => t.id === "october-midnight",
+        )!;
+        data.evidence = [];
+        data.transactions = [
+          ["2026-10-11T22:59:59.999Z", 100],
+          ["2026-10-11T23:00:00.000Z", 200],
+          ["2026-10-12T23:00:00.000Z", 300],
+          ["2026-10-18T22:59:59.999Z", 200],
+          ["2026-10-18T23:00:00.000Z", 600],
+          ["2026-10-19T23:00:00.000Z", 900],
+        ].map(([bookedAt, amountKobo], i) => ({
+          ...template,
+          id: `boundary-${i}`,
+          bookedAt: String(bookedAt),
+          occurredAt: String(bookedAt),
+          provenance: {
+            ...template.provenance,
+            providerTransactionId: `provider-boundary-${i}`,
+          },
+          amountKobo: Number(amountKobo),
+        }));
+      });
+      s.setNow("2026-10-19T12:00:00Z");
+      const reply = await s
+        .agent()
+        .turn({ ...s.input, text: `Calculate spending ${period}` });
+      expect(reply.kind).toBe("financial");
+      const raw = await vi.mocked(s.tools.dispatch).mock.results[0].value;
+      expect(raw.data.expenseKobo).toBe(total);
+    },
+  );
+});

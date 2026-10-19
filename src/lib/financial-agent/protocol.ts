@@ -127,9 +127,23 @@ export function financialLanguage(text: string) {
     text,
   );
 }
+function historicalPaymentQuestion(text: string) {
+  return (
+    /^(?:how much did I pay|did I (?:pay|send)|have I (?:paid|sent))\b[^;!\n&]*[?.]?$/i.test(
+      text.trim(),
+    ) &&
+    !/\b(?:and|then|but|also|or|otherwise|if|please|now|approve|submit|execute|retry|send|pay|make|prepare|draft|initiate|start|schedule|process|wire|remit|move|confirm|complete|proceed|repeat|rerun|otp)\b/i.test(
+      text.replace(
+        /^(?:how much did I pay|did I (?:pay|send)|have I (?:paid|sent))\b/i,
+        "",
+      ),
+    )
+  );
+}
 export function paymentIntent(
   text: string,
 ): "payment_draft" | "payment_action" | null {
+  if (historicalPaymentQuestion(text)) return null;
   const subject =
     /\b(?:payment|transfer|transaction|bank|funds|money|naira|NGN|otp)\b|₦/i.test(
       text,
@@ -155,6 +169,7 @@ export function paymentIntent(
  * Unknown clauses and even negated action words deliberately fail closed.
  */
 export function historicalReadIntent(text: string): boolean {
+  if (historicalPaymentQuestion(text)) return true;
   if (
     paymentIntent(text) ||
     /\b(?:initiat\w*|start\w*|creat\w*|schedul\w*|process\w*|execut\w*|submi\w*|retry\w*|retried|retries|approv\w*|authori[sz]\w*|send\w*|pay|paying|draft\w*|prepar\w*|wir\w*|remit\w*|transferr\w*|mov\w*|confirm\w*|complet\w*|proceed\w*|continu\w*|handl\w*|resolv\w*|repeat\w*|rerun\w*|do|make|otp)\b|\b(?:go ahead|take care|set up)\b/i.test(
