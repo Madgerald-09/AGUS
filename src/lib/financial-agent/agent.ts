@@ -542,8 +542,36 @@ export function createFinancialAgent(options: AgentOptions) {
           if (
             call.name === "find_payment_evidence" &&
             !details.has(`${call.args.accountId}:${call.args.transactionId}`)
-          )
-            throw new AgentError("DETAIL_REQUIRED");
+          ) {
+            // A model can skip the required current-turn detail read when a
+            // user selects a candidate from a preceding, persisted search.
+            // Repair only that authorized read sequence; never use a fresh
+            // same-turn search or an arbitrary model-proposed transaction.
+            const candidate = priorCandidates.find(
+              (c) =>
+                c.accountId === call.args.accountId &&
+                c.transactionId === call.args.transactionId,
+            );
+            if (candidate) {
+              if (tools + 2 > LIMITS.tools)
+                throw new AgentError("TOOL_BUDGET");
+              await execute(
+                ToolCallSchema.parse({
+                  protocolVersion: 1,
+                  callId: `preread-${tools + 1}-${call.callId.slice(0, 40)}`,
+                  name: "get_transaction",
+                  args: {
+                    accountId: candidate.accountId,
+                    transactionId: candidate.transactionId,
+                  },
+                }),
+              );
+            }
+            // The existing proof boundary is unchanged: evidence requires
+            // a successful fresh detail read, including revision recheck.
+            if (!details.has(`${call.args.accountId}:${call.args.transactionId}`))
+              throw new AgentError("DETAIL_REQUIRED");
+          }
           if (
             call.name === "get_transaction" &&
             priorCandidates.length &&
