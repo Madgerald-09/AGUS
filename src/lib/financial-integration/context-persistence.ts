@@ -13,8 +13,13 @@ export function createContextPersistence<T extends VersionedContext>(
   principal: Principal,
   parse: (input: unknown) => T,
   clock = () => new Date().toISOString(),
+  options: { renewExpired?: boolean } = {},
 ) {
   const owner = Object.freeze({ ...principal });
+  // This adapter belongs to one agent turn. Bind numeric CAS to the exact row
+  // lifetime it observed, so resetting an expired revision cannot admit an old
+  // in-flight turn (the revision-1 ABA problem).
+  const observedExpiry = new Map<string, string>();
   function key(input: ContextKey) {
     IdSchema.parse(input.conversationId);
     if (input.tenantId !== owner.tenantId || input.actorId !== owner.actorId)
@@ -39,10 +44,18 @@ export function createContextPersistence<T extends VersionedContext>(
       const id = key(k);
       const d = await db();
       const result = await d.execute(
-        sql`SELECT revision, payload FROM fm_context WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND expires_at > ${clock()}::timestamptz`,
+        sql`SELECT revision, payload, expires_at::text AS expiry FROM fm_context WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND expires_at > ${clock()}::timestamptz`,
       );
-      if (!result.rows.length) return null;
-      const row = result.rows[0] as { revision: number; payload: unknown };
+      if (!result.rows.length) {
+        observedExpiry.delete(id);
+        return null;
+      }
+      const row = result.rows[0] as {
+        revision: number;
+        payload: unknown;
+        expiry: string;
+      };
+      observedExpiry.set(id, row.expiry);
       return validate(row.payload, k, row.revision);
     },
     async compareAndSwap(
@@ -64,13 +77,19 @@ export function createContextPersistence<T extends VersionedContext>(
       const now = clock();
       const expiry = new Date(Date.parse(now) + 15 * 60000).toISOString();
       const d = await db();
+      const observed = observedExpiry.get(id);
+      if (expected !== null && !observed) return false;
       const result =
         expected === null
-          ? await d.execute(sql`INSERT INTO fm_context VALUES (${owner.tenantId}, ${owner.actorId}, ${id}, 1, ${expiry}::timestamptz, ${payload}::jsonb)
+          ? options.renewExpired
+            ? await d.execute(sql`INSERT INTO fm_context VALUES (${owner.tenantId}, ${owner.actorId}, ${id}, 1, ${expiry}::timestamptz, ${payload}::jsonb)
           ON CONFLICT (tenant, owner, id) DO UPDATE SET revision=1, expires_at=EXCLUDED.expires_at, payload=EXCLUDED.payload
           WHERE fm_context.expires_at <= ${now}::timestamptz RETURNING revision`)
+            : await d.execute(sql`INSERT INTO fm_context VALUES (${owner.tenantId}, ${owner.actorId}, ${id}, 1, ${expiry}::timestamptz, ${payload}::jsonb)
+          ON CONFLICT DO NOTHING RETURNING revision`)
           : await d.execute(sql`UPDATE fm_context SET revision=${revision}, expires_at=${expiry}::timestamptz, payload=${payload}::jsonb
-          WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND revision=${expected} AND expires_at > ${now}::timestamptz RETURNING revision`);
+          WHERE tenant=${owner.tenantId} AND owner=${owner.actorId} AND id=${id} AND revision=${expected} AND expires_at=${observed}::timestamptz AND expires_at > ${now}::timestamptz RETURNING revision`);
+      if (result.rows.length === 1) observedExpiry.set(id, expiry);
       return result.rows.length === 1;
     },
   });

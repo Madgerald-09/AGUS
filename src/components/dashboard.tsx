@@ -269,6 +269,7 @@ export function Dashboard({
   const lastVoiceActivity = useRef(0);
   const heardVoice = useRef(false);
   const voiceSession = useRef(0);
+  const voiceEpoch = useRef(0);
   useEffect(() => {
     const speechWindow = window as Window & {
       SpeechRecognition?: SpeechRecognitionConstructor;
@@ -327,6 +328,7 @@ export function Dashboard({
   }
   useEffect(
     () => () => {
+      voiceEpoch.current += 1;
       voiceSession.current += 1;
       const recognition = speechRecognition.current;
       speechRecognition.current = null;
@@ -441,9 +443,7 @@ export function Dashboard({
   ) {
     if (operationInFlight.current) return;
     operationInFlight.current = true;
-    if (key === "logout") {
-      stopVoiceCapture();
-    }
+    if (key === "logout") discardVoiceCapture();
     setBusy(key);
     setError("");
     setAnnouncement("");
@@ -487,7 +487,7 @@ export function Dashboard({
       );
       return;
     }
-    stopVoiceCapture();
+    discardVoiceCapture();
     followLatest.current = true;
     const submittedText = text.trim();
     setPendingMessage({
@@ -559,7 +559,8 @@ export function Dashboard({
         current ? { ...current, status: "failed" } : current,
       );
   }
-  async function transcribeVoice(recording: Blob) {
+  async function transcribeVoice(recording: Blob, epoch: number) {
+    if (epoch !== voiceEpoch.current) return;
     setTranscribingVoice(true);
     setVoiceStatus("Transcribing your recording…");
     try {
@@ -571,6 +572,7 @@ export function Dashboard({
         cache: "no-store",
       });
       const result: unknown = await response.json().catch(() => null);
+      if (epoch !== voiceEpoch.current) return;
       if (
         !response.ok ||
         !result ||
@@ -597,14 +599,40 @@ export function Dashboard({
       setVoiceStatus("Transcript ready. Review it before sending.");
       composerInput.current?.focus({ preventScroll: true });
     } catch (e) {
+      if (epoch !== voiceEpoch.current) return;
       setVoiceStatus(
         e instanceof Error
           ? e.message
           : "Voice transcription failed. Try again or type your request.",
       );
     } finally {
-      setTranscribingVoice(false);
+      if (epoch === voiceEpoch.current) setTranscribingVoice(false);
     }
+  }
+  // Discard callbacks when leaving an authenticated payment workspace. A normal
+  // Stop still accepts the final transcript for explicit review before Send.
+  function discardVoiceCapture() {
+    voiceEpoch.current += 1;
+    voiceSession.current += 1;
+    const recognition = speechRecognition.current;
+    speechRecognition.current = null;
+    if (recognition) {
+      recognition.onstart = recognition.onend = null;
+      recognition.onresult = recognition.onerror = null;
+      recognition.stop();
+    }
+    const recorder = voiceRecorder.current;
+    voiceRecorder.current = null;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.ondataavailable = recorder.onstop = recorder.onerror = null;
+      recorder.stop();
+    }
+    releaseVoiceCapture();
+    setListening(false);
+    setRequestingVoice(false);
+    setTranscribingVoice(false);
+    window.speechSynthesis?.cancel();
+    setPlayingMessageId(null);
   }
   function stopVoiceCapture() {
     voiceSession.current += 1;
@@ -634,11 +662,12 @@ export function Dashboard({
     };
     const SpeechRecognition =
       speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    const epoch = ++voiceEpoch.current;
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
         speechRecognition.current = recognition;
-        voiceBaseMessage.current = message.trimEnd();
+        voiceBaseMessage.current = message;
         setVoiceStatus("Starting voice input…");
         setRequestingVoice(true);
         recognition.lang = navigator.language || "en-US";
@@ -647,7 +676,11 @@ export function Dashboard({
         let recognitionFailed = false;
         let hasTranscript = false;
         recognition.onstart = () => {
-          if (speechRecognition.current !== recognition) return;
+          if (
+            epoch !== voiceEpoch.current ||
+            speechRecognition.current !== recognition
+          )
+            return;
           setRequestingVoice(false);
           setListening(true);
           setVoiceStatus(
@@ -655,6 +688,13 @@ export function Dashboard({
           );
         };
         recognition.onresult = (event) => {
+          if (
+            epoch !== voiceEpoch.current ||
+            speechRecognition.current !== recognition ||
+            recognitionFailed ||
+            operationInFlight.current
+          )
+            return;
           const transcript = Array.from(event.results)
             .map((result) => result[0].transcript.trim())
             .filter(Boolean)
@@ -662,10 +702,15 @@ export function Dashboard({
           if (!transcript) return;
           hasTranscript = true;
           setMessage(
-            [voiceBaseMessage.current, transcript].filter(Boolean).join(" "),
+            `${voiceBaseMessage.current}${voiceBaseMessage.current && !/\s$/.test(voiceBaseMessage.current) ? " " : ""}${transcript}`,
           );
         };
         recognition.onerror = (event) => {
+          if (
+            epoch !== voiceEpoch.current ||
+            speechRecognition.current !== recognition
+          )
+            return;
           recognitionFailed = true;
           const messages: Record<string, string> = {
             "not-allowed":
@@ -686,7 +731,11 @@ export function Dashboard({
           );
         };
         recognition.onend = () => {
-          if (speechRecognition.current !== recognition) return;
+          if (
+            epoch !== voiceEpoch.current ||
+            speechRecognition.current !== recognition
+          )
+            return;
           speechRecognition.current = null;
           setListening(false);
           setRequestingVoice(false);
@@ -780,7 +829,7 @@ export function Dashboard({
         setListening(false);
         const chunks = voiceChunks.current;
         voiceChunks.current = [];
-        if (recordingFailed) return;
+        if (recordingFailed || epoch !== voiceEpoch.current) return;
         const recording = new Blob(chunks, {
           type: recorder.mimeType || chunks[0]?.type || "audio/webm",
         });
@@ -790,7 +839,7 @@ export function Dashboard({
           );
           return;
         }
-        void transcribeVoice(recording);
+        void transcribeVoice(recording, epoch);
       };
       recorder.start(250);
       setListening(true);
@@ -874,7 +923,7 @@ export function Dashboard({
     setShowLatest(false);
   }
   function navigate(next: string) {
-    if (next !== "Agent") stopVoiceCapture();
+    if (next !== "Agent") discardVoiceCapture();
     if (next !== "Agent") {
       window.speechSynthesis?.cancel();
       setPlayingMessageId(null);

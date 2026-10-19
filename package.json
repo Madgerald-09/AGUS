@@ -17,7 +17,9 @@
     "test:browser": "node scripts/browser-safety.mjs && node scripts/browser-chat-first.mjs && node scripts/browser-chat-ux.mjs && node scripts/browser-conversation.mjs && node scripts/browser-demo-polish.mjs",
     "test:browser:workspace": "node scripts/browser-workspace.mjs",
     "test:browser:approved-p0": "node scripts/browser-approved-p0.mjs",
-    "verify:narration": "tsx scripts/verify-grounded-narration.ts"
+    "verify:narration": "tsx scripts/verify-grounded-narration.ts",
+    "test:integration": "vitest run tests/financial-integration tests/financial-agent/grounded-narration.test.ts tests/financial-agent/routing.test.ts tests/financial-agent/education.test.ts tests/financial-agent/date-window.test.ts tests/payments.test.ts tests/financial-safety.test.ts tests/voice.test.ts",
+    "test:browser:integration": "node scripts/browser-integration.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.10",

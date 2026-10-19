@@ -37,6 +37,7 @@ export async function conversationTurn(
       capability.context,
       ContextSchema.parse,
       clock,
+      { renewExpired: true },
     ),
     clock,
   }).turn({

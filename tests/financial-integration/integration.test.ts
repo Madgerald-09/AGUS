@@ -325,6 +325,49 @@ it("supports a lossless injected context schema with scoped CAS and no account-g
   ).toBe(true);
 });
 
+it("renews opted-in expired contexts without accepting a writer from the previous lifetime", async () => {
+  const key = { ...fixturePrincipal, conversationId: "renewal-cas" };
+  let now = FIXTURE_NOW;
+  const adapter = () =>
+    createContextPersistence(
+      fixturePrincipal,
+      TestContextSchema.parse,
+      () => now,
+      { renewExpired: true },
+    );
+  const next = {
+    tenantId: key.tenantId,
+    actorId: key.actorId,
+    conversationId: key.conversationId,
+    schemaVersion: 1 as const,
+    revision: 1,
+    transcript: "old context",
+  };
+  const first = adapter();
+  expect(await first.compareAndSwap(key, null, next)).toBe(true);
+  const delayed = adapter();
+  expect(await delayed.load(key)).toEqual(next);
+  now = "2026-10-17T10:16:00.000Z";
+  // A new turn starts from empty context, independently of display history.
+  const renewed = { ...next, transcript: "fresh context" };
+  const fresh = adapter();
+  expect(await fresh.load(key)).toBeNull();
+  const renewals = await Promise.all([
+    fresh.compareAndSwap(key, null, renewed),
+    adapter().compareAndSwap(key, null, renewed),
+  ]);
+  expect(renewals.sort()).toEqual([false, true]);
+  // Both rows used revision 1. The observed row lifetime must also match.
+  expect(await delayed.compareAndSwap(key, 1, { ...next, revision: 2 })).toBe(
+    false,
+  );
+  const current = adapter();
+  expect(await current.load(key)).toEqual(renewed);
+  expect(
+    await current.compareAndSwap(key, 1, { ...renewed, revision: 2 }),
+  ).toBe(true);
+});
+
 it("suppresses a result when consent is revoked during persisted provider I/O", async () => {
   const clock = () => FIXTURE_NOW;
   const rows = await repo.listTransactions(
