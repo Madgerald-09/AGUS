@@ -47,7 +47,7 @@ describe("Persisted evidence selection keeps fresh-detail safeguards", () => {
     expect(second.kind).toBe("unavailable");
     expect(second.evidence.code).toBe("DETAIL_REQUIRED");
     expect(vi.mocked(s.tools.dispatch).mock.calls.map(
-      ([, call]) => call.name,
+      ([, call]) => ToolCallSchema.parse(call).name,
     )).toEqual(["search_transactions"]);
   });
 });
