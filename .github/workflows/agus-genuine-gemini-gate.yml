@@ -68,46 +68,52 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
-      - name: Genuine educational response (max 3 model calls)
+      - name: Genuine advanced financial scenarios (maximum 21 model calls)
         env:
           AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
         shell: bash
+        timeout-minutes: 12
         run: |
           set -euo pipefail
-          node --import=tsx scripts/verify-financial-model.ts --scenario=education-no-account --max-model-calls=3 --min-interval-ms=5000 > "$RUNNER_TEMP/agus-education.json" || {
-            node -e 'const r=require(process.argv[1]); console.error("Education: "+r.status+" / "+r.reason+" / calls: "+r.providerCalls)' "$RUNNER_TEMP/agus-education.json"
-            exit 2
-          }
-          node -e 'const r=require(process.argv[1]); console.log("Education: "+r.status+" / actual calls: "+r.providerCalls)' "$RUNNER_TEMP/agus-education.json"
-      - name: Genuine fictional October totals and narration (max 4 model calls)
-        env:
-          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          sleep 6
-          status=0
-          node --import=tsx scripts/verify-financial-model.ts --scenario=totals --max-model-calls=4 --min-interval-ms=5000 --include-responses > "$RUNNER_TEMP/agus-totals.json" || status=$?
-          node --input-type=module - "$RUNNER_TEMP/agus-totals.json" "$status" <<'NODE'
+          for config in multi-step:6 follow-up:9 payment-handoff:3 execution-refusal:3; do
+            scenario="${config%%:*}"
+            budget="${config##*:}"
+            echo "Running genuine $scenario scenario (max $budget provider calls)"
+            file="$RUNNER_TEMP/agus-$scenario.json"
+            status=0
+            node --import=tsx scripts/verify-financial-model.ts \
+              "--scenario=$scenario" "--max-model-calls=$budget" \
+              "--min-interval-ms=5000" --include-responses > "$file" || status=$?
+            node --input-type=module - "$file" "$scenario" "$status" <<'NODE'
           import {readFileSync} from "node:fs";
-          const [file, exitCode] = process.argv.slice(2);
+          const [file, scenario, exitCode] = process.argv.slice(2);
           let r;
           try { r = JSON.parse(readFileSync(file,"utf8")); }
-          catch { console.error("Gemini verification response was not valid JSON; output withheld."); process.exit(2); }
-          const c = r.cases?.find(x=>x.id==="totals") || {};
+          catch { console.error("Unparseable verification result; private contents withheld"); process.exit(2); }
+          const cases = (r.cases||[]).filter(c=>
+            c.id===scenario || (scenario==="follow-up" && c.id==="ambiguous"));
+          for (const c of cases) {
+            console.log(JSON.stringify({
+              id:c.id, status:c.status, kind:c.kind, narration:c.narration,
+              tools:c.tools, errorClassification:c.errorClassification,
+              narrationDiagnostic:c.narrationDiagnostic||null,
+              grounding:c.grounding||null,
+            }));
+          }
           console.log(JSON.stringify({
-            status:r.status,
-            reason:r.reason,
-            actualProviderCalls:r.providerCalls,
-            kind:c.kind||null,
-            caseStatus:c.status||"UNVERIFIED",
-            narration:c.narration||"none",
-            errorClassification:c.errorClassification||null,
-            narrationDiagnostic:c.narrationDiagnostic||null,
-            grounding:c.grounding||null,
+            scenario,overall:r.status,reason:r.reason,providerCalls:r.providerCalls,
+            exitCode:Number(exitCode)
           }));
-          if(r.status!=="PASS"||c.status!=="PASS"||c.narration!=="ai"||Number(exitCode)!==0)process.exit(2);
+          if(r.status!=="PASS" || Number(exitCode)!==0 ||
+            cases.length<(scenario==="follow-up"?2:1) ||
+            cases.some(c=>c.status!=="PASS"))process.exit(2);
           NODE
+            if [ "$status" -ne 0 ]; then
+              echo "::error::Genuine scenario $scenario blocked; stop instead of blind retries"
+              exit "$status"
+            fi
+            sleep 6
+          done
       - name: Publish final result for read-only inspection
         if: always()
         env:
