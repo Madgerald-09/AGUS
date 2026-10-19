@@ -1,0 +1,127 @@
+name: AGUS persisted selection fix verification
+on:
+  push:
+    branches:
+      - fix/agus-evidence-followup-20261019
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: agus-selected-evidence-fix
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NODE_ENV: test
+      NEXT_TELEMETRY_DISABLED: "1"
+      PAYMENT_MODE: fixture
+      FINANCIAL_DEMO_ENABLED: "true"
+      PAYSTACK_SECRET_KEY: ""
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      LIVE_TRANSFERS_ENABLED: "false"
+      LIVE_OWNER_AUTHORIZED: "false"
+      LIVE_WEBHOOK_VALIDATED: "false"
+      LIVE_RECONCILIATION_VALIDATED: "false"
+      PAYMENTS_EMERGENCY_DISABLED: "false"
+      DATABASE_URL: pglite://.data/agus-evidence-fix
+      APP_ORIGIN: http://localhost:3000
+    steps:
+      - name: Report pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending -f context="agus/selected-evidence-fix" \
+            -f description="Running fixture regression and real Gemini follow-up" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm isolated candidate and narrow changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor eb38071ee8267d1800f043543f9f994879e10b94 HEAD
+          git diff --name-only eb38071ee8267d1800f043543f9f994879e10b94 HEAD |
+            sort > "$RUNNER_TEMP/changed.txt"
+          printf '%s\n' \
+            .github/workflows/agus-selected-evidence-fix.yml \
+            src/lib/financial-agent/agent.ts \
+            tests/financial-agent/persisted-evidence-followup.test.ts |
+            sort > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/changed.txt"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Entire fixture regression suite
+        run: npm test
+      - name: Typecheck
+        run: npm run typecheck
+      - name: ESLint
+        run: npm run lint
+      - name: Production build
+        env:
+          NODE_ENV: production
+        run: npm run build
+      - name: Real Gemini persisted follow-up (max 9 model calls)
+        shell: bash
+        timeout-minutes: 8
+        env:
+          AI_PROVIDER: gemini
+          AI_MODEL: gemini-3.5-flash-lite
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AI_API_KEY:-}" ]; then
+            echo "::error::Gemini test secret unavailable; no calls attempted."
+            exit 2
+          fi
+          status=0
+          node --import=tsx scripts/verify-financial-model.ts \
+            --scenario=follow-up --max-model-calls=9 --min-interval-ms=5000 \
+            --include-responses > "$RUNNER_TEMP/followup.json" || status=$?
+          node --input-type=module - "$RUNNER_TEMP/followup.json" "$status" <<'NODE'
+          import {readFileSync} from "node:fs";
+          const [file,exitCode]=process.argv.slice(2);
+          let r;
+          try { r=JSON.parse(readFileSync(file,"utf8")); }
+          catch { console.error("Invalid harness output; raw content withheld");process.exit(2); }
+          const relevant=(r.cases||[]).filter(c=>["ambiguous","follow-up"].includes(c.id));
+          for(const c of relevant){
+            console.log(JSON.stringify({
+              id:c.id,status:c.status,kind:c.kind,narration:c.narration,
+              tools:c.tools,reason:c.errorClassification||null,
+              grounding:c.grounding||null
+            }));
+          }
+          console.log(JSON.stringify({overall:r.status,reason:r.reason,providerCalls:r.providerCalls}));
+          if(r.status!=="PASS"||relevant.length!==2||
+            relevant.some(c=>c.status!=="PASS")||Number(exitCode)!==0)process.exit(2);
+          NODE
+      - name: Report final result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            state=success
+            description="Fixture tests and real Gemini selection repair passed"
+          else
+            state=failure
+            description="Evidence follow-up repair not verified; see CI logs"
+          fi
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" -f context="agus/selected-evidence-fix" \
+            -f description="$description" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
