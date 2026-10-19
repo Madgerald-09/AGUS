@@ -25,6 +25,7 @@ import {
 import type { SavedChat, SavedTurn } from "@/lib/chat-history/store";
 import { BrandAsset } from "./brand-asset";
 import { FinancialResponse } from "./financial-response";
+import { CopyableMessage } from "./copyable-message";
 import { conversationDrafts as drafts } from "@/lib/chat-history/drafts";
 import {
   NativePayment,
@@ -79,6 +80,10 @@ export function FinancialConversation({
   const [historyError, setHistoryError] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [account, setAccount] = useState("");
+  const [accountQuestion, setAccountQuestion] = useState<{
+    chat: string;
+    text: string;
+  } | null>(null);
   const [accountError, setAccountError] = useState("");
   const [accountLoading, setAccountLoading] = useState(false);
   const [password, setPassword] = useState("");
@@ -146,6 +151,7 @@ export function FinancialConversation({
   }, [id, restoreSelection]);
   const busy = !!operation;
   const updateText = (value: string) => {
+    if (voice.isVoiceLocked()) return;
     setText(value);
     drafts.set(id, value);
   };
@@ -153,9 +159,12 @@ export function FinancialConversation({
   const [aiEnabled, setAiEnabled] = useState(false);
   const voice = useVoiceInput({
     text,
-    onText: updateText,
+    onText: (value) => {
+      setText(value);
+      drafts.set(id, value);
+    },
     aiEnabled,
-    disabled: busy || loading || !authenticated,
+    disabled: busy || loading || !!unknown || !authenticated,
     focus: () => composer.current?.focus({ preventScroll: true }),
   });
   const { discardVoiceCapture } = voice;
@@ -180,6 +189,7 @@ export function FinancialConversation({
     setChats([]);
     setAccounts([]);
     setAccount("");
+    setAccountQuestion(null);
     setId("");
     setPendingText("");
     setUnknown(null);
@@ -259,6 +269,7 @@ export function FinancialConversation({
       setError("");
       setText(drafts.get(next) ?? "");
       setAccount("");
+      setAccountQuestion(null);
       setAccounts([]);
       setTurns([]);
       setId(next);
@@ -375,6 +386,7 @@ export function FinancialConversation({
       paymentHistory.current?.showModal();
   }, [authenticated]);
   function choose(value: string) {
+    if (voice.isVoiceLocked()) return;
     if (text.trim()) {
       setError(
         "Your draft is preserved. Clear it before choosing a suggestion.",
@@ -421,8 +433,16 @@ export function FinancialConversation({
       if (version === privacyVersion.current) setAccountLoading(false);
     }
   }
-  async function send() {
-    if (pending.current || loading || unknown || !text.trim() || voiceBusy)
+  async function send(question?: string) {
+    // API refs lock synchronously, before React renders disabled controls.
+    if (voice.isVoiceLocked()) return;
+    if (
+      pending.current ||
+      loading ||
+      unknown ||
+      !(question ?? text).trim() ||
+      voiceBusy
+    )
       return;
     discardVoiceCapture();
     stopSpeech();
@@ -433,7 +453,7 @@ export function FinancialConversation({
     pending.current = true;
     setOperation("message");
     setError("");
-    const original = text,
+    const original = question ?? text,
       chatId = id || crypto.randomUUID(),
       version = privacyVersion.current,
       request = requestVersion.current;
@@ -519,7 +539,7 @@ export function FinancialConversation({
     }
   }
   async function checkSaved() {
-    if (!unknown) return;
+    if (!unknown || voice.isVoiceLocked()) return;
     const version = privacyVersion.current,
       request = requestVersion.current;
     setOperation("check");
@@ -578,7 +598,7 @@ export function FinancialConversation({
     setError("");
     const version = privacyVersion.current;
     try {
-      await payments.run("prepare", async () => {
+      await payments.run(`turn:${turnId}:prepare`, async () => {
         const response = await fetch("/api/conversation/payment-draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -658,6 +678,7 @@ export function FinancialConversation({
   const sidebar = (
     <>
       <div className="agus-sidebar-brand">
+        <BrandAsset />
         <button
           className="agus-icon-button agus-collapse"
           aria-label="Collapse navigation"
@@ -806,7 +827,15 @@ export function FinancialConversation({
             >
               <PanelLeft size={20} />
             </button>
-            <BrandAsset />
+            <span
+              className={
+                sidebarOpen
+                  ? "agus-header-brand sidebar-expanded"
+                  : "agus-header-brand"
+              }
+            >
+              <BrandAsset />
+            </span>
             {!empty && (
               <span
                 className="agus-header-title"
@@ -857,7 +886,9 @@ export function FinancialConversation({
                 <article key={turn.id} className="agus-turn">
                   <div className="agus-user-message">
                     <span className="agus-speaker">You</span>
-                    <p>{turn.text}</p>
+                    <CopyableMessage label="user message">
+                      <p>{turn.text}</p>
+                    </CopyableMessage>
                   </div>
                   <div className="agus-assistant-message">
                     <h2 className="agus-response-heading">agus.</h2>
@@ -867,7 +898,22 @@ export function FinancialConversation({
                         check the records again.
                       </p>
                     )}
-                    <FinancialResponse reply={turn.reply} choose={choose} />
+                    <CopyableMessage label="AGUS response">
+                      <FinancialResponse reply={turn.reply} choose={choose} />
+                    </CopyableMessage>
+                    {turn.reply.accountAction === "choose_demo_account" && (
+                      <button
+                        className="agus-secondary"
+                        disabled={busy || !!unknown}
+                        onClick={() => {
+                          setAccountQuestion({ chat: id, text: turn.text });
+                          openModal(accountDialog.current);
+                          void loadAccounts();
+                        }}
+                      >
+                        Choose demo account
+                      </button>
+                    )}
                     {turn.reply.handoff &&
                       (() => {
                         const message = payments.snapshot?.messages.find(
@@ -880,9 +926,15 @@ export function FinancialConversation({
                           <NativePayment
                             controller={payments}
                             message={message}
+                            recover={() => openModal(paymentHistory.current)}
                           />
                         ) : (
                           <div className="agus-handoff">
+                            <PaymentNotice
+                              controller={payments}
+                              scope={`turn:${turn.id}`}
+                              recover={() => openModal(paymentHistory.current)}
+                            />
                             <button
                               className="agus-secondary"
                               disabled={
@@ -964,7 +1016,6 @@ export function FinancialConversation({
           </button>
         )}
         <div className="agus-composer-area">
-          <PaymentNotice controller={payments} />
           {speech.error && (
             <p className="agus-audio-status" role="status">
               {speech.error}
@@ -1026,7 +1077,7 @@ export function FinancialConversation({
               value={text}
               rows={1}
               maxLength={4000}
-              readOnly={busy || loading}
+              readOnly={busy || loading || voiceBusy}
               onSelect={rememberSelection}
               onBlur={rememberSelection}
               onScroll={rememberSelection}
@@ -1052,6 +1103,31 @@ export function FinancialConversation({
                     ? "Wait for this request before sending another."
                     : ""}
               </span>
+              {voice.listening &&
+                (voice.audioLevel === null ? (
+                  <span
+                    className="agus-recording-pulse"
+                    aria-label="Recording indicator"
+                  >
+                    Recording
+                  </span>
+                ) : (
+                  <span
+                    className="agus-recording-level"
+                    role="img"
+                    aria-label="Microphone sound level"
+                    data-level={voice.audioLevel.toFixed(2)}
+                  >
+                    {[0.6, 1, 0.8, 1, 0.6].map((scale, index) => (
+                      <i
+                        key={index}
+                        style={{
+                          height: `${4 + voice.audioLevel! * scale * 24}px`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                ))}
               <button
                 className={`agus-icon-button agus-mic${voice.listening ? " is-recording" : ""}`}
                 type="button"
@@ -1086,25 +1162,29 @@ export function FinancialConversation({
               </button>
             </div>
           </form>
-          <details className="agus-voice-help">
-            <summary>About voice</summary>
-            <p>
-              Voice fills your editable draft and never sends it. Browser speech
-              services or the configured AI provider may process microphone
-              audio. Stop to add the transcript; cancel to discard it.
-              Microphone access requires HTTPS or localhost.
-            </p>
-          </details>
           {empty && (
             <div className="agus-suggestions">
               {suggestions.map(({ title, text: prompt }) => (
-                <button key={title} onClick={() => choose(prompt)}>
+                <button
+                  key={title}
+                  disabled={voiceBusy}
+                  onClick={() => choose(prompt)}
+                >
                   <span>{title}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
+        <details key={id} className="agus-voice-help">
+          <summary>About voice</summary>
+          <p>
+            Voice fills your editable draft and never sends it. Browser speech
+            services or the configured AI provider may process microphone audio.
+            Stop to add the transcript; cancel to discard it. Microphone access
+            requires HTTPS or localhost.
+          </p>
+        </details>
         <details className="agus-demo-strip">
           <summary>
             {paymentMode === "fixture"
@@ -1143,10 +1223,10 @@ export function FinancialConversation({
           Saved drafts and individual outcomes. Processing or unknown means
           unresolved; check the existing reference before taking further action.
         </p>
-        <PaymentNotice controller={payments} />
+        <PaymentNotice controller={payments} scope="history" />
         <button
           className="agus-secondary"
-          onClick={() => void payments.refresh().catch(() => {})}
+          onClick={() => void payments.recover()}
         >
           Refresh saved payments
         </button>
@@ -1235,6 +1315,33 @@ export function FinancialConversation({
           ))}
         </select>
         {accountError && <p role="alert">{accountError}</p>}
+        {accountQuestion?.chat === id && (
+          <button
+            className="agus-secondary"
+            disabled={
+              !account ||
+              busy ||
+              loading ||
+              voiceBusy ||
+              !!unknown ||
+              !!text.trim()
+            }
+            onClick={() => {
+              const question = accountQuestion.text;
+              setAccountQuestion(null);
+              accountDialog.current?.close();
+              void send(question);
+            }}
+          >
+            Continue question
+          </button>
+        )}
+        {accountQuestion?.chat === id && !!text.trim() && (
+          <p>
+            Your unsent draft is preserved. Send or clear it before continuing
+            the saved question.
+          </p>
+        )}
         {(accountError || authenticated === false) && (
           <button
             className="agus-secondary"

@@ -1,0 +1,106 @@
+{
+  "model": "mocked Gemini HTTP",
+  "speech": "mocked browser APIs",
+  "data": "fictional",
+  "paymentMode": "fixture",
+  "results": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "passed": true,
+      "checks": [
+        "Microphone beside Send, recording locks the preserved draft, stop restores editing and appends transcript, cancel rejects late callbacks, no automatic send",
+        "Real analyser samples drive proportional bars using one existing recorder stream; silence is quiet; analyser failure retains functional recording pulse and transcription; empty transcript preserves text",
+        "Mocked MediaRecorder/provider transcription appends without sending; tracks close; cancelled transcription and late permission are discarded; permission denial preserves typed text",
+        "Copy user/AGUS visible text; keyboard and touch discovery; multiline mixed markup; hidden/technical content excluded; denied clipboard feedback (mocked clipboard)",
+        "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+        "Hypothetical arithmetic and budgeting with/without selected account; contextual account picker resumes original past-week question using real permission-checked SQL",
+        "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+        "Musa/OPay/500 retained from mocked extraction; invented conversion discarded; account remains blank with explicit mapping confirmation guidance",
+        "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+        "Reproduced mismatched fixture bank rejection; contextual recovery opens saved payments and clears obsolete error; corrected fields verify",
+        "Confirmed pre-claim rejection recovers without retry; exact persisted receipt, approval nonce and references retained",
+        "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+        "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+        "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+      ],
+      "preparations": 2,
+      "executions": 2,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 820,
+        "height": 900
+      },
+      "passed": true,
+      "checks": [
+        "Microphone beside Send, recording locks the preserved draft, stop restores editing and appends transcript, cancel rejects late callbacks, no automatic send",
+        "Copy user/AGUS visible text; keyboard and touch discovery; multiline mixed markup; hidden/technical content excluded; denied clipboard feedback (mocked clipboard)",
+        "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+        "Hypothetical arithmetic and budgeting with/without selected account; contextual account picker resumes original past-week question using real permission-checked SQL",
+        "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+        "Musa/OPay/500 retained from mocked extraction; invented conversion discarded; account remains blank with explicit mapping confirmation guidance",
+        "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+        "Reproduced mismatched fixture bank rejection; contextual recovery opens saved payments and clears obsolete error; corrected fields verify",
+        "Confirmed pre-claim rejection recovers without retry; exact persisted receipt, approval nonce and references retained",
+        "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+        "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+        "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+      ],
+      "preparations": 2,
+      "executions": 2,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "passed": true,
+      "checks": [
+        "Microphone beside Send, recording locks the preserved draft, stop restores editing and appends transcript, cancel rejects late callbacks, no automatic send",
+        "Copy user/AGUS visible text; keyboard and touch discovery; multiline mixed markup; hidden/technical content excluded; denied clipboard feedback (mocked clipboard)",
+        "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+        "Hypothetical arithmetic and budgeting with/without selected account; contextual account picker resumes original past-week question using real permission-checked SQL",
+        "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+        "Musa/OPay/500 retained from mocked extraction; invented conversion discarded; account remains blank with explicit mapping confirmation guidance",
+        "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+        "Reproduced mismatched fixture bank rejection; contextual recovery opens saved payments and clears obsolete error; corrected fields verify",
+        "Confirmed pre-claim rejection recovers without retry; exact persisted receipt, approval nonce and references retained",
+        "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+        "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+        "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+      ],
+      "preparations": 2,
+      "executions": 2,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 320,
+        "height": 740
+      },
+      "passed": true,
+      "checks": [
+        "Microphone beside Send, recording locks the preserved draft, stop restores editing and appends transcript, cancel rejects late callbacks, no automatic send",
+        "Copy user/AGUS visible text; keyboard and touch discovery; multiline mixed markup; hidden/technical content excluded; denied clipboard feedback (mocked clipboard)",
+        "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+        "Hypothetical arithmetic and budgeting with/without selected account; contextual account picker resumes original past-week question using real permission-checked SQL",
+        "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+        "Musa/OPay/500 retained from mocked extraction; invented conversion discarded; account remains blank with explicit mapping confirmation guidance",
+        "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+        "Reproduced mismatched fixture bank rejection; contextual recovery opens saved payments and clears obsolete error; corrected fields verify",
+        "Confirmed pre-claim rejection recovers without retry; exact persisted receipt, approval nonce and references retained",
+        "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+        "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+        "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+      ],
+      "preparations": 2,
+      "executions": 2,
+      "errors": []
+    }
+  ]
+}

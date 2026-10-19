@@ -43,6 +43,14 @@ export function useVoiceInput(options: {
   const [listening, setListening] = useState(false);
   const [requestingVoice, setRequestingVoice] = useState(false);
   const [transcribingVoice, setTranscribingVoice] = useState(false);
+  const [audioLevel, setAudioLevel] = useState<number | null>(null);
+  // Completion/error guidance is transient; active capture retains its status.
+  useEffect(() => {
+    if (!voiceStatus || listening || requestingVoice || transcribingVoice)
+      return;
+    const timer = setTimeout(() => setVoiceStatus(""), 5000);
+    return () => clearTimeout(timer);
+  }, [voiceStatus, listening, requestingVoice, transcribingVoice]);
   const speechRecognition = useRef<SpeechRecognitionLike | null>(null);
   const voiceRecorder = useRef<MediaRecorder | null>(null);
   const voiceStream = useRef<MediaStream | null>(null);
@@ -55,20 +63,27 @@ export function useVoiceInput(options: {
   const voiceSession = useRef(0);
   const voiceEpoch = useRef(0);
   const transcriptionRequest = useRef<AbortController | null>(null);
+  const captureTimeout = useRef<number | null>(null);
+  const recordingText = useRef("");
+  const pendingMicrophone = useRef(false);
   function releaseVoiceCapture() {
+    if (captureTimeout.current !== null)
+      window.clearTimeout(captureTimeout.current);
+    captureTimeout.current = null;
     if (voiceMonitor.current !== null) {
       window.clearInterval(voiceMonitor.current);
       voiceMonitor.current = null;
     }
     voiceStream.current?.getTracks().forEach((track) => track.stop());
     voiceStream.current = null;
+    setAudioLevel(null);
     const context = voiceAudioContext.current;
     voiceAudioContext.current = null;
     if (context && context.state !== "closed")
       void context.close().catch(() => {});
   }
   function appendTranscript(transcript: string) {
-    const current = latest.current.text;
+    const current = recordingText.current;
     const separator = current && !/\s$/.test(current) ? " " : "";
     const combined = `${current}${separator}${transcript}`;
     latest.current.onText(combined.slice(0, 4000));
@@ -132,6 +147,7 @@ export function useVoiceInput(options: {
   // Stop still accepts the final transcript for explicit review before Send.
   const discardVoiceCapture = useCallback(() => {
     voiceEpoch.current += 1;
+    pendingMicrophone.current = false;
     transcriptionRequest.current?.abort();
     transcriptionRequest.current = null;
     voiceSession.current += 1;
@@ -167,11 +183,27 @@ export function useVoiceInput(options: {
     const recognition = speechRecognition.current;
     if (recognition) {
       setVoiceStatus("Finishing your transcript…");
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch {
+        discardVoiceCapture();
+        setVoiceStatus(
+          "Recording stopped. Your original message is preserved.",
+        );
+      }
       return;
     }
     const recorder = voiceRecorder.current;
-    if (recorder && recorder.state !== "inactive") recorder.stop();
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        discardVoiceCapture();
+        setVoiceStatus(
+          "Recording stopped. Your original message is preserved.",
+        );
+      }
+    }
   }
   async function toggleVoiceInput() {
     if (latest.current.disabled) return;
@@ -179,6 +211,15 @@ export function useVoiceInput(options: {
       stopVoiceCapture();
       return;
     }
+    // API refs close the interval before React commits a disabled button.
+    if (
+      speechRecognition.current ||
+      voiceRecorder.current ||
+      transcriptionRequest.current ||
+      requestingVoice ||
+      transcribingVoice
+    )
+      return;
     if (!window.isSecureContext) {
       setVoiceStatus(
         "Voice recording requires HTTPS or localhost. Open the secure app URL and try again.",
@@ -192,6 +233,8 @@ export function useVoiceInput(options: {
     const SpeechRecognition =
       speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
     const epoch = ++voiceEpoch.current;
+    recordingText.current = latest.current.text;
+    setAudioLevel(null);
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
@@ -213,7 +256,7 @@ export function useVoiceInput(options: {
           setRequestingVoice(false);
           setListening(true);
           setVoiceStatus(
-            "Listening… your words will appear in the message as you speak.",
+            "Listening… your draft is preserved until you stop recording.",
           );
         };
         recognition.onresult = (event) => {
@@ -239,6 +282,12 @@ export function useVoiceInput(options: {
           )
             return;
           recognitionFailed = true;
+          speechRecognition.current = null;
+          try {
+            recognition.stop();
+          } catch {
+            /* Browser already stopped. */
+          }
           setListening(false);
           setRequestingVoice(false);
           const messages: Record<string, string> = {
@@ -297,14 +346,14 @@ export function useVoiceInput(options: {
     }
     if (
       !navigator.mediaDevices?.getUserMedia ||
-      typeof MediaRecorder === "undefined" ||
-      typeof AudioContext === "undefined"
+      typeof MediaRecorder === "undefined"
     ) {
       setVoiceStatus(
         "Voice recording is not supported in this browser. Try a recent version of Chrome, Edge, Firefox, or Safari.",
       );
       return;
     }
+    pendingMicrophone.current = true;
     setVoiceStatus("Requesting microphone access…");
     setRequestingVoice(true);
     const session = ++voiceSession.current;
@@ -325,17 +374,6 @@ export function useVoiceInput(options: {
         return;
       }
       voiceStream.current = stream;
-      const context = new AudioContext();
-      voiceAudioContext.current = context;
-      await context.resume();
-      if (epoch !== voiceEpoch.current) {
-        if (context.state !== "closed") await context.close();
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 512;
-      context.createMediaStreamSource(stream).connect(analyser);
       const mimeType = [
         "audio/webm;codecs=opus",
         "audio/mp4",
@@ -385,27 +423,75 @@ export function useVoiceInput(options: {
       };
       recorder.start(250);
       setListening(true);
+      setRequestingVoice(false);
+      captureTimeout.current = window.setTimeout(stopVoiceCapture, 60000);
       setVoiceStatus("Listening. Speak now; recording stops after a pause.");
-      const samples = new Uint8Array(analyser.fftSize);
-      voiceMonitor.current = window.setInterval(() => {
-        analyser.getByteTimeDomainData(samples);
-        let energy = 0;
-        for (const sample of samples) {
-          const amplitude = (sample - 128) / 128;
-          energy += amplitude * amplitude;
-        }
-        const level = Math.sqrt(energy / samples.length);
-        if (level > 0.035) {
-          heardVoice.current = true;
-          lastVoiceActivity.current = Date.now();
-        } else if (
-          heardVoice.current &&
-          Date.now() - lastVoiceActivity.current > 1400
+      // Visualize only the stream already used by MediaRecorder. Browser speech
+      // recognition exposes no stream and uses the honest status pulse instead.
+      // Audio monitoring is optional: its failure never stops transcription.
+      let monitoringContext: AudioContext | undefined;
+      try {
+        if (typeof AudioContext === "undefined") throw new Error("No analyser");
+        const context = new AudioContext();
+        monitoringContext = context;
+        voiceAudioContext.current = context;
+        await context.resume();
+        if (
+          epoch !== voiceEpoch.current ||
+          voiceRecorder.current !== recorder ||
+          recorder.state === "inactive"
         ) {
-          stopVoiceCapture();
+          if (context.state !== "closed") await context.close();
+          return;
         }
-        if (Date.now() - voiceStartedAt.current > 60000) stopVoiceCapture();
-      }, 100);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 512;
+        context.createMediaStreamSource(stream).connect(analyser);
+        const samples = new Uint8Array(analyser.fftSize);
+        voiceMonitor.current = window.setInterval(() => {
+          if (
+            epoch !== voiceEpoch.current ||
+            voiceRecorder.current !== recorder
+          )
+            return;
+          try {
+            analyser.getByteTimeDomainData(samples);
+          } catch {
+            if (voiceMonitor.current !== null)
+              window.clearInterval(voiceMonitor.current);
+            voiceMonitor.current = null;
+            setAudioLevel(null);
+            if (context.state !== "closed")
+              void context.close().catch(() => {});
+            if (voiceAudioContext.current === context)
+              voiceAudioContext.current = null;
+            return;
+          }
+          let energy = 0;
+          for (const sample of samples) {
+            const amplitude = (sample - 128) / 128;
+            energy += amplitude * amplitude;
+          }
+          const level = Math.sqrt(energy / samples.length);
+          setAudioLevel(Math.min(1, level * 5));
+          if (level > 0.035) {
+            heardVoice.current = true;
+            lastVoiceActivity.current = Date.now();
+          } else if (
+            heardVoice.current &&
+            Date.now() - lastVoiceActivity.current > 1400
+          ) {
+            stopVoiceCapture();
+          }
+        }, 100);
+      } catch {
+        const context = monitoringContext;
+        if (voiceAudioContext.current === context)
+          voiceAudioContext.current = null;
+        if (context && context.state !== "closed")
+          void context.close().catch(() => {});
+        if (epoch === voiceEpoch.current) setAudioLevel(null);
+      }
     } catch (e) {
       if (epoch !== voiceEpoch.current) return;
       voiceRecorder.current = null;
@@ -420,7 +506,10 @@ export function useVoiceInput(options: {
             : "Could not start voice recording. Check your microphone and try again.",
       );
     } finally {
-      if (epoch === voiceEpoch.current) setRequestingVoice(false);
+      if (epoch === voiceEpoch.current) {
+        pendingMicrophone.current = false;
+        setRequestingVoice(false);
+      }
     }
   }
   useEffect(() => {
@@ -431,10 +520,25 @@ export function useVoiceInput(options: {
       discardVoiceCapture();
     };
   }, [discardVoiceCapture]);
+  // Synchronous API refs protect programmatic composer edits before a React
+  // state render can disable controls (including permission/transcription).
+  function isVoiceLocked() {
+    return !!(
+      speechRecognition.current ||
+      voiceRecorder.current ||
+      transcriptionRequest.current ||
+      pendingMicrophone.current ||
+      requestingVoice ||
+      listening ||
+      transcribingVoice
+    );
+  }
   return {
+    isVoiceLocked,
     setVoiceStatus,
     setRequestingVoice,
     voiceStatus,
+    audioLevel,
     listening,
     requestingVoice,
     transcribingVoice,

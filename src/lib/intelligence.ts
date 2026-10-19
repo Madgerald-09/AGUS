@@ -882,5 +882,18 @@ export async function extractConversationPayment(
     return [];
   const plan = await modelPlan(text, { messages: [], batches: [] });
   if (plan.intent !== "prepare") return [];
-  return plan.payments.map((p) => groundProposal(p, text));
+  const banks = await provider().banks();
+  const mentioned = mentionedBanks(text, banks);
+  return plan.payments.map((p) =>
+    groundProposal(
+      {
+        ...p,
+        bankCode:
+          plan.payments.length === 1 && mentioned.length === 1
+            ? mentioned[0].code
+            : p.bankCode,
+      },
+      text,
+    ),
+  );
 }

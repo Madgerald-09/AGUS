@@ -1,5 +1,5 @@
 /* global navigator: readonly, Blob: readonly, DOMException: readonly, KeyboardEvent: readonly, window: readonly, document: readonly */
-// Focused production integration journeys. Three responsive sizes, synthetic data and mocked provider/speech only.
+// Focused production integration journeys. Four responsive sizes, synthetic data and mocked provider/speech only.
 import assert from "node:assert/strict";
 import AxeBuilder from "@axe-core/playwright";
 import { URL } from "node:url";
@@ -83,7 +83,12 @@ try {
     { width: 1440, height: 1000 },
     { width: 820, height: 900 },
     { width: 390, height: 844 },
-  ]) {
+    { width: 320, height: 740 },
+  ].filter(
+    (v) =>
+      !process.env.BROWSER_WIDTHS ||
+      process.env.BROWSER_WIDTHS.split(",").includes(String(v.width)),
+  )) {
     const context = await browser.newContext({
       viewport,
       isMobile: viewport.width < 700,
@@ -93,6 +98,16 @@ try {
       r.request().url().startsWith(base) ? r.continue() : r.abort(),
     );
     await context.addInitScript(() => {
+      window.__clipboard = { text: "", fail: false };
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (text) => {
+            if (window.__clipboard.fail) throw new Error("Denied");
+            window.__clipboard.text = text;
+          },
+        },
+      });
       window.__audio = { speaks: 0, cancels: 0 };
       window.SpeechSynthesisUtterance = class {
         constructor(text) {
@@ -177,6 +192,42 @@ try {
         .getByRole("button", { name: "Collapse navigation", exact: true })
         .filter({ visible: true })
         .click();
+    await input.click();
+    await page.waitForFunction(
+      () =>
+        window.getComputedStyle(document.querySelector(".agus-composer"))
+          .borderColor === "rgb(84, 132, 173)",
+    );
+    const focus = await input.evaluate((el) => ({
+      outline: window.getComputedStyle(el).outlineStyle,
+      border: window.getComputedStyle(el.closest("form")).borderColor,
+      shadow: window.getComputedStyle(el.closest("form")).boxShadow,
+    }));
+    assert.equal(focus.outline, "none");
+    assert.equal(focus.border, "rgb(84, 132, 173)");
+    assert.notEqual(focus.shadow, "none");
+    if (viewport.width === 1440) {
+      await page
+        .getByRole("button", { name: "Open conversations", exact: true })
+        .click();
+      assert.equal(
+        await page.locator(".agus-header .brand-asset").isVisible(),
+        false,
+      );
+      assert.equal(
+        await page.locator(".agus-sidebar .brand-asset").isVisible(),
+        true,
+      );
+      await page.screenshot({ path: "/tmp/agus-founder-sidebar-1440.png" });
+      await page
+        .getByRole("button", { name: "Collapse navigation", exact: true })
+        .filter({ visible: true })
+        .click();
+    }
+    assert.equal(
+      await page.locator(".agus-header .brand-asset").isVisible(),
+      true,
+    );
     await input.fill("first line");
     await input.press(viewport.width >= 700 ? "Shift+Enter" : "Enter");
     assert.equal(await input.inputValue(), "first line\n");
@@ -196,6 +247,26 @@ try {
     await page
       .getByRole("button", { name: "Start recording", exact: true })
       .waitFor({ state: "visible" });
+    await input.fill("");
+    await page
+      .getByRole("button", { name: "Start recording", exact: true })
+      .click();
+    const suggestion = page.locator(".agus-suggestions button").first();
+    assert.equal(await suggestion.isDisabled(), true);
+    // Also dispatch a programmatic click: HTML readOnly alone never protected this.
+    await suggestion.evaluate((el) => el.click());
+    assert.equal(await input.inputValue(), "");
+    await page.evaluate(() =>
+      window.__voice.onresult({
+        results: [
+          { 0: { transcript: "Preserved voice draft" }, isFinal: true },
+        ],
+      }),
+    );
+    await page
+      .getByRole("button", { name: "Stop recording", exact: true })
+      .click();
+    assert.equal(await input.inputValue(), "Preserved voice draft");
     await input.fill("Typed first");
     const turnCount = turns;
     await page
@@ -206,14 +277,15 @@ try {
         results: [{ 0: { transcript: "dictated words" }, isFinal: true }],
       }),
     );
-    await input.fill("Edited while recording");
+    assert.equal(await input.evaluate((el) => el.readOnly), true);
+    assert.equal(await input.inputValue(), "Typed first");
+    await page.getByLabel("Recording indicator", { exact: true }).waitFor();
     await page
       .getByRole("button", { name: "Stop recording", exact: true })
       .click();
-    assert.equal(
-      await input.inputValue(),
-      "Edited while recording dictated words",
-    );
+    assert.equal(await input.inputValue(), "Typed first dictated words");
+    assert.equal(await input.evaluate((el) => el.readOnly), false);
+    await input.fill("Transcript edited before sending");
     assert.equal(turns, turnCount);
     await page
       .getByRole("button", { name: "Start recording", exact: true })
@@ -227,10 +299,31 @@ try {
     await page.evaluate(() =>
       window.__lateVoice({ results: [{ 0: { transcript: "discarded" } }] }),
     );
-    assert.equal(
-      await input.inputValue(),
-      "Edited while recording dictated words",
-    );
+    assert.equal(await input.inputValue(), "Transcript edited before sending");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await page
+        .getByRole("button", { name: "Start recording", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Stop recording", exact: true })
+        .click();
+      await page
+        .getByText("No speech was detected. Try again or type your request.", {
+          exact: true,
+        })
+        .waitFor();
+      assert.equal(await input.evaluate((el) => el.readOnly), false);
+      assert.equal(
+        await input.inputValue(),
+        "Transcript edited before sending",
+      );
+    }
+    await page
+      .getByRole("button", { name: "Start recording", exact: true })
+      .click();
+    await page.evaluate(() => window.__voice.onerror({ error: "not-allowed" }));
+    await page.getByText(/Microphone access was denied/).waitFor();
+    assert.equal(await input.evaluate((el) => el.readOnly), false);
     const mic = await page
       .getByRole("button", { name: "Start recording", exact: true })
       .boundingBox();
@@ -239,7 +332,7 @@ try {
       .boundingBox();
     assert.ok(mic.x < sendBox.x && Math.abs(mic.y - sendBox.y) < 4);
     checks.push(
-      "Microphone beside Send, stop appends to current edited draft, cancel rejects late callbacks, no automatic send",
+      "Microphone beside Send, recording locks the preserved draft, stop restores editing and appends transcript, cancel rejects late callbacks, no automatic send",
     );
     if (viewport.width === 1440) {
       await page.evaluate(() => {
@@ -247,6 +340,8 @@ try {
         window.SpeechRecognition = undefined;
         window.webkitSpeechRecognition = undefined;
         window.__tracksStopped = 0;
+        window.__amplitude = 128;
+        window.__captureRequests = 0;
         window.__stream = () => ({
           getTracks: () => [
             {
@@ -258,7 +353,12 @@ try {
         });
         Object.defineProperty(navigator, "mediaDevices", {
           configurable: true,
-          value: { getUserMedia: async () => window.__stream() },
+          value: {
+            getUserMedia: async () => {
+              window.__captureRequests++;
+              return window.__stream();
+            },
+          },
         });
         window.AudioContext = class {
           state = "running";
@@ -270,7 +370,7 @@ try {
             return {
               fftSize: 512,
               getByteTimeDomainData(data) {
-                data.fill(128);
+                data.fill(window.__amplitude);
               },
             };
           }
@@ -303,6 +403,28 @@ try {
       await page
         .getByRole("button", { name: "Start recording", exact: true })
         .click();
+      await page.waitForFunction(
+        () =>
+          document
+            .querySelector(".agus-recording-level")
+            ?.getAttribute("data-level") === "0.00",
+      );
+      assert.equal(await input.evaluate((el) => el.readOnly), true);
+      await page.evaluate(() => {
+        window.__amplitude = 152;
+      });
+      await page.waitForFunction(
+        () =>
+          Number(
+            document
+              .querySelector(".agus-recording-level")
+              ?.getAttribute("data-level"),
+          ) > 0.5,
+      );
+      assert.equal(await page.evaluate(() => window.__captureRequests), 1);
+      await page.screenshot({
+        path: "/tmp/agus-founder-measured-voice-1440.png",
+      });
       await page
         .getByRole("button", { name: "Stop recording", exact: true })
         .click();
@@ -311,7 +433,50 @@ try {
           document.querySelector("#financial-message").value ===
           "Fallback draft recorded words",
       );
+      assert.equal(await input.evaluate((el) => el.readOnly), false);
+      assert.equal(await page.locator(".agus-recording-level").count(), 0);
       assert.ok(await page.evaluate(() => window.__tracksStopped >= 1));
+      await page.evaluate(() => {
+        window.__workingAudioContext = window.AudioContext;
+        window.AudioContext = class {
+          constructor() {
+            throw new Error("Fixture analyser failure");
+          }
+        };
+      });
+      await page
+        .getByRole("button", { name: "Start recording", exact: true })
+        .click();
+      await page.getByLabel("Recording indicator", { exact: true }).waitFor();
+      await page
+        .getByRole("button", { name: "Stop recording", exact: true })
+        .click();
+      await page.waitForFunction(
+        () =>
+          document.querySelector("#financial-message").value ===
+          "Fallback draft recorded words recorded words",
+      );
+      await input.fill("Fallback draft recorded words");
+      await page.route(
+        "**/api/voice",
+        (r) => r.fulfill({ json: { transcript: " " } }),
+        { times: 1 },
+      );
+      await page
+        .getByRole("button", { name: "Start recording", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Stop recording", exact: true })
+        .click();
+      await page.getByText(/No clear speech was detected/).waitFor();
+      assert.equal(await input.inputValue(), "Fallback draft recorded words");
+      assert.equal(await input.evaluate((el) => el.readOnly), false);
+      await page.evaluate(() => {
+        window.AudioContext = window.__workingAudioContext;
+      });
+      checks.push(
+        "Real analyser samples drive proportional bars using one existing recorder stream; silence is quiet; analyser failure retains functional recording pulse and transcription; empty transcript preserves text",
+      );
       await page.unroute("**/api/voice");
       let releaseTranscription;
       await page.route("**/api/voice", async (r) => {
@@ -337,11 +502,15 @@ try {
       releaseTranscription?.();
       await page.unroute("**/api/voice");
       assert.equal(await input.inputValue(), "Fallback draft recorded words");
+      await input.fill("");
       await page.evaluate(() => {
-        navigator.mediaDevices.getUserMedia = () =>
-          new Promise((resolve) => {
+        navigator.mediaDevices.getUserMedia = () => {
+          // Invoke before React can render disabled suggestions/readOnly.
+          document.querySelector(".agus-suggestions button")?.click();
+          return new Promise((resolve) => {
             window.__permissionResolve = resolve;
           });
+        };
       });
       await page
         .getByRole("button", { name: "Start recording", exact: true })
@@ -352,6 +521,8 @@ try {
       await page
         .getByRole("button", { name: "Cancel recording", exact: true })
         .click();
+      assert.equal(await input.inputValue(), "");
+      await input.fill("Fallback draft recorded words");
       const stopped = await page.evaluate(() => window.__tracksStopped);
       await page.evaluate(() => window.__permissionResolve(window.__stream()));
       await page.waitForFunction((n) => window.__tracksStopped > n, stopped);
@@ -368,6 +539,16 @@ try {
         .click();
       await page.getByText(/Microphone access was denied/).waitFor();
       assert.equal(await input.inputValue(), "Fallback draft recorded words");
+      await page.evaluate(() => {
+        navigator.mediaDevices.getUserMedia = undefined;
+      });
+      await page
+        .getByRole("button", { name: "Start recording", exact: true })
+        .click();
+      await page
+        .getByText(/Voice recording is not supported in this browser/)
+        .waitFor();
+      assert.equal(await input.evaluate((el) => el.readOnly), false);
       assert.equal(turns, turnCount);
       await page.evaluate(() => {
         window.SpeechRecognition = window.__recognitionConstructor;
@@ -376,27 +557,169 @@ try {
         "Mocked MediaRecorder/provider transcription appends without sending; tracks close; cancelled transcription and late permission are discarded; permission denial preserves typed text",
       );
     }
+    await page
+      .locator(".agus-audio-status")
+      .filter({ hasText: /Transcript ready/ })
+      .waitFor({ state: "hidden", timeout: 7000 });
+    assert.equal(
+      await page.locator(".agus-voice-help").evaluate((el) => el.open),
+      false,
+    );
     const hello = await send("Hello");
     assert.equal(hello.reply.kind, "general");
+    const copyUser = page
+      .getByRole("button", { name: "Copy user message", exact: true })
+      .last();
+    if (viewport.width >= 700) {
+      await copyUser.focus();
+      assert.equal(
+        await copyUser.evaluate((el) => window.getComputedStyle(el).opacity),
+        "1",
+      );
+    } else
+      assert.equal(
+        await copyUser.evaluate((el) => window.getComputedStyle(el).opacity),
+        "1",
+      );
+    await copyUser.click();
+    await page.waitForFunction(() => window.__clipboard.text === "Hello");
+    const copyAssistant = page
+      .getByRole("button", { name: "Copy AGUS response", exact: true })
+      .last();
+    await copyAssistant.click();
+    await page.waitForFunction(
+      (text) => window.__clipboard.text === text,
+      hello.reply.text,
+    );
+    await page.evaluate(() => {
+      window.__clipboard.fail = true;
+    });
+    await copyAssistant.click();
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Couldn’t copy" })
+      .waitFor();
+    await page.evaluate(() => {
+      window.__clipboard.fail = false;
+    });
+    // Exercise visible mixed markup and hidden-content exclusion without altering stored history.
+    const rendered = page
+      .locator(".agus-user-message .agus-copyable > div")
+      .last();
+    const originalMarkup = await rendered.innerHTML();
+    await rendered.evaluate((el) => {
+      el.innerHTML =
+        '<p>First line<br>Second <strong>line</strong><span hidden>HIDDEN-TEST-FIXTURE</span><span style="opacity:0">CONCEALED-TEST-FIXTURE</span></p><div class="agus-sources">INTERNAL-TEST-PAYLOAD</div>';
+    });
+    await copyUser.click();
+    await page.waitForFunction(
+      () => window.__clipboard.text === "First line\nSecond line",
+    );
+    for (const syntheticGeometry of [false, true]) {
+      await rendered.evaluate((el, synthetic) => {
+        el.innerHTML =
+          '<p>Visible prose</p><details><summary>Closed</summary><p>PRIVATE-CLOSED</p></details><details open><summary>Expanded</summary><p>Expanded prose</p><details><summary>Nested closed</summary><p>NESTED-PRIVATE</p></details><details open><summary>Nested expanded</summary><p>Nested visible</p></details></details><div data-redacted>REDACTED-VALUE</div><div data-copy-exclude>PAYMENT-CREDENTIAL</div><div class="batch-card">PAYMENT-INTERNALS</div>';
+        if (synthetic)
+          for (const child of el.querySelectorAll("*"))
+            child.getClientRects = () => [new window.DOMRect(0, 0, 100, 20)];
+      }, syntheticGeometry);
+      await copyUser.click();
+      await page.waitForFunction(
+        () =>
+          window.__clipboard.text ===
+          "Visible prose\nExpanded prose\nNested visible",
+      );
+    }
+    await rendered.evaluate((el, html) => {
+      el.innerHTML = html;
+    }, originalMarkup);
+    checks.push(
+      "Copy user/AGUS visible text; keyboard and touch discovery; multiline mixed markup; hidden/technical content excluded; denied clipboard feedback (mocked clipboard)",
+    );
     const education = await send("What is inflation?");
     assert.equal(education.reply.kind, "general");
     assert.match(education.reply.text, /purchasing power/);
+    for (const suffix of [
+      "6% months",
+      "six months; actually use 20% instead",
+    ]) {
+      const invalid = await send(
+        `Calculate simple interest on ₦500 at 10% annual for ${suffix}`,
+      );
+      assert.equal(invalid.reply.kind, "clarify");
+      assert.equal(invalid.reply.evidence.toolCalls, 0);
+      assert.doesNotMatch(invalid.reply.text, /₦25.00/);
+    }
+    const interest = await send(
+      "Calculate simple interest on ₦500 at 10% annual for six months",
+    );
+    assert.equal(interest.reply.kind, "general");
+    assert.match(interest.reply.text, /₦25.00/);
+    checks.push(
+      "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+    );
+    const hypothetical =
+      "If I earn ₦70,000 every month, how long until I become a millionaire?";
+    const million = await send(hypothetical);
+    assert.equal(million.reply.kind, "general");
+    assert.match(million.reply.text, /15 months/);
+    assert.equal(million.reply.evidence.toolCalls, 0);
+    const saving = await send(
+      "If I earn ₦250,000 monthly and save 20%, how much will I save in six months?",
+    );
+    assert.equal(saving.reply.kind, "general");
+    assert.match(saving.reply.text, /₦300,000.00/);
+    assert.equal(saving.reply.evidence.toolCalls, 0);
+    const budget = await send("How much should I spend next month?");
+    assert.equal(budget.reply.kind, "general");
+    assert.match(budget.reply.text, /income, fixed expenses and savings goals/);
+    const historicalQuestion = "Was Musa paid last week?";
+    for (const question of [
+      "How much did I pay Musa last week?",
+      "Did I transfer money to Musa last week?",
+      historicalQuestion,
+    ]) {
+      const records = await send(question);
+      assert.equal(records.reply.accountAction, "choose_demo_account");
+      assert.equal(records.reply.handoff, undefined);
+    }
     await page
-      .getByRole("button", { name: "Open conversations", exact: true })
+      .getByRole("button", { name: "Choose demo account", exact: true })
+      .last()
       .click();
-    await page
-      .getByRole("button", { name: /^Account:/ })
-      .filter({ visible: true })
-      .click();
+    await page.getByRole("dialog", { name: "Account", exact: true }).waitFor();
     await page.getByLabel("Account (optional)").selectOption("amina-current");
+    const resumedResponse = page.waitForResponse(
+      (r) =>
+        r.url() === `${base}/api/conversation` &&
+        r.request().method() === "POST",
+    );
     await page
-      .getByRole("button", { name: "Close account", exact: true })
+      .getByRole("button", { name: "Continue question", exact: true })
       .click();
-    if (viewport.width >= 1024)
-      await page
-        .getByRole("button", { name: "Collapse navigation", exact: true })
-        .filter({ visible: true })
-        .click();
+    const resumed = await (await resumedResponse).json();
+    assert.equal(resumed.turn.text, historicalQuestion);
+    assert.equal(resumed.reply.kind, "financial");
+    assert.match(
+      resumed.reply.text,
+      /Available records only|not proof|SIMULATED|fictional/i,
+    );
+    assert.doesNotMatch(resumed.reply.text, /exclusive end date/);
+    await page.waitForFunction(
+      () =>
+        document.querySelector(".agus-composer")?.getAttribute("aria-busy") ===
+        "false",
+    );
+    const selectedMillion = await send(hypothetical);
+    assert.equal(selectedMillion.reply.kind, "general");
+    assert.equal(selectedMillion.reply.evidence.toolCalls, 0);
+    assert.equal(
+      (await send("How much should I spend next month?")).reply.kind,
+      "general",
+    );
+    checks.push(
+      "Hypothetical arithmetic and budgeting with/without selected account; contextual account picker resumes original past-week question using real permission-checked SQL",
+    );
     const totals = await send("Show my spending for October 2026");
     assert.equal(totals.reply.kind, "financial");
     assert.match(totals.reply.text, /₦19,751.51/);
@@ -450,6 +773,40 @@ try {
       .getByRole("button", { name: "Listen to response", exact: true })
       .first()
       .click();
+    const musa = await send(
+      "Send 500 to Musa, he uses OPay and his account number is 90991234AB. Turn AB to numbers and get his account.",
+    );
+    assert.equal(musa.reply.kind, "handoff");
+    await page
+      .getByRole("button", { name: "Prepare payment draft", exact: true })
+      .last()
+      .click();
+    const musaCard = page.locator(".agus-thread .agus-payment").last();
+    await musaCard.locator("summary").first().click();
+    assert.equal(
+      await musaCard
+        .getByLabel("Recipient label", { exact: true })
+        .inputValue(),
+      "Musa",
+    );
+    assert.equal(
+      await musaCard.getByLabel("Bank", { exact: true }).inputValue(),
+      "999992",
+    );
+    assert.equal(
+      await musaCard.getByLabel("Amount (NGN)", { exact: true }).inputValue(),
+      "500",
+    );
+    assert.equal(
+      await musaCard.getByLabel("Account number", { exact: true }).inputValue(),
+      "",
+    );
+    await musaCard.getByText(/Confirm the letter-to-number mapping/).waitFor();
+    assert.equal(executions, 0);
+    await musaCard.locator("summary").first().click();
+    checks.push(
+      "Musa/OPay/500 retained from mocked extraction; invented conversion discarded; account remains blank with explicit mapping confirmation guidance",
+    );
     const savedCount = await page.locator(".agus-assistant-message").count();
     await page.route(
       "**/api/conversation",
@@ -486,6 +843,10 @@ try {
     await page
       .getByRole("button", { name: "Prepare payment draft", exact: true })
       .click();
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll(".agus-thread .agus-payment").length === 2,
+    );
     const card = page.locator(".agus-thread .agus-payment").last();
     await card.locator("summary").first().click();
     const editor = card.getByRole("region", {
@@ -520,7 +881,12 @@ try {
         .inputValue(),
       "650",
     );
-    assert.equal(preparations, 1);
+    assert.equal(preparations, 2);
+    // A valid ten-digit number at the wrong fixture bank must fail verification.
+    await editor
+      .getByLabel("Bank", { exact: true })
+      .first()
+      .selectOption("044");
     await editor
       .getByRole("button", { name: "Save draft", exact: true })
       .click();
@@ -528,6 +894,89 @@ try {
     await batch
       .getByRole("button", { name: "Verify beneficiaries", exact: true })
       .click();
+    await card
+      .getByRole("alert")
+      .filter({ hasText: "Fixture account not found" })
+      .waitFor();
+    // A payment error must stay attached to its card when the user changes topics/chats.
+    await page
+      .getByRole("button", { name: "New chat", exact: true })
+      .filter({ visible: true })
+      .click();
+    await page
+      .getByRole("heading", { name: "Let's talk money.", exact: true })
+      .waitFor();
+    assert.equal(
+      await page
+        .getByText(/Fixture account not found/)
+        .filter({ visible: true })
+        .count(),
+      0,
+    );
+    await send("How much should I spend next month?");
+    assert.equal(
+      await page
+        .getByText(/Fixture account not found/)
+        .filter({ visible: true })
+        .count(),
+      0,
+    );
+    await page
+      .getByRole("button", { name: "Open conversations", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "Saved chats" })
+      .locator('button[title="Hello"]')
+      .filter({ visible: true })
+      .first()
+      .click();
+    await card.waitFor();
+    await card.locator("summary").first().click();
+    if (viewport.width >= 1024)
+      await page
+        .getByRole("button", { name: "Collapse navigation", exact: true })
+        .filter({ visible: true })
+        .click();
+    await card
+      .getByRole("alert")
+      .filter({ hasText: "Fixture account not found" })
+      .waitFor();
+    await card
+      .getByRole("button", { name: "Check saved payments", exact: true })
+      .click();
+    await page
+      .getByRole("dialog", { name: "Saved payments", exact: true })
+      .waitFor();
+    await page
+      .getByRole("dialog", { name: "Saved payments", exact: true })
+      .getByRole("alert")
+      .waitFor({ state: "hidden" });
+    assert.equal(
+      await page.locator(".agus-composer-area .agus-error").count(),
+      0,
+    );
+    assert.ok(
+      (await page
+        .getByRole("dialog", { name: "Saved payments", exact: true })
+        .locator(".payment-error")
+        .count()) > 0,
+    );
+    await page
+      .getByRole("button", { name: "Close saved payments", exact: true })
+      .click();
+    await batch
+      .getByRole("button", { name: "Edit instructions", exact: true })
+      .click();
+    await card.getByLabel("Bank", { exact: true }).first().selectOption("035");
+    await card
+      .getByRole("button", { name: "Save changes", exact: true })
+      .click();
+    await batch
+      .getByRole("button", { name: "Verify beneficiaries", exact: true })
+      .click();
+    checks.push(
+      "Reproduced mismatched fixture bank rejection; contextual recovery opens saved payments and clears obsolete error; corrected fields verify",
+    );
     await batch.getByRole("checkbox").check();
     await batch
       .getByLabel("Password to approve reviewed batch", { exact: true })
@@ -539,14 +988,104 @@ try {
       .getByRole("button", { name: "Submit simulated transfers", exact: true })
       .waitFor();
     assert.equal(executions, 0);
+    // A server-authoritative pre-claim rejection must release the lock after
+    // recovery, without retrying or mutating approval/reference history.
+    const rejectedBefore = await page.request
+      .get(`${base}/api/state`)
+      .then((r) => r.json());
+    await page.request.post(`${base}/api/emergency`, {
+      headers: { Origin: base },
+      data: { disabled: true },
+    });
+    await batch
+      .getByRole("button", { name: "Submit simulated transfers", exact: true })
+      .click();
+    await card.getByRole("alert").waitFor();
+    await page.request.post(`${base}/api/emergency`, {
+      headers: { Origin: base },
+      data: { disabled: false },
+    });
+    await card
+      .getByRole("button", { name: "Check saved payments", exact: true })
+      .click();
+    const savedDialog = page.getByRole("dialog", {
+      name: "Saved payments",
+      exact: true,
+    });
+    await savedDialog.waitFor();
+    await savedDialog.getByRole("alert").waitFor({ state: "hidden" });
+    await page
+      .getByRole("button", { name: "Close saved payments", exact: true })
+      .click();
+    await page.waitForFunction(
+      () =>
+        !document
+          .querySelector(".batch-card button[disabled]")
+          ?.textContent?.includes("Submit simulated"),
+    );
+    assert.equal(
+      await batch
+        .getByRole("button", {
+          name: "Submit simulated transfers",
+          exact: true,
+        })
+        .isEnabled(),
+      true,
+    );
+    const rejectedAfter = await page.request
+      .get(`${base}/api/state`)
+      .then((r) => r.json());
+    assert.equal(
+      rejectedAfter.executionRejections.length,
+      rejectedBefore.executionRejections.length + 1,
+    );
+    assert.equal(
+      rejectedAfter.executionRejections.filter(
+        (r) => r.batchId === rejectedAfter.batches[0].id,
+      ).length,
+      1,
+    );
+    assert.equal(rejectedAfter.batches[0].approval.consumedAt, undefined);
+    assert.equal(
+      rejectedAfter.batches[0].approval.nonce,
+      rejectedBefore.batches[0].approval.nonce,
+    );
+    assert.deepEqual(
+      rejectedAfter.batches[0].payments.map((p) => p.reference),
+      rejectedBefore.batches[0].payments.map((p) => p.reference),
+    );
+    assert.equal(executions, 1);
+    checks.push(
+      "Confirmed pre-claim rejection recovers without retry; exact persisted receipt, approval nonce and references retained",
+    );
     // Editing a reviewed batch must invalidate approval and require verification again.
     await batch
       .getByRole("button", { name: "Edit instructions", exact: true })
       .click();
     await card.getByLabel("Amount (NGN)", { exact: true }).first().fill("450");
+    const savedEdit = page.waitForResponse(
+      (r) => r.url().endsWith("/edit") && r.request().method() === "POST",
+    );
+    const refreshedEdit = page.waitForResponse(async (r) => {
+      if (r.url() !== `${base}/api/state` || !r.ok()) return false;
+      const state = await r.json();
+      return state.batches.some(
+        (b) =>
+          b.id === rejectedAfter.batches[0].id &&
+          !b.approval &&
+          b.payments[0].amountKobo === 45000,
+      );
+    });
     await card
       .getByRole("button", { name: "Save changes", exact: true })
       .click();
+    const editedBatch = await (await savedEdit).json();
+    assert.equal(editedBatch.approval, undefined);
+    assert.equal(editedBatch.payments[0].amountKobo, 45000);
+    await refreshedEdit;
+    await batch
+      .getByRole("button", { name: "Submit simulated transfers", exact: true })
+      .waitFor({ state: "detached" });
     assert.equal(
       await batch
         .getByRole("button", {
@@ -566,13 +1105,48 @@ try {
     await batch
       .getByRole("button", { name: "Approve reviewed batch", exact: true })
       .click();
-    // Drop the HTTP response after the real fixture engine has consumed approval.
+    await batch
+      .getByRole("button", { name: "Submit simulated transfers", exact: true })
+      .waitFor();
+    // Arm the dropped-state response only after execution, never on approval refresh.
+    let dropSavedState = false;
+    await page.route("**/api/state", (route) => {
+      if (dropSavedState) {
+        dropSavedState = false;
+        return route.abort("connectionfailed");
+      }
+      return route.continue();
+    });
     await page.route("**/api/batches/*/execute", async (route) => {
       await route.fetch();
+      dropSavedState = true;
       await route.abort("connectionfailed");
     });
     await batch
       .getByRole("button", { name: "Submit simulated transfers", exact: true })
+      .click();
+    await card.getByRole("alert").waitFor();
+    assert.equal(
+      await batch
+        .getByRole("button", {
+          name: "Submit simulated transfers",
+          exact: true,
+        })
+        .isEnabled(),
+      false,
+    );
+    await card
+      .getByRole("button", { name: "Check saved payments", exact: true })
+      .click();
+    await page
+      .getByRole("dialog", { name: "Saved payments", exact: true })
+      .waitFor();
+    await page
+      .getByRole("dialog", { name: "Saved payments", exact: true })
+      .getByRole("alert")
+      .waitFor({ state: "hidden" });
+    await page
+      .getByRole("button", { name: "Close saved payments", exact: true })
       .click();
     await batch
       .getByRole("button", { name: "Check provider", exact: true })
@@ -586,7 +1160,7 @@ try {
     await batch
       .getByRole("button", { name: "Check provider", exact: true })
       .waitFor();
-    assert.equal(executions, 1);
+    assert.equal(executions, 2);
     assert.equal(
       await batch
         .getByRole("button", {

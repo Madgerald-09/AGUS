@@ -112,6 +112,14 @@ async function handle(req: Request) {
         audit: s.audit
           .filter((e) => e.actor === actor || e.actor === "paystack")
           .slice(-100),
+        executionRejections: s.audit
+          .filter(
+            (e) => e.actor === actor && e.action === "batch.execution_rejected",
+          )
+          .map((e) => ({
+            batchId: e.batchId,
+            attemptId: (e.details as { attemptId: string }).attemptId,
+          })),
         fixtureBeneficiaries: c.mode === "fixture" ? fixtureBeneficiaries : [],
       });
     }
@@ -332,8 +340,15 @@ async function handle(req: Request) {
         return reply(await approveBatch(actor, batchId, reviewDigest));
       }
       if (operation === "execute") {
-        const { nonce } = z.object({ nonce: z.string().uuid() }).parse(body);
-        return reply(await executeBatch(actor, batchId, nonce));
+        const { nonce, attemptId } = z
+          .object({
+            nonce: z.string().uuid(),
+            attemptId: z.string().uuid().optional(),
+          })
+          .parse(body);
+        return reply(
+          await executeBatch(actor, batchId, nonce, provider(), attemptId),
+        );
       }
       if (operation === "reconcile")
         return reply(await reconcileBatch(actor, batchId));

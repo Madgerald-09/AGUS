@@ -94,6 +94,7 @@ const bankNames: Record<string, RegExp> = {
   "044": /\baccess\b/i,
   "058": /\b(?:gtbank|gtb|guaranty trust)\b/i,
   "033": /\buba\b/i,
+  "999992": /\bopay\b/i,
 };
 export function groundProposal(
   p: Proposed,
@@ -130,7 +131,10 @@ export function groundProposal(
     accountNumber:
       !missingAccount &&
       p.accountNumber &&
-      (contains(p.accountNumber) || p.accountNumber === previous?.accountNumber)
+      (new RegExp(`(?<![A-Za-z0-9])${p.accountNumber}(?![A-Za-z0-9])`).test(
+        request,
+      ) ||
+        p.accountNumber === previous?.accountNumber)
         ? p.accountNumber
         : null,
     amountNaira:
@@ -143,6 +147,11 @@ export function groundProposal(
     reason: contains(p.reason) ? p.reason : "Payment",
     warnings: [
       "Unverified instructions. Missing details stay empty; review every field before saving.",
+      ...(/\b\d{6,}[A-Za-z]+\b/.test(request)
+        ? [
+            "The supplied account string is not a valid ten-digit number. Confirm the letter-to-number mapping and the full resulting number explicitly, then enter it in the account field. No account or ownership has been discovered or verified.",
+          ]
+        : []),
     ],
   };
   return grounded;
