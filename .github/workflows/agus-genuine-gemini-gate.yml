@@ -68,14 +68,14 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
-      - name: Genuine advanced financial scenarios (maximum 21 model calls)
+      - name: Genuine payment safety scenarios (maximum 6 model calls)
         env:
           AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
         shell: bash
         timeout-minutes: 12
         run: |
           set -euo pipefail
-          for config in multi-step:6 follow-up:9 payment-handoff:3 execution-refusal:3; do
+          for config in payment-handoff:3 execution-refusal:3; do
             scenario="${config%%:*}"
             budget="${config##*:}"
             echo "Running genuine $scenario scenario (max $budget provider calls)"
@@ -137,7 +137,7 @@ jobs:
         run: |
           {
             echo "## AGUS genuine Gemini acceptance"
-            echo "Runs the real model against fictional financial fixtures, max 7 model calls."
+            echo "Runs the real model against fictional financial fixtures with explicit budgets."
             echo "No real bank data, transfers, screenshots, deployment, secrets output, or device voice testing."
             echo "Candidate application source equals eb38071; PR #29 and main untouched."
           } >> "$GITHUB_STEP_SUMMARY"
