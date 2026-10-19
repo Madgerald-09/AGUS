@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
     env:
       CI: "true"
-      NODE_ENV: production
+      NODE_ENV: test
       NEXT_TELEMETRY_DISABLED: "1"
       PAYMENT_MODE: fixture
       FINANCIAL_DEMO_ENABLED: "true"
@@ -58,6 +58,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Build actual production Next.js application
+        env:
+          NODE_ENV: production
         run: npm run build
       - name: Install headless Chromium
         run: npx playwright install --with-deps chromium
