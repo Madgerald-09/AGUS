@@ -97,6 +97,14 @@ function calculationOperands(source: string) {
     )
   )
     throw new AgentError("CALCULATION_INPUT");
+  // Corrections are outside this bounded grammar: do not let an earlier
+  // operand remain authoritative when the superseded role cannot be proven.
+  if (
+    /\b(?:actually|instead|correct(?:ion|ed)?|replace|change|revise|rather)\b/i.test(
+      source,
+    )
+  )
+    throw new AgentError("CALCULATION_INPUT");
   const words =
     "zero one two three four five six seven eight nine ten eleven twelve".split(
       " ",
@@ -110,6 +118,16 @@ function calculationOperands(source: string) {
       /(?<![\w.])(?:(₦|NGN)\s*)?(\d[\d,]*(?:\.\d+)?(?:\s*(?:million|thousand|k)\b)?)(?:\s*(%|percent\b|naira\b|kobo\b))?(?![\w.])/gi,
     ),
   ];
+  // A partially recognized number (for example scientific notation) must not
+  // vanish while other, older figures continue to ground the calculation.
+  let unmatched = text;
+  for (const token of [...tokens].reverse())
+    unmatched =
+      unmatched.slice(0, token.index!) +
+      " ".repeat(token[0].length) +
+      unmatched.slice(token.index! + token[0].length);
+  if (/\d|[₦%]|\b(?:NGN|percent|naira|kobo)\b/i.test(unmatched))
+    throw new AgentError("CALCULATION_INPUT");
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     const start = token.index!,
@@ -130,8 +148,33 @@ function calculationOperands(source: string) {
       );
     if (/^\s*[- ]?(?:years?|weeks?|days?)\b/i.test(after))
       throw new AgentError("CALCULATION_INPUT");
-    if (/^(?:\s*[- ]?months?)\b/i.test(after)) add("months", value);
-    if (token[3] === "%" || /percent/i.test(token[3] ?? "")) {
+    const percent = token[3] === "%" || /percent/i.test(token[3] ?? "");
+    const currency = !!token[1] || /^(?:naira|kobo)$/i.test(token[3] ?? "");
+    const duration = /^\s*[- ]?months?\b/i.test(after);
+    if (
+      (percent && currency) ||
+      ((percent || currency) && duration) ||
+      (token[1] && /kobo/i.test(token[3] ?? "")) ||
+      /^\s*(?:%|percent\b|naira\b|kobo\b|NGN\b|₦)/i.test(after)
+    )
+      throw new AgentError("CALCULATION_INPUT");
+    if (duration) {
+      if (
+        /\b(?:earn(?:ed)?|income|salary|save|saving|savings|principal|target|goal|rate)(?:\s+(?:is|of|:|=))?\s*$/i.test(
+          before,
+        )
+      )
+        throw new AgentError("CALCULATION_INPUT");
+      add("months", value);
+      continue;
+    }
+    if (percent) {
+      if (
+        /\b(?:earn(?:ed)?|income|salary|principal|target|goal|starting(?: savings)?)(?:\s+(?:is|of|:|=))?\s*$/i.test(
+          before,
+        )
+      )
+        throw new AgentError("CALCULATION_INPUT");
       const savingsRate =
         /\b(?:save|saving|savings)(?:\s+(?:rate|of|is|at))?\s*$/i.test(before);
       const annual =
@@ -148,11 +191,12 @@ function calculationOperands(source: string) {
       } else {
         // Monthly interest is unsupported; never relabel it as annual.
         if (monthlyRate) throw new AgentError("CALCULATION_INPUT");
-        if (annual) add("annualRate", value);
+        if (!annual) throw new AgentError("CALCULATION_INPUT");
+        add("annualRate", value);
       }
       continue;
     }
-    if (!token[1] && !/^(?:naira|kobo)$/i.test(token[3] ?? "")) continue;
+    if (!currency) throw new AgentError("CALCULATION_UNSOURCED");
     const amount = /kobo/i.test(token[3] ?? "") ? value / 100n : value;
     if (/kobo/i.test(token[3] ?? "") && value % 100n)
       throw new AgentError("CALCULATION_INPUT");
@@ -168,7 +212,7 @@ function calculationOperands(source: string) {
       0,
     );
     if (monthly && income) add("income", amount);
-    if (monthly && (income || savings)) add("monthlySavings", amount);
+    if (monthly && savings) add("monthlySavings", amount);
     if (/\b(?:target|goal|reach)(?:\s+(?:is|of|:|=))?\s*$/i.test(before))
       add("target", amount);
     if (
@@ -195,6 +239,8 @@ function calculationOperands(source: string) {
       throw new AgentError("CALCULATION_UNSOURCED");
   }
   if (/\bmillionaire\b/i.test(text)) add("target", 100000000n);
+  for (const values of result.values())
+    if (new Set(values).size > 1) throw new AgentError("CALCULATION_INPUT");
   return result;
 }
 
@@ -223,6 +269,14 @@ export function calculateIllustration(
 ): string {
   const c = CalculationSchema.parse(calculation);
   const grounded = calculationOperands(source);
+  const roles: OperandRole[] =
+    c.kind === "savings_goal"
+      ? ["income", "monthlySavings", "target", "starting"]
+      : c.kind === "savings_total"
+        ? ["income", "savingsPercent", "months"]
+        : ["principal", "annualRate", "months"];
+  if ([...grounded.keys()].some((role) => !roles.includes(role)))
+    throw new AgentError("CALCULATION_INPUT");
   function supplied(
     value: string | number,
     role: OperandRole,
@@ -248,7 +302,10 @@ export function calculateIllustration(
     // was supplied. Never discard an explicit savings constraint.
     if (grounded.has("savingsPercent"))
       throw new AgentError("CALCULATION_INPUT");
-    supplied(c.monthlySavingsNaira, "monthlySavings");
+    supplied(
+      c.monthlySavingsNaira,
+      grounded.has("monthlySavings") ? "monthlySavings" : "income",
+    );
     supplied(c.targetNaira, "target");
     supplied(c.startingNaira, "starting", true);
     const monthly = kobo(c.monthlySavingsNaira),

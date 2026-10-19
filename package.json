@@ -14,7 +14,7 @@
     "payments:reconcile": "tsx --env-file-if-exists=.env.local scripts/reconcile.ts",
     "format": "prettier --write .",
     "test:http": "node scripts/http-smoke.mjs",
-    "test:browser": "node scripts/browser-chat-payments.mjs",
+    "test:browser": "node scripts/browser-chat-payments.mjs && node scripts/browser-voice-submit.mjs",
     "test:browser:workspace": "node scripts/browser-workspace.mjs",
     "test:browser:approved-p0": "node scripts/browser-approved-p0.mjs",
     "verify:narration": "tsx scripts/verify-grounded-narration.ts",

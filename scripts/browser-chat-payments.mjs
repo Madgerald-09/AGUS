@@ -1,5 +1,5 @@
 /* global navigator: readonly, Blob: readonly, DOMException: readonly, KeyboardEvent: readonly, window: readonly, document: readonly */
-// Focused production integration journeys. Three responsive sizes, synthetic data and mocked provider/speech only.
+// Focused production integration journeys. Four responsive sizes, synthetic data and mocked provider/speech only.
 import assert from "node:assert/strict";
 import AxeBuilder from "@axe-core/playwright";
 import { URL } from "node:url";
@@ -639,6 +639,25 @@ try {
     const education = await send("What is inflation?");
     assert.equal(education.reply.kind, "general");
     assert.match(education.reply.text, /purchasing power/);
+    for (const suffix of [
+      "6% months",
+      "six months; actually use 20% instead",
+    ]) {
+      const invalid = await send(
+        `Calculate simple interest on ₦500 at 10% annual for ${suffix}`,
+      );
+      assert.equal(invalid.reply.kind, "clarify");
+      assert.equal(invalid.reply.evidence.toolCalls, 0);
+      assert.doesNotMatch(invalid.reply.text, /₦25.00/);
+    }
+    const interest = await send(
+      "Calculate simple interest on ₦500 at 10% annual for six months",
+    );
+    assert.equal(interest.reply.kind, "general");
+    assert.match(interest.reply.text, /₦25.00/);
+    checks.push(
+      "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+    );
     const hypothetical =
       "If I earn ₦70,000 every month, how long until I become a millionaire?";
     const million = await send(hypothetical);
@@ -654,10 +673,19 @@ try {
     const budget = await send("How much should I spend next month?");
     assert.equal(budget.reply.kind, "general");
     assert.match(budget.reply.text, /income, fixed expenses and savings goals/);
-    const records = await send("How much did I pay Musa last week?");
-    assert.equal(records.reply.accountAction, "choose_demo_account");
+    const historicalQuestion = "Was Musa paid last week?";
+    for (const question of [
+      "How much did I pay Musa last week?",
+      "Did I transfer money to Musa last week?",
+      historicalQuestion,
+    ]) {
+      const records = await send(question);
+      assert.equal(records.reply.accountAction, "choose_demo_account");
+      assert.equal(records.reply.handoff, undefined);
+    }
     await page
       .getByRole("button", { name: "Choose demo account", exact: true })
+      .last()
       .click();
     await page.getByRole("dialog", { name: "Account", exact: true }).waitFor();
     await page.getByLabel("Account (optional)").selectOption("amina-current");
@@ -670,7 +698,7 @@ try {
       .getByRole("button", { name: "Continue question", exact: true })
       .click();
     const resumed = await (await resumedResponse).json();
-    assert.equal(resumed.turn.text, "How much did I pay Musa last week?");
+    assert.equal(resumed.turn.text, historicalQuestion);
     assert.equal(resumed.reply.kind, "financial");
     assert.match(
       resumed.reply.text,

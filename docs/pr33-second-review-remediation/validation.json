@@ -1,0 +1,75 @@
+{
+  "reviewedSha": "efacb26a923d9436ffe0b18e2464312f8968d1f7",
+  "branch": "fix/agus-pr33-second-review-remediation-20261019",
+  "draftTarget": "fix/agus-pr32-review-remediation-20261019",
+  "fullSuite": {
+    "command": "npm test",
+    "passed": 1046,
+    "files": 41,
+    "failed": 0,
+    "existingBaseline": 901,
+    "newRegressions": 145
+  },
+  "focused": {
+    "command": "npx vitest run tests/financial-agent tests/voice.test.ts tests/payment-recovery.test.ts tests/copyable-message.test.ts",
+    "passed": 658,
+    "files": 18,
+    "failed": 0
+  },
+  "integration": {
+    "command": "npm run test:integration",
+    "passed": 339,
+    "files": 11,
+    "failed": 0
+  },
+  "typecheck": {
+    "command": "npm run typecheck",
+    "passed": true
+  },
+  "lint": {
+    "command": "npm run lint",
+    "passed": true
+  },
+  "productionBuild": {
+    "command": "npm run build",
+    "passed": true
+  },
+  "diffCheck": {
+    "command": "git diff --check",
+    "passed": true
+  },
+  "browser": {
+    "command": "npm run test:browser",
+    "passed": true,
+    "widths": [
+      1440,
+      820,
+      390,
+      320
+    ],
+    "integratedJourneyGroups": 50,
+    "retainedOriginalJourneyGroups": 46,
+    "additionalFocusedVoiceGroups": 36,
+    "focusedVoiceRuns": 8,
+    "pageErrors": 0,
+    "horizontalOverflow": false,
+    "automatedWcagViolationsInCheckedWorkspace": 0,
+    "financialData": "fictional",
+    "modelSpeechRecordingTranscriptionClipboard": "mocked",
+    "blockedVoiceSubmissionsConversationPosts": 0,
+    "automaticExecutionRetries": 0
+  },
+  "unchangedPassedImplementations": [
+    "src/lib/financial-agent/date-window.ts",
+    "src/lib/payments.ts",
+    "src/app/api/[...path]/route.ts",
+    "src/components/payment-recovery.ts",
+    "src/components/conversation-payments.tsx",
+    "src/components/payment-ui.tsx",
+    "src/components/copyable-message.tsx",
+    "src/components/use-voice-input.ts"
+  ],
+  "independentReverificationRequired": true,
+  "merged": false,
+  "deployed": false
+}

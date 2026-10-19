@@ -10,7 +10,11 @@ globalThis.fetch = async (input, init) => {
   const prompt = JSON.parse(init.body).contents[0].parts[0].text;
   try {
     const envelope = JSON.parse(prompt);
-    if (/How much did I pay Musa last week/i.test(envelope.data.text)) {
+    if (
+      /How much did I pay Musa last week|Did I transfer money to Musa last week|Was Musa paid last week/i.test(
+        envelope.data.text,
+      )
+    ) {
       const answer =
         envelope.task === "classify"
           ? { route: "payment_draft" }
@@ -36,6 +40,31 @@ globalThis.fetch = async (input, init) => {
                     },
                   },
                 }
+            : null;
+      if (answer)
+        return Response.json({
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: { parts: [{ text: JSON.stringify(answer) }] },
+            },
+          ],
+        });
+    }
+    if (/^Calculate simple interest on/i.test(envelope.data.text)) {
+      const answer =
+        envelope.task === "classify"
+          ? { route: "financial_reasoning" }
+          : envelope.task === "reason"
+            ? {
+                text: "Simple interest excludes compounding.",
+                calculation: {
+                  kind: "simple_interest",
+                  principalNaira: "500",
+                  annualRatePercent: "10",
+                  months: 6,
+                },
+              }
             : null;
       if (answer)
         return Response.json({
