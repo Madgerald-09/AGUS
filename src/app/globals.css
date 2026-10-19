@@ -2906,15 +2906,26 @@ td code {
   padding: 8px 12px;
   font-size: 14px;
 }
-.app-shell .brand-asset-placeholder,
-.login-shell .brand-asset-placeholder {
-  display: inline-flex;
-  flex-direction: column;
-  border: 1px dashed #666;
-  padding: 8px 12px;
-  color: #a1a1aa;
-  font-size: 13px;
-  letter-spacing: 0;
+.brand-asset {
+  display: inline-block;
+  width: 88px;
+  max-width: 100%;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.brand-asset.lockup {
+  width: 260px;
+}
+.brand-asset img {
+  display: block;
+  width: 100%;
+  height: auto;
+  mix-blend-mode: screen;
+}
+@media (max-width: 767px) {
+  .brand-asset.lockup {
+    width: 240px;
+  }
 }
 .app-shell .brand-caption {
   display: none;

@@ -166,6 +166,13 @@ try {
         0,
         "Original artwork is required before final screenshots",
       );
+      const logo = page.locator(".agus-welcome .brand-asset img");
+      await logo.waitFor({ state: "visible" });
+      await logo.evaluate(async (image) => {
+        await image.decode();
+        if (!image.naturalWidth || !image.naturalHeight)
+          throw new Error("Original artwork did not load");
+      });
       await mkdir(evidence, { recursive: true });
       await page.screenshot({
         path: join(evidence, `welcome-${viewport.width}.png`),

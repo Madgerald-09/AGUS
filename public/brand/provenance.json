@@ -1,0 +1,26 @@
+{
+  "source": {
+    "file": "agus-original.jpeg",
+    "repository": "omnmlr/hackaholics-financial-agent",
+    "commit": "6a0f6a9c447b2dcf31f60985461152d17c9a3dc1",
+    "path": "WhatsApp Image 2026-10-16 at 00.42.35.jpeg",
+    "sha256": "9fc18ca3f41239a703f754c3235adb530e2ba980698b0ae7f3892b633746beb0",
+    "size": [1080, 1080]
+  },
+  "authorization": "Founder confirmed use of the uploaded original JPEG after the initially supplied PNG path/checksum did not match.",
+  "transform": "Crop exterior canvas and invert each RGB channel as 255-value. No resampling, drawing, glyph edits or regenerated text. Black export background blends using CSS screen.",
+  "exports": [
+    {
+      "file": "agus-lockup-dark.png",
+      "crop": [229, 376, 871, 639],
+      "size": [642, 263],
+      "sha256": "7b2d06203f455ccf7a17536e4221f82ea31416bc961d96624893bee9e0b7324d"
+    },
+    {
+      "file": "agus-wordmark-dark.png",
+      "crop": [229, 376, 871, 584],
+      "size": [642, 208],
+      "sha256": "e2b21bfcaa7537f593f53b70f172edbf0a6a50289f8f98d4025380d9f9e7ca35"
+    }
+  ]
+}

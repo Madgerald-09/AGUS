@@ -1,11 +1,22 @@
-/** The founder attachment is currently inaccessible (HTTP 403). This is an
- * explicit dependency placeholder, never a reconstructed wordmark. Replace only
- * with the verified original and record its checksum in the evidence report. */
+import Image from "next/image";
+
+/** Pixel-preserving crops/inversions of the founder's original JPEG.
+ * Source checksum and exact crop bounds are recorded in public/brand/provenance.json. */
 export function BrandAsset({ lockup = false }: { lockup?: boolean }) {
   return (
-    <span className={`brand-asset-placeholder ${lockup ? "lockup" : ""}`}>
-      <span>Original logo pending</span>
-      {lockup && <span>Your money, and what's next.</span>}
+    <span className={`brand-asset ${lockup ? "lockup" : ""}`}>
+      <Image
+        src={
+          lockup
+            ? "/brand/agus-lockup-dark.png"
+            : "/brand/agus-wordmark-dark.png"
+        }
+        alt={lockup ? "agus. — Your money, and what's next." : "agus."}
+        width={642}
+        height={lockup ? 263 : 208}
+        unoptimized
+        loading="eager"
+      />
     </span>
   );
 }

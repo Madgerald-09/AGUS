@@ -23,6 +23,15 @@ Financial calculations, narration validation, financial authorization, SQL histo
 
 ## Artwork and visual approval
 
-The original founder artwork is visible in chat, but its historical and newly attached file URLs return HTTP 403 and the attachment has not been mounted in this workspace. An accessible original file is required before import, checksum, faithful white exports and final screenshots. No replacement logo has been created.
+The founder confirmed use of the original JPEG uploaded at commit `6a0f6a9c447b2dcf31f60985461152d17c9a3dc1`, path `WhatsApp Image 2026-10-16 at 00.42.35.jpeg`. Its bytes are preserved unchanged at `public/brand/agus-original.jpeg`.
 
-No screenshots or recordings have been captured. The capture script refuses final screenshots while the logo placeholder exists. Once the original is available, capture exactly `welcome-1440.png` and `welcome-390.png` using `AGUS_CAPTURE_WELCOME=true node scripts/browser-visual-v1-1.mjs`, then request founder visual approval. No merge or deployment is authorized.
+Verified source SHA-256: `9fc18ca3f41239a703f754c3235adb530e2ba980698b0ae7f3892b633746beb0`. This is the JPEG checksum the founder subsequently authorized; the initially mentioned PNG/checksum was not present on the source branch.
+
+The dark lockup and navigation wordmark use only exterior canvas crops and channel inversion (`255 - value`). Each export was inverted back and compared pixel-for-pixel against its original crop. No glyphs, letter spacing, period, tagline, aspect ratio or internal lockup arrangement were redrawn or altered. The black export background blends with charcoal surfaces through CSS `screen`. Exact crop bounds, dimensions and export checksums are in `public/brand/provenance.json`.
+
+The final branded candidate passed lint, typecheck, production build, the three focused login-disclosure tests and the same two-width browser smoke. Exactly two screenshots were captured:
+
+- [Desktop welcome · 1440×1000](welcome-1440.png)
+- [Mobile welcome · 390×844](welcome-390.png)
+
+The capture command is `AGUS_CAPTURE_WELCOME=true node scripts/browser-visual-v1-1.mjs`. It checks that the artwork has decoded and exercises the focused browser smoke without recording videos or a screenshot matrix. See `smoke-results.json` for the final run. Founder visual approval is pending. No merge or deployment occurred.
