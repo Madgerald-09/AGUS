@@ -1,0 +1,104 @@
+Validation working tree committed as f4e3e3bf71f39bba1de62e3b8a564968086e44da
+Evidence commit changes documentation only.
+
+Focused integration tests
+
+> hackaholics-financial-agent@0.1.0 test:integration
+> vitest run tests/financial-integration tests/financial-agent/grounded-narration.test.ts tests/financial-agent/routing.test.ts tests/financial-agent/education.test.ts tests/financial-agent/date-window.test.ts tests/payments.test.ts tests/financial-safety.test.ts tests/voice.test.ts
+
+
+ RUN  v5.0.4 /workspace/hackaholics-financial-agent
+
+
+ Test Files  11 passed (11)
+      Tests  316 passed (316)
+   Start at  08:04:23
+   Duration  37.33s (tests 90%, import 9%, transform 1%)
+
+
+
+Production build
+
+> hackaholics-financial-agent@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.4.1 (webpack)
+✓ Running next.config.ts took 36ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.8s
+  Running TypeScript ...
+  Finished TypeScript in 2.6s ...
+  Collecting page data using 2 workers ...
+  Generating static pages using 2 workers (0/2) ...
+✓ Generating static pages using 2 workers (2/2) in 187ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/[...path]
+├ ƒ /api/conversation
+├ ƒ /api/conversations
+├ ƒ /api/financial-agent
+└ ƒ /conversation
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+
+HTTP payment smoke
+
+> hackaholics-financial-agent@0.1.0 test:http
+> node scripts/http-smoke.mjs
+
+PASS: production Next.js HTTP smoke — login, route protection, two recipients, verification, approval, explicit submission, duplicate rejection, reconciliation, persisted status chat, CSV. No provider network calls or real money.
+
+
+Desktop/mobile browser integration
+
+> hackaholics-financial-agent@0.1.0 test:browser:integration
+> node scripts/browser-integration.mjs
+
+PASS 1440px: 7 integration groups
+PASS 390px: 7 integration groups
+
+
+Lint
+
+> hackaholics-financial-agent@0.1.0 lint
+> eslint .
+
+
+
+Typecheck
+
+> hackaholics-financial-agent@0.1.0 typecheck
+> tsc --noEmit
+
+
+
+Changed-code formatting
+Checking formatting...
+All matched files use Prettier code style!
+
+
+Genuine model gate (expected exit 2, zero calls)
+
+> hackaholics-financial-agent@0.1.0 verify:narration
+> tsx scripts/verify-grounded-narration.ts
+
+{
+  "status": "UNVERIFIED",
+  "commit": "f4e3e3bf71f39bba1de62e3b8a564968086e44da",
+  "provider": "none",
+  "model": "gemini-2.5-flash",
+  "dataMode": "fictional fixtures",
+  "inferenceMode": "genuine configured provider; no mock",
+  "calls": [],
+  "cases": [],
+  "reason": "MODEL_NOT_CONFIGURED"
+}

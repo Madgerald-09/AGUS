@@ -38,7 +38,7 @@ At fetch time `origin/Gerald` and `origin/main` both pointed to `292d0b1`; there
 - Preserved multiline browser dictation input and restored guards against late voice results on stop, send, navigation, logout and unmount. Pending provider transcription cannot populate a later workspace after invalidation. Voice never sends or authorizes a payment.
 - Found an actual cross-version persistence conflict: #24 reset expired context revisions to 1, while the earlier generic adapter promised tombstones. Old revision-1 writers could match a renewed row. Generic storage retains tombstones by default; the conversational workspace explicitly opts into renewal. Numeric compare-and-swap now requires the exact observed row expiry as well as revision and scope. A per-turn adapter prevents an earlier lifetime's writer from overwriting renewed context. SQL regressions verify concurrent renewal, stale-writer rejection and a current writer's success. Display history remains independent of financial authority.
 
-Payment calculations, the financial-data module, payment engine and Paystack adapter are byte-for-byte unchanged from #28. The conversation renderer, CSS, model adapter, narration validation, routing and approved composer implementation are also unchanged. No new bank integration or financial algorithm was introduced.
+Payment calculations, the financial-data module, payment engine and Paystack adapter are byte-for-byte unchanged from #28. The financial-conversation renderer and its CSS, model adapter, narration validation, routing and approved composer implementation are also unchanged. No new bank integration or financial algorithm was introduced.
 
 ## Working paths and validation
 
