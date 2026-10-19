@@ -540,6 +540,27 @@ svg {
   font-size: 12px;
   color: var(--muted);
 }
+.voice-transcript {
+  margin: 7px 2px 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.voice-reply-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.voice-reply-button:hover,
+.voice-reply-button.active {
+  color: var(--accent);
+}
 .send-button {
   background: var(--accent);
   color: #000000;
@@ -603,6 +624,17 @@ svg {
 .message time {
   font-size: 10px;
   color: var(--muted);
+}
+.message-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.message-audio:hover {
+  color: var(--ink);
 }
 .working {
   display: flex;
@@ -2733,6 +2765,16 @@ td code {
   min-height: 32px;
 }
 @media (max-width: 700px) {
+  .app-shell .composer > div {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .app-shell .composer > div .send-button {
+    margin-left: auto;
+  }
+  .app-shell .voice-reply-button {
+    padding: 0 4px;
+  }
   .app-shell .sidebar .brand {
     display: none;
   }
@@ -2791,5 +2833,343 @@ td code {
 @media (prefers-reduced-motion: reduce) {
   .demo-dot {
     animation: none;
+  }
+}
+
+/* A calm, high-contrast workspace theme. */
+:root {
+  color-scheme: dark;
+  --ink: #edf5ef;
+  --muted: #9aaba0;
+  --accent: #a8edbd;
+  --surface: #101914;
+  --surface-raised: #18231c;
+  --border: #2a3a30;
+  --bg: #080e0a;
+}
+body {
+  background:
+    radial-gradient(ellipse at 50% -24%, #173421 0, transparent 48%),
+    var(--bg);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+::selection {
+  background: var(--accent);
+  color: #092010;
+}
+button,
+a,
+summary,
+input,
+textarea,
+select {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+.app-shell {
+  --surface: #101914;
+  --surface-raised: #18231c;
+  --border: #2a3a30;
+  background: transparent;
+}
+.app-shell .sidebar {
+  background: rgb(10 17 12 / 96%);
+  border-color: #26352b;
+}
+.app-shell .nav-item {
+  border-radius: 10px;
+}
+.app-shell .nav-item:hover {
+  background: #152119;
+}
+.app-shell .nav-item.active {
+  background: #16271b;
+  border-color: #2f5239;
+  color: var(--accent);
+}
+.app-shell .brand-mark {
+  background: var(--accent);
+  color: #092010;
+}
+.app-shell .safety-card {
+  border-color: #273a2d;
+  color: var(--accent);
+}
+.app-shell .topbar {
+  border-color: #26352b;
+  background: rgb(8 14 10 / 84%);
+  backdrop-filter: blur(14px);
+}
+.app-shell .context-bar {
+  border-color: #26352b;
+}
+.app-shell .mode-pill,
+.app-shell .simulation-disclosure,
+.app-shell .notice {
+  border-color: #304638;
+  background: #111d15;
+  color: #c8d8cd;
+}
+.app-shell .primary,
+.login-shell .login-submit-btn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #092010;
+  font-weight: 650;
+}
+.app-shell .primary:hover:not(:disabled),
+.login-shell .login-submit-btn:hover:not(:disabled) {
+  background: #c0f4cf;
+  border-color: #c0f4cf;
+  box-shadow: 0 5px 18px #8de4a728;
+  transform: translateY(-1px);
+}
+.app-shell .secondary {
+  border-color: #34483a;
+  background: #121c15;
+  color: #e1eee5;
+}
+.app-shell .secondary:hover:not(:disabled) {
+  border-color: #54725c;
+  background: #1a2a1e;
+}
+.app-shell .new-payment {
+  border-color: #45664e;
+  background: #122218;
+  color: var(--accent);
+}
+.app-shell .composer {
+  border-color: #34473a;
+  background: #101912;
+  box-shadow: 0 16px 45px #0005;
+}
+.app-shell .composer:focus-within {
+  border-color: #77c48e;
+  box-shadow:
+    0 0 0 3px #8de4a71c,
+    0 16px 45px #0006;
+}
+.app-shell .composer textarea::placeholder {
+  color: #83968a;
+}
+.app-shell .send-button {
+  background: var(--accent);
+  color: #092010;
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+.app-shell .send-button:hover:not(:disabled) {
+  background: #c0f4cf;
+  box-shadow: 0 4px 16px #8de4a733;
+  transform: translateY(-1px);
+}
+.app-shell .voice-button.listening {
+  color: #ffb5a9;
+}
+.app-shell .voice-button:hover:not(:disabled),
+.app-shell .voice-reply-button:hover:not(:disabled),
+.app-shell .voice-reply-button.active {
+  color: var(--accent);
+}
+.app-shell .message.user {
+  border-color: #304a36;
+  background: #15231a;
+}
+.app-shell .message.assistant > small {
+  color: var(--accent);
+}
+.app-shell .suggestions button {
+  border: 1px solid #2e4034;
+  background: #101912;
+  color: var(--ink);
+}
+.app-shell .suggestions button:hover:not(:disabled) {
+  border-color: #62836b;
+  background: #17251b;
+  transform: translateY(-1px);
+}
+.app-shell .panel,
+.app-shell .stat,
+.app-shell .compact-payment,
+.app-shell .proposal-card {
+  border-color: #2c3d31;
+  background: rgb(16 25 19 / 92%);
+  box-shadow: 0 8px 24px #0002;
+}
+.app-shell .compact-payment > summary:hover {
+  background: #17251b;
+}
+.app-shell .recipient-form,
+.app-shell .approval-form {
+  border-color: #314637;
+  background: #0d1710;
+}
+.app-shell .form-grid input,
+.app-shell .form-grid select,
+.app-shell .approval-form input,
+.app-shell .otp-form input,
+.login-card .password-input {
+  border-color: #364b3b;
+  background: #0d1710;
+  color: var(--ink);
+}
+.app-shell .form-grid input:focus,
+.app-shell .form-grid select:focus,
+.app-shell .approval-form input:focus,
+.app-shell .otp-form input:focus,
+.login-card .password-input:focus {
+  border-color: #7bc18c;
+  box-shadow: 0 0 0 3px #8de4a71c;
+}
+.app-shell .badge.successful {
+  border-color: #347248;
+  background: #173d25;
+  color: #b8f0c6;
+}
+.app-shell .badge.failed,
+.app-shell .badge.reversed {
+  border-color: #74463e;
+  background: #321d19;
+  color: #ffc0b4;
+}
+.app-shell .badge.awaiting_user_approval,
+.app-shell .badge.awaiting_beneficiary_verification,
+.app-shell .badge.unknown,
+.app-shell .badge.processing {
+  border-color: #655432;
+  background: #292416;
+  color: #f1d991;
+}
+.app-shell .positive {
+  color: #a8edbd;
+}
+.app-shell .table-wrap {
+  border-color: #2a3a30;
+  background: #0e1711;
+}
+.app-shell .table-wrap th {
+  background: #121e16;
+  color: #b7c8bc;
+}
+.app-shell .table-wrap tbody tr:hover {
+  background: #16241a;
+}
+.app-shell .bar-track {
+  background: #203126;
+}
+.app-shell .bar-track > div {
+  background: linear-gradient(90deg, #71c889, #b4efc2);
+}
+.app-shell .alert,
+.app-shell .login-alert {
+  border-color: #75463d;
+  background: #291a17;
+  color: #ffd0c7;
+}
+.login-shell {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 15%, #173421 0, transparent 44%),
+    #080e0a;
+}
+.login-card {
+  position: relative;
+  border-color: #2a3c30;
+  border-radius: 22px;
+  background: rgb(12 19 14 / 94%);
+  box-shadow:
+    0 0 0 1px #b9efc40b,
+    0 30px 90px #0008;
+  backdrop-filter: blur(18px);
+}
+.agus-wordmark,
+.footer-wordmark {
+  color: var(--accent);
+}
+.demo-pill,
+.setup-note {
+  border-color: #2d4033;
+  background: #101a13;
+}
+.demo-dot {
+  background: var(--accent);
+  box-shadow: 0 0 10px #a8edbd77;
+}
+.demo-notice {
+  border-color: #304638;
+  background: #111d15;
+}
+.demo-notice-icon {
+  color: var(--accent);
+}
+.login-footer {
+  border-color: #29372d;
+}
+.mobile-nav-backdrop {
+  display: none;
+}
+.request-progress {
+  color: var(--accent);
+}
+@media (max-width: 700px) {
+  .mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 19;
+    inset: 64px 0 0;
+    width: 100%;
+    background: #020704a8;
+    backdrop-filter: blur(3px);
+  }
+  .app-shell .sidebar {
+    display: flex;
+    z-index: 20;
+    right: auto;
+    width: min(88vw, 340px);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition:
+      opacity 150ms ease,
+      transform 150ms ease,
+      visibility 150ms ease;
+  }
+  .sidebar.menu-open {
+    right: auto;
+    width: min(88vw, 340px);
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    background: #0b130d;
+    border-color: #304638;
+  }
+  .app-shell .sidebar .brand {
+    display: flex;
+  }
+  .app-shell .sidebar-bottom,
+  .app-shell .workspace-label {
+    display: block;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

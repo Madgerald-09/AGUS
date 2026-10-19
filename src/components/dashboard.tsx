@@ -34,8 +34,11 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
+  Square,
   Trash2,
   Wallet,
+  Volume2,
+  VolumeX,
   X,
   Activity,
 } from "lucide-react";
@@ -57,27 +60,6 @@ type Row = {
   reason: string;
   warnings?: string[];
 };
-type SpeechRecognitionResult = {
-  isFinal: boolean;
-  0: { transcript: string };
-};
-type SpeechRecognitionEvent = {
-  results: ArrayLike<SpeechRecognitionResult>;
-};
-type SpeechRecognitionErrorEvent = { error: string };
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onstart: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-};
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type Snapshot = {
   operator: string;
   mode: Mode;
@@ -233,14 +215,27 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [bankLoading, setBankLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
+  const [voiceTranscript, setVoiceTranscript] = useState("");
   const [listening, setListening] = useState(false);
+  const [requestingVoice, setRequestingVoice] = useState(false);
+  const [transcribingVoice, setTranscribingVoice] = useState(false);
+  const [voiceReplies, setVoiceReplies] = useState(false);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [editor, setEditor] = useState<{
     batchId?: string;
     version?: number;
     rows: Row[];
   }>();
   const uploadInput = useRef<HTMLInputElement>(null);
-  const speechRecognition = useRef<SpeechRecognitionLike | null>(null);
+  const voiceRecorder = useRef<MediaRecorder | null>(null);
+  const voiceStream = useRef<MediaStream | null>(null);
+  const voiceAudioContext = useRef<AudioContext | null>(null);
+  const voiceChunks = useRef<Blob[]>([]);
+  const voiceMonitor = useRef<number | null>(null);
+  const voiceStartedAt = useRef(0);
+  const lastVoiceActivity = useRef(0);
+  const heardVoice = useRef(false);
+  const voiceSession = useRef(0);
   const refresh = useCallback(async (throwOnError = false) => {
     const request = ++snapshotRequest.current;
     try {
@@ -248,6 +243,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
       if (request !== snapshotRequest.current) return;
       setState(snapshot);
       setSignedOut(false);
+      return snapshot;
     } catch (e) {
       if (request !== snapshotRequest.current && !throwOnError) return;
       const text = e instanceof Error ? e.message : "Unable to load workspace";
@@ -271,17 +267,38 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         .then(setBanks)
         .catch((e) => setError(e.message));
   }, [state, banks.length]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
+  function releaseVoiceCapture() {
+    if (voiceMonitor.current !== null) {
+      window.clearInterval(voiceMonitor.current);
+      voiceMonitor.current = null;
+    }
+    voiceStream.current?.getTracks().forEach((track) => track.stop());
+    voiceStream.current = null;
+    const context = voiceAudioContext.current;
+    voiceAudioContext.current = null;
+    if (context && context.state !== "closed") void context.close();
+  }
   useEffect(
     () => () => {
-      const recognition = speechRecognition.current;
-      speechRecognition.current = null;
-      if (recognition) {
-        recognition.onend = null;
-        recognition.onerror = null;
-        recognition.onresult = null;
-        recognition.onstart = null;
-        recognition.stop();
+      voiceSession.current += 1;
+      const recorder = voiceRecorder.current;
+      voiceRecorder.current = null;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.ondataavailable = null;
+        recorder.onstop = null;
+        recorder.onerror = null;
+        recorder.stop();
       }
+      releaseVoiceCapture();
+      window.speechSynthesis?.cancel();
     },
     [],
   );
@@ -372,7 +389,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   async function run(
     key: string,
     fn: () => Promise<unknown>,
-    onSuccess?: () => void,
+    onSuccess?: (snapshot?: Snapshot) => void,
   ) {
     if (operationInFlight.current) return;
     operationInFlight.current = true;
@@ -384,15 +401,16 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     );
     try {
       await fn();
+      let snapshot: Snapshot | undefined;
       if (key !== "logout") {
         setProgress(
           key === "chat"
             ? "Loading the saved response…"
             : "Refreshing saved workspace details…",
         );
-        await refresh(true);
+        snapshot = await refresh(true);
       }
-      onSuccess?.();
+      onSuccess?.(snapshot);
     } catch (e) {
       if (key === "chat") responseAnchor.current = undefined;
       setError(
@@ -410,7 +428,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   }
   async function send(text: string) {
     if (!text.trim() || operationInFlight.current) return;
-    speechRecognition.current?.stop();
+    stopVoiceCapture();
     followLatest.current = true;
     const submittedText = text.trim();
     setPendingMessage({
@@ -421,6 +439,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     setMessage((current) => current || text);
     composerInput.current?.focus({ preventScroll: true });
     let confirmed = false;
+    let assistantMessageId: string | undefined;
     await run(
       "chat",
       async () => {
@@ -458,14 +477,22 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
           }
         }
         if (!response) throw new TypeError("Unconfirmed response");
+        assistantMessageId = response.messageId;
         responseAnchor.current = response.messageId;
       },
-      () => {
+      (snapshot) => {
         confirmed = true;
         setMessage((current) => (current === text ? "" : current));
+        setVoiceTranscript("");
         setAnnouncement(
           "Response received. Your saved conversation has been updated.",
         );
+        if (voiceReplies && assistantMessageId) {
+          const reply = snapshot?.messages.find(
+            (item) => item.id === assistantMessageId,
+          );
+          if (reply) speakMessage(reply.id, reply.content);
+        }
       },
     );
     if (confirmed) setPendingMessage(undefined);
@@ -474,82 +501,222 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         current ? { ...current, status: "failed" } : current,
       );
   }
-  function toggleVoiceInput() {
-    if (speechRecognition.current) {
-      speechRecognition.current.stop();
-      return;
-    }
-    const speechWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const SpeechRecognition =
-      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setVoiceStatus(
-        "Voice input is unavailable in this browser. Type your payment details instead.",
-      );
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    let failed = false;
-    recognition.lang = "en-NG";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => {
-      setListening(true);
-      setVoiceStatus("Listening. Speak your request, then review the text.");
-    };
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .filter((result) => result.isFinal)
-        .map((result) => result[0].transcript.trim())
-        .filter(Boolean)
-        .join(" ");
-      if (!transcript) return;
+  async function transcribeVoice(recording: Blob) {
+    setTranscribingVoice(true);
+    setVoiceStatus("Transcribing your recording…");
+    try {
+      const form = new FormData();
+      form.append("audio", recording, "voice-recording");
+      const response = await fetch("/api/voice", {
+        method: "POST",
+        body: form,
+        cache: "no-store",
+      });
+      const result: unknown = await response.json().catch(() => null);
+      if (
+        !response.ok ||
+        !result ||
+        typeof result !== "object" ||
+        !("transcript" in result) ||
+        typeof result.transcript !== "string"
+      )
+        throw new Error(
+          result &&
+            typeof result === "object" &&
+            "error" in result &&
+            typeof result.error === "string"
+            ? result.error
+            : "Voice transcription failed. Try again or type your request.",
+        );
+      const transcript = result.transcript.trim();
+      if (!transcript)
+        throw new Error(
+          "No clear speech was detected. Try recording again in a quieter place.",
+        );
+      setVoiceTranscript(transcript);
       setMessage((current) =>
         current.trim() ? `${current.trim()} ${transcript}` : transcript,
       );
-    };
-    recognition.onerror = (event) => {
-      failed = true;
-      const messages: Record<string, string> = {
-        "not-allowed":
-          "Microphone access was denied. Allow microphone access or type your request.",
-        "service-not-allowed":
-          "The browser speech service is unavailable. Type your request instead.",
-        "audio-capture":
-          "No microphone was available. Connect a microphone or type your request.",
-        "no-speech": "No speech was detected. Try again or type your request.",
-        network:
-          "The browser speech service could not be reached. Type your request instead.",
-      };
+      setVoiceStatus("Transcript ready. Review it before sending.");
+      composerInput.current?.focus({ preventScroll: true });
+    } catch (e) {
       setVoiceStatus(
-        messages[event.error] ??
-          "Voice input failed. Try again or type your request.",
+        e instanceof Error
+          ? e.message
+          : "Voice transcription failed. Try again or type your request.",
       );
-    };
-    recognition.onend = () => {
-      if (speechRecognition.current === recognition) {
-        speechRecognition.current = null;
-        setListening(false);
-      }
-      if (!failed)
-        setVoiceStatus("Voice input stopped. Review the recognized text.");
-    };
-    speechRecognition.current = recognition;
-    setVoiceStatus("Starting voice input…");
-    try {
-      recognition.start();
-    } catch {
-      speechRecognition.current = null;
-      setListening(false);
-      setVoiceStatus(
-        "Could not start voice input. Try again or type your request.",
-      );
+    } finally {
+      setTranscribingVoice(false);
     }
+  }
+  function stopVoiceCapture() {
+    voiceSession.current += 1;
+    const recorder = voiceRecorder.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  }
+  async function toggleVoiceInput() {
+    if (listening) {
+      stopVoiceCapture();
+      return;
+    }
+    if (!state?.aiEnabled) {
+      setVoiceStatus(
+        "Voice transcription requires an OpenAI or Gemini provider configured on the server.",
+      );
+      return;
+    }
+    if (!window.isSecureContext) {
+      setVoiceStatus(
+        "Voice recording requires HTTPS or localhost. Open the secure app URL and try again.",
+      );
+      return;
+    }
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined" ||
+      typeof AudioContext === "undefined"
+    ) {
+      setVoiceStatus(
+        "Voice recording is not supported in this browser. Try a recent version of Chrome, Edge, Firefox, or Safari.",
+      );
+      return;
+    }
+    setVoiceStatus("Requesting microphone access…");
+    setVoiceTranscript("");
+    setRequestingVoice(true);
+    const session = ++voiceSession.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          autoGainControl: true,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      if (session !== voiceSession.current || tab !== "Agent") {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      voiceStream.current = stream;
+      const context = new AudioContext();
+      voiceAudioContext.current = context;
+      await context.resume();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const mimeType = [
+        "audio/webm;codecs=opus",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+        "audio/webm",
+      ].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      voiceRecorder.current = recorder;
+      voiceChunks.current = [];
+      voiceStartedAt.current = Date.now();
+      lastVoiceActivity.current = voiceStartedAt.current;
+      heardVoice.current = false;
+      let recordingFailed = false;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) voiceChunks.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        recordingFailed = true;
+        voiceRecorder.current = null;
+        releaseVoiceCapture();
+        setListening(false);
+        setVoiceStatus(
+          "The recording stopped unexpectedly. Try again or type your request.",
+        );
+      };
+      recorder.onstop = () => {
+        voiceRecorder.current = null;
+        releaseVoiceCapture();
+        setListening(false);
+        const chunks = voiceChunks.current;
+        voiceChunks.current = [];
+        if (recordingFailed) return;
+        const recording = new Blob(chunks, {
+          type: recorder.mimeType || chunks[0]?.type || "audio/webm",
+        });
+        if (!recording.size) {
+          setVoiceStatus(
+            "No audio was captured. Check your microphone and try again.",
+          );
+          return;
+        }
+        void transcribeVoice(recording);
+      };
+      recorder.start(250);
+      setListening(true);
+      setVoiceStatus("Listening. Speak now; recording stops after a pause.");
+      const samples = new Uint8Array(analyser.fftSize);
+      voiceMonitor.current = window.setInterval(() => {
+        analyser.getByteTimeDomainData(samples);
+        let energy = 0;
+        for (const sample of samples) {
+          const amplitude = (sample - 128) / 128;
+          energy += amplitude * amplitude;
+        }
+        const level = Math.sqrt(energy / samples.length);
+        if (level > 0.035) {
+          heardVoice.current = true;
+          lastVoiceActivity.current = Date.now();
+        } else if (
+          heardVoice.current &&
+          Date.now() - lastVoiceActivity.current > 1400
+        ) {
+          stopVoiceCapture();
+        }
+        if (Date.now() - voiceStartedAt.current > 60000)
+          stopVoiceCapture();
+      }, 100);
+    } catch (e) {
+      voiceRecorder.current = null;
+      releaseVoiceCapture();
+      setListening(false);
+      const name = e instanceof Error ? e.name : "";
+      setVoiceStatus(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "Microphone access was denied. Allow microphone access or type your request."
+          : name === "NotFoundError"
+            ? "No microphone was found. Connect one or type your request."
+            : "Could not start voice recording. Check your microphone and try again.",
+      );
+    } finally {
+      setRequestingVoice(false);
+    }
+  }
+  function speakMessage(id: string, text: string) {
+    if (!("speechSynthesis" in window)) {
+      setVoiceStatus(
+        "Spoken replies are not supported in this browser. The text response is still available.",
+      );
+      return;
+    }
+    if (playingMessageId === id) {
+      window.speechSynthesis.cancel();
+      setPlayingMessageId(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const readableText = text
+      .replace(/^\[Demonstration command parser — no AI model connected\]\n/, "")
+      .trim();
+    if (!readableText) return;
+    const utterance = new SpeechSynthesisUtterance(readableText);
+    utterance.lang = "en-NG";
+    utterance.onend = () => setPlayingMessageId(null);
+    utterance.onerror = () => {
+      setPlayingMessageId(null);
+      setVoiceStatus(
+        "The spoken reply could not be played. The text response is still available.",
+      );
+    };
+    setPlayingMessageId(id);
+    window.speechSynthesis.speak(utterance);
   }
   function jumpToLatest() {
     followLatest.current = true;
@@ -562,7 +729,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     setShowLatest(false);
   }
   function navigate(next: string) {
-    if (next !== "Agent") speechRecognition.current?.stop();
+    if (next !== "Agent") stopVoiceCapture();
+    if (next !== "Agent") {
+      window.speechSynthesis?.cancel();
+      setPlayingMessageId(null);
+    }
     setTab(next);
     setMenuOpen(false);
   }
@@ -829,6 +1000,14 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
       ref={appRef}
       className={`app-shell ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
     >
+      {menuOpen && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
       <aside
         id="workspace-navigation"
         className={`sidebar ${menuOpen ? "menu-open" : ""}`}
@@ -1100,6 +1279,30 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                         )}
                       </p>
                       <time>{date(m.at)}</time>
+                      {m.role === "assistant" && (
+                        <button
+                          type="button"
+                          className="message-audio"
+                          aria-label={
+                            playingMessageId === m.id
+                              ? "Stop spoken reply"
+                              : "Read reply aloud"
+                          }
+                          title={
+                            playingMessageId === m.id
+                              ? "Stop spoken reply"
+                              : "Read reply aloud"
+                          }
+                          onClick={() => speakMessage(m.id, m.content)}
+                        >
+                          {playingMessageId === m.id ? (
+                            <VolumeX size={15} />
+                          ) : (
+                            <Volume2 size={15} />
+                          )}
+                          {playingMessageId === m.id ? "Stop audio" : "Listen"}
+                        </button>
+                      )}
                     </article>
                     {m.role === "assistant" &&
                     m.proposals?.length &&
@@ -1285,7 +1488,9 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                 </p>
                 <form
                   className="composer"
-                  aria-busy={busy === "chat" || busy === "image"}
+                  aria-busy={
+                    busy === "chat" || busy === "image" || transcribingVoice
+                  }
                   onSubmit={(e) => {
                     e.preventDefault();
                     void send(message);
@@ -1347,19 +1552,49 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                     <button
                       type="button"
                       className={`voice-button${listening ? " listening" : ""}`}
-                      disabled={!!busy}
+                      disabled={!!busy || requestingVoice || transcribingVoice}
                       aria-label={
-                        listening ? "Stop voice input" : "Start voice input"
+                        listening ? "Stop recording" : "Start voice recording"
                       }
                       aria-pressed={listening}
                       onClick={toggleVoiceInput}
                     >
-                      <Mic size={17} />
-                      {listening ? "Stop listening" : "Voice input"}
+                      {listening ? <Square size={15} /> : <Mic size={17} />}
+                      {listening
+                        ? "Stop recording"
+                        : requestingVoice
+                          ? "Starting…"
+                          : transcribingVoice
+                            ? "Transcribing…"
+                            : "Voice input"}
+                    </button>
+                    <button
+                      type="button"
+                      className={`voice-reply-button${voiceReplies ? " active" : ""}`}
+                      disabled={!!busy}
+                      aria-pressed={voiceReplies}
+                      onClick={() => setVoiceReplies((enabled) => !enabled)}
+                      title={
+                        voiceReplies
+                          ? "Turn automatic spoken replies off"
+                          : "Turn automatic spoken replies on"
+                      }
+                    >
+                      {voiceReplies ? (
+                        <Volume2 size={16} />
+                      ) : (
+                        <VolumeX size={16} />
+                      )}
+                      Read replies {voiceReplies ? "on" : "off"}
                     </button>
                     <button
                       className="send-button"
-                      disabled={!!busy || !message.trim()}
+                      disabled={
+                        !!busy ||
+                        listening ||
+                        transcribingVoice ||
+                        !message.trim()
+                      }
                       aria-label="Send message"
                     >
                       <ArrowRight size={20} />
@@ -1369,6 +1604,17 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                 {voiceStatus && (
                   <p className="voice-status" role="status" aria-live="polite">
                     {voiceStatus}
+                  </p>
+                )}
+                {voiceTranscript && (
+                  <p className="voice-transcript">
+                    <strong>Transcript:</strong> {voiceTranscript}
+                  </p>
+                )}
+                {!state.aiEnabled && (
+                  <p className="voice-status">
+                    Voice transcription requires an OpenAI or Gemini provider
+                    configured on the server.
                   </p>
                 )}
                 {state.messages.length === 0 && !pendingMessage && !editor && (
@@ -1411,9 +1657,8 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                 </p>
                 <p className="chat-footnote">
                   <ShieldCheck size={13} />
-                  Voice fills the message only; review every detail before
-                  sending. Browser speech services may process audio. Every
-                  payment still needs your review and approval.
+                  Voice is transcribed by your configured AI provider. Review
+                  the transcript and payment details before approving anything.
                 </p>
               </div>
             </section>
@@ -1546,7 +1791,8 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                   <p className="muted">
                     Across the fictional demonstration ledger
                   </p>
-                  {state.insights.categories.map((c) => (
+                  {state.insights.categories.length ? (
+                    state.insights.categories.map((c) => (
                     <div className="category" key={c.name}>
                       <div>
                         <span>{c.name}</span>
@@ -1560,11 +1806,17 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                         />
                       </div>
                     </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="empty-small">
+                      No spending categories are available for this period yet.
+                    </p>
+                  )}
                 </section>
                 <section className="panel insight-card">
                   <h2>Largest expenses</h2>
-                  {state.insights.largest.map((e) => (
+                  {state.insights.largest.length ? (
+                    state.insights.largest.map((e) => (
                     <div className="ledger-preview" key={e.id}>
                       <span className="task-icon">
                         <ArrowUpRight size={16} />
@@ -1577,7 +1829,12 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                       </span>
                       <strong>{money(-e.amountKobo)}</strong>
                     </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="empty-small">
+                      Largest expenses will appear when spending is available.
+                    </p>
+                  )}
                   <h2 className="section-title">Sample obligation</h2>
                   <p className="muted">
                     Fictional monthly data subscription: ₦5,000. This is a
