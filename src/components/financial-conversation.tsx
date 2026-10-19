@@ -1,6 +1,4 @@
 "use client";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -10,7 +8,10 @@ import {
 } from "react";
 import {
   ArrowUp,
-  ArrowUpRight,
+  Mic,
+  Square,
+  Volume2,
+  VolumeX,
   Check,
   CreditCard,
   LogOut,
@@ -24,7 +25,16 @@ import {
 import type { SavedChat, SavedTurn } from "@/lib/chat-history/store";
 import { BrandAsset } from "./brand-asset";
 import { FinancialResponse } from "./financial-response";
+import { CopyableMessage } from "./copyable-message";
 import { conversationDrafts as drafts } from "@/lib/chat-history/drafts";
+import {
+  NativePayment,
+  PaymentNotice,
+  useConversationPayments,
+} from "./conversation-payments";
+import { useVoiceInput } from "./use-voice-input";
+import { useResponseSpeech } from "./use-response-speech";
+import type { Mode } from "@/lib/domain";
 import "./financial-conversation.css";
 
 type Account = {
@@ -53,8 +63,11 @@ const suggestions = [
     text: "Help me prepare a payment draft",
   },
 ];
-export function FinancialConversation() {
-  const router = useRouter();
+export function FinancialConversation({
+  paymentMode = "fixture",
+}: {
+  paymentMode?: Mode;
+}) {
   const [id, setId] = useState("");
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<SavedTurn[]>([]);
@@ -67,6 +80,10 @@ export function FinancialConversation() {
   const [historyError, setHistoryError] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [account, setAccount] = useState("");
+  const [accountQuestion, setAccountQuestion] = useState<{
+    chat: string;
+    text: string;
+  } | null>(null);
   const [accountError, setAccountError] = useState("");
   const [accountLoading, setAccountLoading] = useState(false);
   const [password, setPassword] = useState("");
@@ -88,6 +105,7 @@ export function FinancialConversation() {
   const drawer = useRef<HTMLDialogElement>(null);
   const plans = useRef<HTMLDialogElement>(null);
   const signin = useRef<HTMLDialogElement>(null);
+  const paymentHistory = useRef<HTMLDialogElement>(null);
   const accountDialog = useRef<HTMLDialogElement>(null);
   const modalReturn = useRef<HTMLElement | null>(null);
   const modalSelection = useRef<DraftSelection | undefined>(undefined);
@@ -133,10 +151,29 @@ export function FinancialConversation() {
   }, [id, restoreSelection]);
   const busy = !!operation;
   const updateText = (value: string) => {
+    if (voice.isVoiceLocked()) return;
     setText(value);
     drafts.set(id, value);
   };
+  const speech = useResponseSpeech();
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const voice = useVoiceInput({
+    text,
+    onText: (value) => {
+      setText(value);
+      drafts.set(id, value);
+    },
+    aiEnabled,
+    disabled: busy || loading || !!unknown || !authenticated,
+    focus: () => composer.current?.focus({ preventScroll: true }),
+  });
+  const { discardVoiceCapture } = voice;
+  const { stop: stopSpeech } = speech;
+  const voiceBusy =
+    voice.listening || voice.requestingVoice || voice.transcribingVoice;
   const clearPrivate = useCallback(() => {
+    discardVoiceCapture();
+    stopSpeech();
     ++privacyVersion.current;
     ++requestVersion.current;
     drafts.clear();
@@ -152,17 +189,24 @@ export function FinancialConversation() {
     setChats([]);
     setAccounts([]);
     setAccount("");
+    setAccountQuestion(null);
     setId("");
     setPendingText("");
     setUnknown(null);
     setPassword("");
-  }, []);
+  }, [discardVoiceCapture, stopSpeech]);
+  const payments = useConversationPayments(authenticated, clearPrivate);
+  useEffect(() => {
+    setAiEnabled(!!payments.snapshot?.aiEnabled);
+  }, [payments.snapshot?.aiEnabled]);
   function openModal(target: HTMLDialogElement | null) {
     rememberSelection();
     modalSelection.current = selections.current.get(editorId.current);
     const active = document.activeElement as HTMLElement;
     modalReturn.current = active?.closest("dialog") ? menu.current : active;
-    [drawer, plans, signin, accountDialog].forEach((r) => r.current?.close());
+    [drawer, plans, signin, accountDialog, paymentHistory].forEach((r) =>
+      r.current?.close(),
+    );
     target?.showModal();
   }
   function restoreFocus() {
@@ -193,6 +237,19 @@ export function FinancialConversation() {
       clearPrivate();
       return false;
     }
+    if (response.status === 503) {
+      // Keep the existing fixture conversation gate. Test/live operators can
+      // still recover historical payments through the same authenticated UI.
+      const state = await fetch("/api/state", { cache: "no-store" });
+      if (version !== privacyVersion.current) return false;
+      if (state.ok) {
+        setAuthenticated(true);
+        setHistoryError(
+          "Conversation demo is unavailable in this configuration. Saved payments remain accessible.",
+        );
+        return true;
+      }
+    }
     if (!response.ok)
       throw new Error("Saved chats couldn’t load. Retry the list.");
     const data = await response.json();
@@ -204,12 +261,15 @@ export function FinancialConversation() {
   }, [clearPrivate]);
   const openChat = useCallback(
     async (next: string, push = true) => {
+      discardVoiceCapture();
+      stopSpeech();
       rememberSelection();
       const version = ++requestVersion.current;
       setLoading(!!next);
       setError("");
       setText(drafts.get(next) ?? "");
       setAccount("");
+      setAccountQuestion(null);
       setAccounts([]);
       setTurns([]);
       setId(next);
@@ -249,7 +309,7 @@ export function FinancialConversation() {
         if (version === requestVersion.current) setLoading(false);
       }
     },
-    [clearPrivate, rememberSelection],
+    [clearPrivate, rememberSelection, discardVoiceCapture, stopSpeech],
   );
   useEffect(() => {
     let live = true;
@@ -318,7 +378,15 @@ export function FinancialConversation() {
       window.removeEventListener("resize", fit);
     };
   }, [resizeComposer]);
+  useEffect(() => {
+    if (
+      authenticated &&
+      new URLSearchParams(window.location.search).get("payments") === "history"
+    )
+      paymentHistory.current?.showModal();
+  }, [authenticated]);
   function choose(value: string) {
+    if (voice.isVoiceLocked()) return;
     if (text.trim()) {
       setError(
         "Your draft is preserved. Clear it before choosing a suggestion.",
@@ -365,8 +433,19 @@ export function FinancialConversation() {
       if (version === privacyVersion.current) setAccountLoading(false);
     }
   }
-  async function send() {
-    if (pending.current || loading || unknown || !text.trim()) return;
+  async function send(question?: string) {
+    // API refs lock synchronously, before React renders disabled controls.
+    if (voice.isVoiceLocked()) return;
+    if (
+      pending.current ||
+      loading ||
+      unknown ||
+      !(question ?? text).trim() ||
+      voiceBusy
+    )
+      return;
+    discardVoiceCapture();
+    stopSpeech();
     if (!authenticated) {
       openModal(signin.current);
       return;
@@ -374,7 +453,7 @@ export function FinancialConversation() {
     pending.current = true;
     setOperation("message");
     setError("");
-    const original = text,
+    const original = question ?? text,
       chatId = id || crypto.randomUUID(),
       version = privacyVersion.current,
       request = requestVersion.current;
@@ -460,7 +539,7 @@ export function FinancialConversation() {
     }
   }
   async function checkSaved() {
-    if (!unknown) return;
+    if (!unknown || voice.isVoiceLocked()) return;
     const version = privacyVersion.current,
       request = requestVersion.current;
     setOperation("check");
@@ -512,28 +591,28 @@ export function FinancialConversation() {
       if (version === privacyVersion.current) setOperation("");
     }
   }
-  async function draft(original: string) {
+  async function draft(turnId: string) {
     if (pending.current || unknown) return;
     pending.current = true;
     setOperation("draft");
     setError("");
     const version = privacyVersion.current;
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: original }),
+      await payments.run(`turn:${turnId}:prepare`, async () => {
+        const response = await fetch("/api/conversation/payment-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationId: id, turnId }),
+        });
+        if (response.status === 401) {
+          clearPrivate();
+          return;
+        }
+        if (!response.ok)
+          throw new Error(
+            "Draft response could not be confirmed. Open saved payments to recover the card.",
+          );
       });
-      if (version !== privacyVersion.current) return;
-      if (!response.ok) throw new Error();
-      router.push(`/?fromChat=${encodeURIComponent(id)}`);
-    } catch {
-      if (version === privacyVersion.current) {
-        setUnknown({ chat: id, count: turns.length, payment: true });
-        setError(
-          "The draft response could not be confirmed. Check the payment workspace for a saved draft before creating another.",
-        );
-      }
     } finally {
       pending.current = false;
       if (version === privacyVersion.current) setOperation("");
@@ -569,6 +648,9 @@ export function FinancialConversation() {
     }
   }
   async function signOut() {
+    discardVoiceCapture();
+    stopSpeech();
+    payments.reset();
     setOperation("signout");
     ++privacyVersion.current;
     ++requestVersion.current;
@@ -592,13 +674,11 @@ export function FinancialConversation() {
   const scope = selected
     ? `${selected.displayName}${selected.maskedNumber ? ` · •${selected.maskedNumber}` : ""}`
     : "No account selected";
-  const paymentUrl = id
-    ? `/?fromChat=${encodeURIComponent(id)}`
-    : "/?workspace=payments";
   const empty = !loading && !turns.length && !pendingText;
   const sidebar = (
     <>
       <div className="agus-sidebar-brand">
+        <BrandAsset />
         <button
           className="agus-icon-button agus-collapse"
           aria-label="Collapse navigation"
@@ -654,9 +734,15 @@ export function FinancialConversation() {
         )}
       </nav>
       <div className="agus-sidebar-bottom">
-        <Link href={paymentUrl} className="agus-sidebar-link">
-          <Wallet size={18} /> Payment workspace
-        </Link>
+        <button
+          className="agus-sidebar-link"
+          onClick={() => {
+            openModal(paymentHistory.current);
+            void payments.refresh().catch(() => {});
+          }}
+        >
+          <Wallet size={18} /> Saved payments
+        </button>
         <button
           className="agus-plan-link"
           onClick={() => openModal(plans.current)}
@@ -741,7 +827,15 @@ export function FinancialConversation() {
             >
               <PanelLeft size={20} />
             </button>
-            <BrandAsset />
+            <span
+              className={
+                sidebarOpen
+                  ? "agus-header-brand sidebar-expanded"
+                  : "agus-header-brand"
+              }
+            >
+              <BrandAsset />
+            </span>
             {!empty && (
               <span
                 className="agus-header-title"
@@ -792,7 +886,9 @@ export function FinancialConversation() {
                 <article key={turn.id} className="agus-turn">
                   <div className="agus-user-message">
                     <span className="agus-speaker">You</span>
-                    <p>{turn.text}</p>
+                    <CopyableMessage label="user message">
+                      <p>{turn.text}</p>
+                    </CopyableMessage>
                   </div>
                   <div className="agus-assistant-message">
                     <h2 className="agus-response-heading">agus.</h2>
@@ -802,19 +898,77 @@ export function FinancialConversation() {
                         check the records again.
                       </p>
                     )}
-                    <FinancialResponse reply={turn.reply} choose={choose} />
-                    {turn.reply.handoff && (
-                      <div className="agus-handoff">
-                        <p>Payment preparation</p>
-                        <button
-                          className="agus-secondary"
-                          disabled={busy || !!unknown}
-                          onClick={() => void draft(turn.text)}
-                        >
-                          Open payment draft <ArrowUpRight size={18} />
-                        </button>
-                      </div>
+                    <CopyableMessage label="AGUS response">
+                      <FinancialResponse reply={turn.reply} choose={choose} />
+                    </CopyableMessage>
+                    {turn.reply.accountAction === "choose_demo_account" && (
+                      <button
+                        className="agus-secondary"
+                        disabled={busy || !!unknown}
+                        onClick={() => {
+                          setAccountQuestion({ chat: id, text: turn.text });
+                          openModal(accountDialog.current);
+                          void loadAccounts();
+                        }}
+                      >
+                        Choose demo account
+                      </button>
                     )}
+                    {turn.reply.handoff &&
+                      (() => {
+                        const message = payments.snapshot?.messages.find(
+                          (m) =>
+                            m.turnId === turn.id &&
+                            m.conversationId === id &&
+                            (!!m.proposals?.length || !!m.batchId),
+                        );
+                        return message ? (
+                          <NativePayment
+                            controller={payments}
+                            message={message}
+                            recover={() => openModal(paymentHistory.current)}
+                          />
+                        ) : (
+                          <div className="agus-handoff">
+                            <PaymentNotice
+                              controller={payments}
+                              scope={`turn:${turn.id}`}
+                              recover={() => openModal(paymentHistory.current)}
+                            />
+                            <button
+                              className="agus-secondary"
+                              disabled={
+                                busy ||
+                                payments.busy ||
+                                !!unknown ||
+                                !payments.snapshot
+                              }
+                              onClick={() => void draft(turn.id)}
+                            >
+                              Prepare payment draft
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    <button
+                      className="agus-listen agus-icon-button"
+                      aria-label={
+                        speech.playing === turn.id
+                          ? "Stop reading response"
+                          : "Listen to response"
+                      }
+                      title={
+                        speech.playing === turn.id ? "Stop reading" : "Listen"
+                      }
+                      aria-pressed={speech.playing === turn.id}
+                      onClick={() => speech.speak(turn.id, turn.reply.text)}
+                    >
+                      {speech.playing === turn.id ? (
+                        <VolumeX size={16} />
+                      ) : (
+                        <Volume2 size={16} />
+                      )}
+                    </button>
                     <span className="agus-response-time">
                       Saved{" "}
                       {new Date(turn.createdAt).toLocaleString("en-NG", {
@@ -862,12 +1016,33 @@ export function FinancialConversation() {
           </button>
         )}
         <div className="agus-composer-area">
+          {speech.error && (
+            <p className="agus-audio-status" role="status">
+              {speech.error}
+            </p>
+          )}
+          {voice.voiceStatus && (
+            <div className="agus-audio-status" role="status">
+              {voice.voiceStatus}
+              {voiceBusy && (
+                <button
+                  type="button"
+                  aria-label="Cancel recording"
+                  onClick={discardVoiceCapture}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          )}
           {error && (
             <div className="agus-error" role="alert">
               <p>{error}</p>
               {unknown &&
                 (unknown.payment ? (
-                  <Link href={paymentUrl}>Check payment workspace</Link>
+                  <button onClick={() => openModal(paymentHistory.current)}>
+                    Check saved payments
+                  </button>
                 ) : (
                   <button disabled={busy} onClick={() => void checkSaved()}>
                     Check saved conversation
@@ -902,7 +1077,7 @@ export function FinancialConversation() {
               value={text}
               rows={1}
               maxLength={4000}
-              readOnly={busy || loading}
+              readOnly={busy || loading || voiceBusy}
               onSelect={rememberSelection}
               onBlur={rememberSelection}
               onScroll={rememberSelection}
@@ -928,12 +1103,60 @@ export function FinancialConversation() {
                     ? "Wait for this request before sending another."
                     : ""}
               </span>
-              {/* Gerald's optional toolbar action belongs here; no second voice implementation. */}
+              {voice.listening &&
+                (voice.audioLevel === null ? (
+                  <span
+                    className="agus-recording-pulse"
+                    aria-label="Recording indicator"
+                  >
+                    Recording
+                  </span>
+                ) : (
+                  <span
+                    className="agus-recording-level"
+                    role="img"
+                    aria-label="Microphone sound level"
+                    data-level={voice.audioLevel.toFixed(2)}
+                  >
+                    {[0.6, 1, 0.8, 1, 0.6].map((scale, index) => (
+                      <i
+                        key={index}
+                        style={{
+                          height: `${4 + voice.audioLevel! * scale * 24}px`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                ))}
+              <button
+                className={`agus-icon-button agus-mic${voice.listening ? " is-recording" : ""}`}
+                type="button"
+                aria-label={
+                  voice.listening ? "Stop recording" : "Start recording"
+                }
+                title={voice.listening ? "Stop recording" : "Record a message"}
+                aria-pressed={voice.listening}
+                disabled={
+                  busy ||
+                  loading ||
+                  !authenticated ||
+                  voice.requestingVoice ||
+                  voice.transcribingVoice
+                }
+                onClick={() => {
+                  stopSpeech();
+                  void voice.toggleVoiceInput();
+                }}
+              >
+                {voice.listening ? <Square size={17} /> : <Mic size={19} />}
+              </button>
               <button
                 className="agus-send"
                 type="submit"
                 aria-label="Send message"
-                disabled={busy || loading || !!unknown || !text.trim()}
+                disabled={
+                  busy || loading || voiceBusy || !!unknown || !text.trim()
+                }
               >
                 <ArrowUp size={20} />
               </button>
@@ -942,24 +1165,112 @@ export function FinancialConversation() {
           {empty && (
             <div className="agus-suggestions">
               {suggestions.map(({ title, text: prompt }) => (
-                <button key={title} onClick={() => choose(prompt)}>
+                <button
+                  key={title}
+                  disabled={voiceBusy}
+                  onClick={() => choose(prompt)}
+                >
                   <span>{title}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
-        <details className="agus-demo-strip">
-          <summary>Demo · Fictional financial data</summary>
+        <details key={id} className="agus-voice-help">
+          <summary>About voice</summary>
           <p>
-            These are fictional source records. No real banking is connected and
-            no real funds move.
+            Voice fills your editable draft and never sends it. Browser speech
+            services or the configured AI provider may process microphone audio.
+            Stop to add the transcript; cancel to discard it. Microphone access
+            requires HTTPS or localhost.
+          </p>
+        </details>
+        <details className="agus-demo-strip">
+          <summary>
+            {paymentMode === "fixture"
+              ? "Demo · Fictional financial data"
+              : `${paymentMode} payment environment`}
+          </summary>
+          <p>
+            {paymentMode === "fixture"
+              ? "Demo Access · Transactions use local fixture simulation. These are fictional source records. No real banking is connected and no real funds move."
+              : paymentMode === "test"
+                ? "Test Access · Transactions use Paystack test mode. No real funds move."
+                : "Live Access · Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}
           </p>
         </details>
       </section>
       <div className="agus-sr-only" role="status" aria-live="polite">
         {announcement}
       </div>
+      <dialog
+        ref={paymentHistory}
+        className="agus-dialog agus-payment-history"
+        aria-label="Saved payments"
+        onClose={restoreFocus}
+      >
+        <div className="agus-dialog-heading">
+          <h2>Saved payments</h2>
+          <button
+            className="agus-icon-button"
+            aria-label="Close saved payments"
+            onClick={() => paymentHistory.current?.close()}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <p>
+          Saved drafts and individual outcomes. Processing or unknown means
+          unresolved; check the existing reference before taking further action.
+        </p>
+        <PaymentNotice controller={payments} scope="history" />
+        <button
+          className="agus-secondary"
+          onClick={() => void payments.recover()}
+        >
+          Refresh saved payments
+        </button>
+        {payments.snapshot?.emergencyDisabled && (
+          <p role="status">Submission is disabled by the emergency switch.</p>
+        )}
+        <button
+          className="agus-secondary"
+          disabled={payments.busy || !payments.snapshot}
+          onClick={() =>
+            void payments.run("stop", () =>
+              fetch("/api/emergency", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ disabled: true }),
+              }).then((r) => {
+                if (!r.ok)
+                  throw new Error("Emergency stop could not be confirmed.");
+              }),
+            )
+          }
+        >
+          Stop payment submissions
+        </button>
+        <a href="/api/reports" download>
+          Download payment history CSV
+        </a>
+        {payments.snapshot?.messages
+          .filter((m) => m.proposals?.length && !m.batchId && !m.supersededBy)
+          .map((m) => (
+            <NativePayment key={m.id} controller={payments} message={m} />
+          ))}
+        {payments.snapshot?.batches.map((b) => (
+          <NativePayment key={b.id} controller={payments} batch={b} />
+        ))}
+        {!payments.snapshot && <p role="status">Loading saved payments…</p>}
+        {payments.snapshot &&
+          !payments.snapshot.batches.length &&
+          !payments.snapshot.messages.some(
+            (m) => m.proposals?.length && !m.batchId,
+          ) && (
+            <p>No saved payments yet. Prepare a payment in the conversation.</p>
+          )}
+      </dialog>
       <dialog
         className="agus-dialog agus-account-dialog"
         ref={accountDialog}
@@ -1004,6 +1315,33 @@ export function FinancialConversation() {
           ))}
         </select>
         {accountError && <p role="alert">{accountError}</p>}
+        {accountQuestion?.chat === id && (
+          <button
+            className="agus-secondary"
+            disabled={
+              !account ||
+              busy ||
+              loading ||
+              voiceBusy ||
+              !!unknown ||
+              !!text.trim()
+            }
+            onClick={() => {
+              const question = accountQuestion.text;
+              setAccountQuestion(null);
+              accountDialog.current?.close();
+              void send(question);
+            }}
+          >
+            Continue question
+          </button>
+        )}
+        {accountQuestion?.chat === id && !!text.trim() && (
+          <p>
+            Your unsent draft is preserved. Send or clear it before continuing
+            the saved question.
+          </p>
+        )}
         {(accountError || authenticated === false) && (
           <button
             className="agus-secondary"

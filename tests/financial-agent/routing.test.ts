@@ -111,7 +111,7 @@ describe.each(["payment_action", "payment_draft"])(
         accountIds: [],
       });
       expect(result.kind).toBe("clarify");
-      expect(result.text).toContain("Which account");
+      expect(result).toHaveProperty("accountAction", "choose_demo_account");
       expect(s.tools.dispatch).not.toHaveBeenCalled();
     });
 

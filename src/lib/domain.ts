@@ -93,6 +93,9 @@ export interface Message {
   }[];
   batchId?: string;
   sourceRequest?: string;
+  // Server-owned linkage from an authenticated saved conversation turn.
+  conversationId?: string;
+  turnId?: string;
   topic?: string;
   supersededBy?: string;
   // Server-owned selection for an unambiguous conversational follow-up.

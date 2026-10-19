@@ -57,7 +57,7 @@ it.each(["Use OPay instead.", "OPay bank naw."])(
   "corrects the institution using the provider list, separately from recipient identity: %s",
   async (correction) => {
     vi.spyOn(FixtureProvider.prototype, "banks").mockResolvedValue([
-      ...fixtureBanks,
+      ...fixtureBanks.filter((b) => b.code !== "999992"),
       { name: "OPay Digital Services Limited (OPay)", code: "999992" },
     ]);
     const first = await chat(actor, "Help me send ₦500 to my Wema account.");
@@ -83,6 +83,9 @@ it.each(["Use OPay instead.", "OPay bank naw."])(
   },
 );
 it("leaves an unavailable institution unchanged instead of fabricating a bank code", async () => {
+  vi.spyOn(FixtureProvider.prototype, "banks").mockResolvedValue(
+    fixtureBanks.filter((b) => b.code !== "999992"),
+  );
   await chat(actor, "Help me send ₦500 to my Wema account.");
   const before = (await readState()).messages[1].proposals;
   const reply = await chat(actor, "Use OPay instead.");

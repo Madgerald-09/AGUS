@@ -1,0 +1,110 @@
+[
+  {
+    "width": 1440,
+    "mode": "native",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 1440,
+    "mode": "media",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Transcription: submission blocked, original text and history retained, zero conversation POSTs",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 820,
+    "mode": "native",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 820,
+    "mode": "media",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Transcription: submission blocked, original text and history retained, zero conversation POSTs",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 390,
+    "mode": "native",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 390,
+    "mode": "media",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Transcription: submission blocked, original text and history retained, zero conversation POSTs",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 320,
+    "mode": "native",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  },
+  {
+    "width": 320,
+    "mode": "media",
+    "passed": true,
+    "checks": [
+      "Synchronous API startup and pending permission: keyboard, Send and programmatic form submit preserve draft/history with zero conversation POSTs",
+      "Active capture: prohibited submission does not stop recording or create a pending message",
+      "Transcription: submission blocked, original text and history retained, zero conversation POSTs",
+      "Completion unlocks deliberate submission of the preserved draft plus transcript exactly once",
+      "Navigation discards late callbacks, closes late permission streams and leaves the new composer unlocked"
+    ],
+    "conversationPosts": 1,
+    "pageErrors": []
+  }
+]

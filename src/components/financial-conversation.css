@@ -91,7 +91,15 @@
   padding: 0 8px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+}
+.agus-sidebar-brand .brand-asset {
+  width: 64px;
+}
+@media (min-width: 1024px) {
+  .agus-header-brand.sidebar-expanded {
+    display: none;
+  }
 }
 .agus-secondary {
   border: 1px solid #666 !important;
@@ -317,7 +325,11 @@
   margin: 0;
 }
 .agus-composer:focus-within {
-  border-color: #329bff;
+  border-color: #5484ad;
+  box-shadow: 0 0 0 1px #5484ad;
+}
+.agus-workspace .agus-composer textarea:focus-visible {
+  outline: none;
 }
 .agus-workspace .agus-send:hover {
   background: #4aa8ff !important;
@@ -793,5 +805,201 @@
     display: block;
     min-height: 32px;
     padding: 4px 16px;
+  }
+}
+
+/* Payment content shares the existing chat scroll and palette. */
+.agus-payment {
+  border: 1px solid #34312d;
+  border-radius: 18px;
+  background: #201f1d;
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+.agus-payment > summary {
+  padding: 12px 16px;
+  cursor: pointer;
+}
+.agus-payment > summary small {
+  display: block;
+  margin-left: 16px;
+}
+.agus-payment-body {
+  padding: 0 12px 12px;
+}
+.agus-payment .panel {
+  border: 0;
+  padding: 12px 4px;
+  margin: 0;
+}
+.agus-payment h2 {
+  font-size: 18px;
+}
+.agus-payment .batch-heading {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.agus-payment .recipient-form {
+  padding: 12px;
+}
+.agus-payment .payment-row {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+.agus-payment .payment-value {
+  grid-column: 2;
+  align-items: flex-start;
+  max-width: 100%;
+}
+.agus-payment .batch-total {
+  justify-content: flex-start;
+  gap: 12px 24px;
+}
+.agus-payment .checkbox-label {
+  display: flex;
+  flex-direction: row;
+}
+.agus-payment input[type="checkbox"] {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  padding: 0;
+}
+.agus-payment .approval-form input[type="password"] {
+  width: 100%;
+}
+.agus-payment .batch-actions > button,
+.agus-payment .approval-form button {
+  max-width: 100%;
+  white-space: normal;
+}
+.agus-payment .workflow-steps {
+  flex-wrap: wrap;
+}
+.agus-payment .job-details pre {
+  max-height: none;
+  overflow: visible;
+}
+.agus-payment-history {
+  width: min(760px, calc(100% - 24px));
+}
+.agus-payment-history > button,
+.agus-payment-history > a {
+  margin: 8px 8px 8px 0;
+}
+.agus-listen {
+  margin-top: 8px;
+  color: #a7a39d;
+}
+.agus-workspace .agus-mic {
+  flex: 0 0 44px;
+  border-radius: 50%;
+}
+.agus-workspace .agus-mic.is-recording {
+  color: #329bff;
+  background: #292826;
+  box-shadow: inset 0 0 0 1px #329bff;
+}
+.agus-audio-status {
+  font-size: 13px;
+  color: #a7a39d;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agus-voice-help {
+  color: #a7a39d;
+  font-size: 12px;
+  margin-top: 4px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.agus-voice-help > summary {
+  min-height: 24px;
+  cursor: pointer;
+  width: fit-content;
+  margin-inline: auto;
+}
+.agus-voice-help p {
+  padding: 8px 0;
+}
+@media (max-width: 600px) {
+  .agus-payment .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .agus-payment .section-heading {
+    align-items: flex-start;
+  }
+  .agus-payment .form-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* Copy occupies reserved space, so hover/focus never shifts message text. */
+.agus-copyable {
+  min-height: 44px;
+  position: relative;
+  padding-right: 44px;
+}
+.agus-copy {
+  position: absolute;
+  top: 0;
+  right: 0;
+  opacity: 0;
+}
+.agus-copyable:hover .agus-copy,
+.agus-copyable:focus-within .agus-copy {
+  opacity: 1;
+}
+.agus-copy-feedback {
+  display: block;
+  color: #c9b9a5;
+  font-size: 12px;
+}
+@media (hover: none), (pointer: coarse) {
+  .agus-copy {
+    opacity: 1;
+  }
+}
+.agus-recording-level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 44px;
+  height: 32px;
+  color: #79a6cd;
+}
+.agus-recording-level i {
+  width: 3px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: height 100ms linear;
+}
+.agus-recording-pulse {
+  font-size: 12px;
+  color: #a7a39d;
+}
+.agus-recording-pulse::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #79a6cd;
+  margin-right: 6px;
+  animation: agus-voice-pulse 1.4s ease-in-out infinite;
+}
+@keyframes agus-voice-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agus-recording-level i {
+    transition: none;
+  }
+  .agus-recording-pulse::before {
+    animation: none;
   }
 }

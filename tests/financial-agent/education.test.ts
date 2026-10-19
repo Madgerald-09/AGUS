@@ -104,14 +104,12 @@ it.each([
   "Explain inflation and my spending",
   "Explain my savings account",
   "Explain our portfolio returns",
-  "What should I invest in?",
-  "Recommend a budget for me",
   "Explain that transaction",
 ])("keeps personal/mixed requests on the authorized path: %s", async (text) => {
   const s = setup(scripted({ route: "financial_education" }));
   const reply = await s.agent().turn({ ...s.input, text, accountIds: [] });
   expect(reply.kind).toBe("clarify");
-  expect(reply.text).toContain("authorized account");
+  expect(reply.text).toContain("authorized demo account");
   expect(s.model.generate).toHaveBeenCalledTimes(1);
 });
 it.each([

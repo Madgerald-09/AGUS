@@ -1,0 +1,13 @@
+{
+  "base": "7e7fddf2cefcee64341a49ccef61098cf4acd56f",
+  "provider": "mocked Gemini",
+  "data": "fictional",
+  "reproduced": [
+    "Wrong bank/fixture-number pair rejected",
+    "Warning rendered outside affected card",
+    "Check saved payments fetched state without opening history or clearing error",
+    "Warning remains on new-chat welcome"
+  ],
+  "genuineModelCalls": 0,
+  "livePayments": 0
+}

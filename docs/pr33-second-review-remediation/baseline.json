@@ -1,0 +1,32 @@
+{
+  "reviewedSha": "efacb26a923d9436ffe0b18e2464312f8968d1f7",
+  "independentReportAvailable": false,
+  "initialUnitReproduction": {
+    "tests": 107,
+    "failed": 64,
+    "passed": 43
+  },
+  "finalRegressionOnReviewedSha": {
+    "tests": 145,
+    "failed": 87,
+    "passed": 58,
+    "command": "npx vitest run tests/financial-agent/second-review-remediation.test.ts",
+    "worktree": "detached at reviewedSha"
+  },
+  "voiceStartupReproduction": [
+    {
+      "width": 1440,
+      "mode": "native",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: synchronous startup must not submit\n+ actual - expected\n\n  {\n    draft: 'Preserved typed draft',\n    messages: 0,\n+   posts: 1\n-   posts: 0\n  }\n",
+      "checks": []
+    },
+    {
+      "width": 1440,
+      "mode": "media",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: synchronous startup must not submit\n+ actual - expected\n\n  {\n    draft: 'Preserved typed draft',\n    messages: 0,\n+   posts: 1\n-   posts: 0\n  }\n",
+      "checks": []
+    }
+  ]
+}
