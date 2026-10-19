@@ -686,6 +686,22 @@ export function createFinancialAgent(options: AgentOptions) {
                 result.error.code,
               ),
             );
+          if (
+            call.name === "find_payment_evidence" &&
+            result.data &&
+            priorCandidates.some(
+              (candidate) =>
+                candidate.accountId === call.args.accountId &&
+                candidate.transactionId === call.args.transactionId,
+            ) &&
+            /\b(?:smaller|larger|first|second|third|last)\s+one\b/i.test(text)
+          ) {
+            // This is a singular, persisted selection follow-up. Its current
+            // transaction detail and evidence have both passed the tool guards.
+            // Complete from those cited facts instead of risking a redundant
+            // planner call. No duplicate fetch or bypass of evidence checks.
+            return await financial([...facts.keys()]);
+          }
           if (call.name === "search_transactions" && result.data) {
             const data =
               result.data as import("../financial-data/contracts").ToolData["search_transactions"];
