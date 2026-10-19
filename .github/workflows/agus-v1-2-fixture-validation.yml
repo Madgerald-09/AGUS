@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout consolidated candidate
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for the exact ancestor commit verification below
       - name: Verify exact parent commit
         shell: bash
         run: |
