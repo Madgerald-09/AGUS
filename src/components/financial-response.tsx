@@ -38,7 +38,7 @@ export function FinancialResponse({
     <>
       {presentation.narration === "factual_fallback" && (
         <p className="agus-fallback">
-          AI explanation unavailable · Verified factual summary
+          AI explanation unavailable · Factual summary
         </p>
       )}
       <div className="agus-prose">

@@ -3,18 +3,18 @@
   color-scheme: dark;
   --ink: #ffffff;
   --muted: #aaaaaa;
-  --accent: #ffffff;
-  --surface-raised: #1a1a1a;
-  --border: #303030;
-  --bg: #000000;
-  --surface: #101010;
+  --accent: #329bff;
+  --surface-raised: #1d1d21;
+  --border: #2b2b31;
+  --bg: #0d0d0f;
+  --surface: #161618;
 }
 * {
   box-sizing: border-box;
 }
 ::selection {
   background: #ffffff;
-  color: #000000;
+  color: #0d0d0f;
 }
 body {
   margin: 0;
@@ -116,7 +116,7 @@ svg {
 .sidebar {
   width: 236px;
   flex-shrink: 0;
-  background: #080808;
+  background: #161618;
   border-right: 1px solid var(--border);
   padding: 28px 16px 24px;
   display: flex;
@@ -135,7 +135,7 @@ svg {
 }
 .brand-mark {
   background: var(--accent);
-  color: #000000;
+  color: #0d0d0f;
   width: 34px;
   height: 34px;
   border-radius: 10px;
@@ -161,10 +161,10 @@ svg {
   font-size: 14px;
 }
 .nav-item:hover {
-  background: #1a1a1a;
+  background: #1d1d21;
 }
 .nav-item.active {
-  background: #202020;
+  background: #1d1d21;
   color: var(--accent);
   font-weight: 600;
 }
@@ -189,8 +189,8 @@ svg {
 .safety-card {
   margin: 30px 5px 25px;
   padding: 18px;
-  border: 1px solid #303030;
-  background: #101010;
+  border: 1px solid #2b2b31;
+  background: #161618;
   border-radius: 10px;
   color: var(--accent);
 }
@@ -235,7 +235,7 @@ svg {
 .mode-pill {
   border: 1px solid #3a3a3a;
   color: #dddddd;
-  background: #101010;
+  background: #161618;
   border-radius: 20px;
   padding: 4px 10px;
   font-size: 11px;
@@ -293,11 +293,11 @@ svg {
 }
 .primary {
   background: var(--accent);
-  color: #000000;
+  color: #0d0d0f;
   border: 1px solid var(--accent);
 }
 .primary:hover {
-  background: #dddddd;
+  background: #4aa8ff;
 }
 .secondary {
   background: var(--surface);
@@ -310,8 +310,8 @@ svg {
   width: 100%;
 }
 .notice {
-  background: #101010;
-  border: 1px solid #303030;
+  background: #161618;
+  border: 1px solid #2b2b31;
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 12px;
@@ -405,7 +405,7 @@ svg {
   margin: 0 auto 25px;
   display: grid;
   place-items: center;
-  background: #101010;
+  background: #161618;
   color: var(--accent);
   transform: rotate(-5deg);
 }
@@ -542,7 +542,7 @@ svg {
 }
 .send-button {
   background: var(--accent);
-  color: #000000;
+  color: #0d0d0f;
   width: 42px;
   height: 42px;
   border-radius: 12px;
@@ -564,12 +564,12 @@ svg {
   padding: 15px 18px;
   border-radius: 14px;
   margin-bottom: 20px;
-  background: #101010;
+  background: #161618;
   max-width: 95%;
 }
 .message.user {
   margin-left: auto;
-  background: #202020;
+  background: #1d1d21;
   max-width: 80%;
 }
 .message.assistant {
@@ -614,7 +614,7 @@ svg {
 }
 .unfinished {
   border: 1px solid #3a3a3a;
-  background: #101010;
+  background: #161618;
   border-radius: 10px;
   padding: 12px 16px;
   margin-bottom: 22px;
@@ -801,27 +801,27 @@ summary {
   gap: 5px;
   padding: 4px 8px;
   border-radius: 5px;
-  background: #202020;
+  background: #1d1d21;
   color: #dddddd;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 .badge.successful {
   color: #ffffff;
-  background: #202020;
+  background: #1d1d21;
 }
 .badge.processing,
 .badge.submitted,
 .badge.awaiting_otp,
 .badge.approved {
   color: #ffffff;
-  background: #202020;
+  background: #1d1d21;
 }
 .badge.failed,
 .badge.reversed,
 .badge.unknown {
   color: #ffffff;
-  background: #202020;
+  background: #1d1d21;
 }
 .payment-row {
   display: grid;
@@ -833,7 +833,7 @@ summary {
 }
 .recipient-number {
   font-size: 11px;
-  background: #202020;
+  background: #1d1d21;
   color: var(--muted);
   width: 28px;
   height: 28px;
@@ -955,7 +955,7 @@ code {
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: #080808;
+  background: #161618;
   border-radius: 6px;
   padding: 14px;
   font-size: 11px;
@@ -1068,7 +1068,7 @@ td code {
 }
 .bar-track {
   height: 6px;
-  background: #303030;
+  background: #2b2b31;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1133,11 +1133,11 @@ td code {
   align-items: center;
   justify-content: center;
   padding: 32px 16px;
-  background: #000000;
+  background: #0d0d0f;
   color: #ffffff;
 }
 .login-card {
-  background: #080808;
+  background: #161618;
   border: 1px solid #1f1f1f;
   border-radius: 18px;
   width: 100%;
@@ -1220,7 +1220,7 @@ td code {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: #101010;
+  background: #161618;
   border: 1px solid #222222;
   border-radius: 10px;
   margin-bottom: 20px;
@@ -1319,8 +1319,8 @@ td code {
 .password-input {
   width: 100%;
   height: 48px;
-  background: #101010;
-  border: 1px solid #2a2a2a;
+  background: #161618;
+  border: 1px solid #2b2b31;
   border-radius: 10px;
   padding: 0 44px 0 14px;
   font-size: 15px;
@@ -1361,7 +1361,7 @@ td code {
 }
 .password-toggle:hover {
   color: #ffffff;
-  background: #1a1a1a;
+  background: #1d1d21;
 }
 .password-toggle:focus-visible {
   color: #ffffff;
@@ -1382,7 +1382,7 @@ td code {
   font-weight: 600;
   letter-spacing: -0.2px;
   background: #ffffff;
-  color: #000000;
+  color: #0d0d0f;
   border: 1px solid #ffffff;
   transition:
     background 0.15s ease,
@@ -1415,8 +1415,8 @@ td code {
 .setup-note {
   margin-top: 22px;
   padding: 12px 14px;
-  background: #101010;
-  border: 1px solid #202020;
+  background: #161618;
+  border: 1px solid #1d1d21;
   border-radius: 10px;
   font-size: 12px;
   color: #888888;
@@ -1460,7 +1460,7 @@ td code {
   border: 1px solid #282828;
 }
 .setup-body pre {
-  background: #000000;
+  background: #0d0d0f;
   border: 1px solid #222222;
   border-radius: 6px;
   padding: 8px 10px;
@@ -1476,7 +1476,7 @@ td code {
 .login-footer {
   margin-top: 24px;
   padding-top: 18px;
-  border-top: 1px solid #1a1a1a;
+  border-top: 1px solid #1d1d21;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1968,7 +1968,7 @@ td code {
 }
 .workflow-steps .current > span {
   background: var(--accent);
-  color: #000000;
+  color: #0d0d0f;
   border-color: var(--accent);
 }
 .next-step {
@@ -2052,8 +2052,8 @@ td code {
   max-width: 56ch;
   padding: 10px 12px;
   margin-bottom: 8px;
-  background: #101010;
-  border: 1px solid #303030;
+  background: #161618;
+  border: 1px solid #2b2b31;
   border-radius: 8px;
 }
 .context-bar > .model-status {
@@ -2153,7 +2153,7 @@ td code {
   color: inherit;
 }
 .suggestions button:hover {
-  background: #101010;
+  background: #161618;
   border-color: #777777;
   color: #ffffff;
 }
@@ -2188,10 +2188,10 @@ td code {
   min-height: 34px;
   padding: 6px 12px;
   font-size: 12px;
-  background: #101010;
+  background: #161618;
   border-color: #666666;
   white-space: nowrap;
-  box-shadow: 0 4px 12px #000000;
+  box-shadow: 0 4px 12px #0d0d0f;
   z-index: 2;
 }
 .message {
@@ -2445,7 +2445,7 @@ td code {
   margin: -8px 0 24px;
   border: 1px solid #333333;
   border-radius: 12px;
-  background: #0a0a0a;
+  background: #161618;
   overflow-anchor: none;
 }
 .compact-payment > summary {
@@ -2552,7 +2552,7 @@ td code {
   --border: #272727;
 }
 .app-shell .sidebar {
-  background: #080808;
+  background: #161618;
   padding-top: 32px;
 }
 .app-shell .brand {
@@ -2603,7 +2603,7 @@ td code {
   letter-spacing: -1.3px;
 }
 .app-shell .context-bar {
-  border-bottom: 1px solid #191919;
+  border-bottom: 1px solid #1d1d21;
   padding: 4px 0 8px;
   margin-bottom: 12px;
 }
@@ -2685,7 +2685,7 @@ td code {
 .app-shell .panel,
 .app-shell .stat {
   border-radius: 14px;
-  border-color: #303030;
+  border-color: #2b2b31;
 }
 .app-shell .compact-payment > summary:hover {
   background: #141414;
@@ -2695,7 +2695,7 @@ td code {
   border-radius: 14px 14px 0 0;
 }
 .app-shell .recipient-form {
-  background: #080808;
+  background: #161618;
 }
 .app-shell .form-grid label {
   color: #bcbcbc;
@@ -2712,7 +2712,7 @@ td code {
   padding: 16px;
   border: 1px solid #3a3a3a;
   border-radius: 12px;
-  background: #111111;
+  background: #161618;
 }
 .app-shell .badge {
   border: 1px solid #454545;
@@ -2728,7 +2728,7 @@ td code {
 .app-shell .badge.successful {
   background: #eeeeee;
   border-color: #eeeeee;
-  color: #111111;
+  color: #161618;
 }
 .app-shell .stat > strong,
 .app-shell .payment-value > strong,
@@ -2803,27 +2803,28 @@ td code {
   }
 }
 
-/* Founder-approved neutral tokens shared by the existing payment engine. */
+/* AGUS v1.1 tokens shared by the existing payment engine. */
 .app-shell,
 .login-shell {
-  --bg: #000;
-  --surface: #111;
-  --surface-raised: #191919;
+  --bg: #0d0d0f;
+  --surface: #161618;
+  --surface-raised: #1d1d21;
   --border: #666;
-  --muted: #b3b3b3;
-  background: #000;
-  color: #f5f5f5;
+  --muted: #a1a1aa;
+  --accent: #329bff;
+  background: #0d0d0f;
+  color: #f5f5f7;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 16px;
 }
 .app-shell .sidebar {
   width: 256px;
-  background: #0a0a0a;
+  background: #161618;
 }
 .app-shell .workspace,
 .app-shell .content,
 .app-shell .topbar {
-  background: #000;
+  background: #0d0d0f;
 }
 .app-shell .topbar {
   min-height: 56px;
@@ -2866,12 +2867,12 @@ td code {
 .app-shell .payment-meta,
 .login-shell small {
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .app-shell button:disabled {
   opacity: 1;
   color: #8a8a8a;
-  background: #191919;
+  background: #1d1d21;
 }
 .app-shell input,
 .app-shell select,
@@ -2885,12 +2886,12 @@ td code {
 .app-shell .panel,
 .app-shell .compact-payment,
 .app-shell .composer {
-  background: #111;
+  background: #161618;
   border-color: #666;
-  border-radius: 12px;
+  border-radius: 20px;
 }
 .app-shell .composer {
-  border-radius: 16px;
+  border-radius: 24px;
 }
 .app-shell .payment-value {
   flex-wrap: wrap;
@@ -2911,7 +2912,7 @@ td code {
   flex-direction: column;
   border: 1px dashed #666;
   padding: 8px 12px;
-  color: #b3b3b3;
+  color: #a1a1aa;
   font-size: 13px;
   letter-spacing: 0;
 }
@@ -2965,11 +2966,11 @@ td code {
 }
 
 .app-shell .conversation {
-  background: #000;
+  background: #0d0d0f;
 }
 .app-shell .message {
   animation: none;
-  color: #f5f5f5;
+  color: #f5f5f7;
 }
 .app-shell a.nav-item {
   display: flex;
@@ -3006,6 +3007,172 @@ td code {
   min-height: 44px;
   align-items: center;
   cursor: pointer;
+}
+
+/* Bounded visual refinement: navigation and payment review share the chat language. */
+.app-shell .mobile-menu {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+.app-shell .topbar {
+  height: 56px;
+}
+.app-shell .workspace {
+  margin-left: 256px;
+  width: calc(100% - 256px);
+}
+.app-shell.nav-collapsed .sidebar {
+  display: none;
+}
+.app-shell.nav-collapsed .workspace {
+  margin-left: 0;
+  width: 100%;
+}
+.app-shell .workspace-tools,
+.app-shell .workspace-info {
+  font-size: 14px;
+  color: #a1a1aa;
+}
+.app-shell .workspace-info {
+  margin-top: auto;
+}
+.app-shell .workspace-info p {
+  font-size: 13px;
+  padding-block: 12px;
+}
+.app-shell .workspace-tools > summary,
+.app-shell .workspace-info > summary {
+  display: flex;
+  align-items: center;
+  padding-inline: 12px;
+  cursor: pointer;
+}
+.app-shell .workspace-tools > summary::after,
+.app-shell .workspace-info > summary::after {
+  content: "+";
+  margin-left: auto;
+}
+.app-shell details[open].workspace-tools > summary::after,
+.app-shell details[open].workspace-info > summary::after {
+  content: "−";
+}
+.app-shell .nav-item.active {
+  color: #329bff;
+  border-color: transparent;
+  background: #1d1d21;
+}
+.app-shell .context-bar {
+  border: 0;
+}
+.app-shell .primary,
+.app-shell .send-button,
+.login-shell .primary {
+  background: #329bff;
+  border-color: #329bff;
+  color: #0d0d0f;
+}
+.app-shell .primary:hover,
+.app-shell .send-button:hover,
+.login-shell .primary:hover {
+  background: #4aa8ff;
+}
+.app-shell .primary:active,
+.app-shell .send-button:active,
+.login-shell .primary:active {
+  background: #1f87ea;
+}
+.app-shell .send-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  margin-left: auto;
+}
+.app-shell .primary:disabled,
+.app-shell .send-button:disabled {
+  background: #2b2b31;
+  border-color: #2b2b31;
+  color: #a1a1aa;
+}
+.app-shell .suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.app-shell .suggestions button {
+  border: 1px solid #45454f;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  font-size: 14px;
+}
+.app-shell .suggestions button strong {
+  font-weight: 400;
+}
+.app-shell .voice-disclosure {
+  font-size: 13px;
+  color: #a1a1aa;
+  margin-top: 8px;
+}
+.app-shell .voice-disclosure p {
+  padding-block: 8px;
+}
+.app-shell .review-context {
+  text-align: center;
+  color: #a1a1aa;
+  font-size: 14px;
+  padding: 8px;
+}
+.login-shell .login-card {
+  max-width: 440px;
+  padding: 32px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.login-shell .login-title {
+  margin-top: 32px;
+  font-size: 28px;
+  letter-spacing: -0.6px;
+}
+.login-shell .login-subtitle {
+  font-size: 14px;
+  color: #a1a1aa;
+}
+.login-shell .login-mode {
+  margin-block: 24px;
+  color: #a1a1aa;
+  font-size: 13px;
+}
+.login-shell .login-mode > summary {
+  min-height: 44px;
+}
+.login-shell input,
+.login-shell .login-submit-btn {
+  min-height: 48px;
+  border-radius: 14px;
+}
+@media (max-width: 1023px) {
+  .app-shell .workspace {
+    margin-left: 0;
+    width: 100%;
+  }
+  .app-shell .sidebar.menu-open {
+    top: calc(var(--chat-top, 0px) + 56px);
+    bottom: 0;
+    width: min(320px, calc(100% - 48px));
+    max-height: calc(100dvh - 56px);
+    overflow: auto;
+    padding: 16px;
+  }
+  .app-shell .sidebar nav {
+    display: block;
+  }
+  .login-shell .login-card {
+    padding: 24px;
+  }
 }
 @media (max-width: 767px) {
   .app-shell.app-shell .topbar > div:first-child {

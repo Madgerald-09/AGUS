@@ -2,8 +2,8 @@
   display: flex;
   height: var(--workspace-height, 100dvh);
   margin-top: var(--workspace-top, 0px);
-  background: #000;
-  color: #f5f5f5;
+  background: #0d0d0f;
+  color: #f5f5f7;
   font:
     16px/1.6 -apple-system,
     BlinkMacSystemFont,
@@ -25,32 +25,32 @@
 }
 .agus-workspace button {
   font-size: 14px;
-  border-radius: 8px;
+  border-radius: 18px;
   padding: 8px 12px;
 }
 .agus-workspace button:hover,
 .agus-workspace a:hover {
-  background: #191919;
+  background: #1d1d21;
 }
 .agus-workspace button:disabled {
   opacity: 1;
-  background: #191919;
-  color: #8a8a8a;
+  background: #1d1d21;
+  color: #71717a;
   cursor: not-allowed;
 }
 .agus-workspace :focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid #329bff;
   outline-offset: 3px;
 }
 .agus-workspace input,
 .agus-workspace select {
   width: 100%;
   min-height: 44px;
-  background: #111;
+  background: #161618;
   border: 1px solid #666;
-  border-radius: 8px;
+  border-radius: 18px;
   padding: 8px 12px;
-  color: #f5f5f5;
+  color: #f5f5f7;
   font-size: 16px;
 }
 .agus-workspace p,
@@ -59,7 +59,7 @@
 }
 .agus-workspace small {
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .agus-workspace h1 {
   font-size: 32px;
@@ -80,7 +80,7 @@
   flex-direction: column;
   border: 1px dashed #666;
   padding: 8px 12px;
-  color: #b3b3b3;
+  color: #a1a1aa;
   font:
     13px/1.5 -apple-system,
     BlinkMacSystemFont,
@@ -94,31 +94,36 @@
 }
 .brand-asset-placeholder.lockup > :last-child {
   font-size: 16px;
-  color: #f5f5f5;
+  color: #f5f5f7;
 }
 .agus-sidebar {
   width: 256px;
   flex-shrink: 0;
   padding: 24px 16px 16px;
-  background: #0a0a0a;
+  background: #161618;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border-right: 1px solid #2a2a2a;
+  border-right: 1px solid #2b2b31;
 }
 .agus-sidebar-brand {
   padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.agus-new,
 .agus-secondary {
   border: 1px solid #666 !important;
+}
+.agus-new {
+  background: #1d1d21;
 }
 .agus-new {
   justify-content: flex-start;
   width: 100%;
 }
 .agus-history-heading {
-  color: #b3b3b3;
+  color: #a1a1aa;
   font-size: 13px;
   padding: 8px;
 }
@@ -141,16 +146,16 @@
   white-space: nowrap;
 }
 .agus-history > button.active {
-  background: #191919;
-  border-left: 3px solid #fff;
+  background: #1d1d21;
+  border-left: 3px solid #329bff;
 }
 .agus-sidebar-empty {
   padding: 8px;
-  color: #b3b3b3;
+  color: #a1a1aa;
   font-size: 14px;
 }
 .agus-sidebar-bottom {
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid #2b2b31;
   padding-top: 8px;
 }
 .agus-sidebar-link,
@@ -197,7 +202,6 @@
   justify-content: space-between;
   gap: 16px;
   padding: 0 32px;
-  border-bottom: 1px solid #2a2a2a;
 }
 .agus-header > div {
   display: flex;
@@ -225,10 +229,10 @@
 .agus-demo-strip {
   min-height: 32px;
   flex-shrink: 0;
-  background: #0a0a0a;
+  background: transparent;
   padding: 0 32px;
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
   position: relative;
 }
 .agus-demo-strip summary {
@@ -237,16 +241,20 @@
   min-height: 44px;
   cursor: pointer;
 }
+.agus-demo-strip summary::after {
+  content: "⌄";
+  margin-left: 8px;
+}
 .agus-demo-strip[open] > p {
   position: absolute;
   top: 100%;
-  right: 16px;
+  left: 32px;
   z-index: 4;
-  background: #111;
+  background: #161618;
   border: 1px solid #666;
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 16px;
-  max-width: 400px;
+  width: min(400px, calc(100% - 48px));
 }
 .agus-scroll {
   flex: 1;
@@ -265,27 +273,31 @@
 }
 .agus-welcome {
   text-align: center;
-  padding: 24px 0 16px;
+  padding: 24px 0 20px;
 }
 .agus-welcome > p {
   margin: 16px 0;
 }
 .agus-empty .agus-scroll {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-top: 0;
   padding-bottom: 0;
+  margin-top: auto;
 }
 .agus-empty .agus-main {
   overflow-y: auto;
 }
 .agus-empty .agus-composer-area {
   margin-bottom: auto;
+  padding-bottom: 48px;
 }
 .agus-turn {
   margin-bottom: 32px;
 }
 .agus-user-message {
-  background: #191919;
-  border-radius: 16px;
+  background: #1d1d21;
+  border-radius: 24px;
   padding: 12px 16px;
   margin-left: auto;
   max-width: 90%;
@@ -296,12 +308,100 @@
 .agus-speaker {
   display: block;
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .agus-workspace .agus-response-heading {
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 600;
+}
+.agus-rail {
+  width: 64px;
+  padding: 12px 10px;
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: #161618;
+  border-right: 1px solid #2b2b31;
+  color: #a1a1aa;
+}
+.agus-rail a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+.agus-rail-payment {
+  margin-top: auto;
+}
+.agus-drawer .agus-collapse {
+  display: none;
+}
+.agus-workspace .agus-welcome-question {
+  color: #f5f5f7;
+  font-size: 28px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: -0.6px;
+  margin: 36px 0 16px;
+}
+.agus-empty .agus-header-title,
+.agus-empty .agus-mobile-brand {
+  visibility: hidden;
+}
+.agus-workspace .agus-signin-trigger {
+  border: 1px solid #666;
+  border-radius: 999px;
+  padding-inline: 20px;
+}
+.agus-composer:focus-within {
+  border-color: #329bff;
+}
+.agus-workspace .agus-send:hover {
+  background: #4aa8ff !important;
+}
+.agus-workspace .agus-send:active {
+  background: #1f87ea !important;
+}
+.agus-thinking::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #329bff;
+}
+.agus-handoff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-color: #2b2b31;
+  background: #161618;
+}
+.agus-dialog.agus-signin {
+  width: min(440px, calc(100% - 32px));
+  padding: 28px;
+}
+.agus-signin .brand-asset-placeholder {
+  margin-block: 20px 12px;
+}
+.agus-signin > p {
+  color: #a1a1aa;
+  font-size: 14px;
+}
+.agus-signin form > button {
+  width: 100%;
+  background: #329bff;
+  color: #0d0d0f;
+  border: 0 !important;
+}
+.agus-response-time {
+  color: #71717a;
 }
 .agus-prose p {
   margin: 0 0 12px;
@@ -312,10 +412,9 @@
 }
 .agus-history-note,
 .agus-response-time,
-.agus-composer-note,
 .agus-fallback {
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .agus-history-note {
   margin-bottom: 24px;
@@ -326,9 +425,9 @@
 }
 .agus-totals {
   display: flex;
-  border: 1px solid #2a2a2a;
-  background: #111;
-  border-radius: 12px;
+  border: 1px solid #2b2b31;
+  background: #161618;
+  border-radius: 18px;
   padding: 16px;
   gap: 24px;
   margin: 16px 0;
@@ -337,7 +436,7 @@
   flex: 1;
 }
 .agus-totals dt {
-  color: #b3b3b3;
+  color: #a1a1aa;
   font-size: 14px;
 }
 .agus-totals dd {
@@ -349,18 +448,18 @@
   overflow-wrap: anywhere;
 }
 .agus-scope {
-  color: #f5f5f5;
+  color: #f5f5f7;
 }
 .agus-limit {
   margin-top: 8px;
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .agus-record {
   padding: 16px;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
+  border: 1px solid #2b2b31;
+  border-radius: 18px;
   margin-top: 16px;
-  background: #111;
+  background: #161618;
 }
 .agus-record strong {
   display: block;
@@ -374,7 +473,7 @@
 .agus-sources {
   font-size: 14px;
   margin: 16px 0;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid #2b2b31;
 }
 .agus-sources summary {
   padding: 10px 4px;
@@ -388,7 +487,7 @@
   font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
-  color: #b3b3b3;
+  color: #a1a1aa;
   margin: 12px 0;
 }
 .agus-thinking {
@@ -401,10 +500,10 @@
   width: calc(100% - 64px);
 }
 .agus-composer {
-  background: #111;
+  background: #161618;
   border: 1px solid #666;
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 24px;
+  padding: 20px;
 }
 .agus-composer textarea {
   display: block;
@@ -414,13 +513,13 @@
   resize: none;
   font-size: 16px;
   line-height: 1.6;
-  min-height: 44px;
+  min-height: 52px;
   max-height: 160px;
-  color: #f5f5f5;
+  color: #f5f5f7;
   padding: 0 4px;
 }
 .agus-composer textarea::placeholder {
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .agus-composer-toolbar {
   display: flex;
@@ -431,40 +530,40 @@
 }
 .agus-character-count {
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
   margin-right: auto;
 }
 .agus-send {
-  background: #fff !important;
-  color: #000 !important;
+  background: #329bff !important;
+  color: #0d0d0f !important;
+  border-radius: 50% !important;
   width: 44px;
   height: 44px;
 }
 .agus-send:disabled {
-  background: #2a2a2a !important;
-  color: #b3b3b3 !important;
-}
-.agus-composer-note {
-  text-align: center;
-  padding: 8px 0 0;
+  background: #2b2b31 !important;
+  color: #a1a1aa !important;
 }
 .agus-suggestions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 20px;
   padding-bottom: 16px;
 }
 .agus-suggestions button {
-  display: flex;
-  justify-content: flex-start;
-  text-align: left;
-  border: 1px solid #666;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid #45454f;
+  border-radius: 999px;
+  color: #a1a1aa;
+  font-size: 13px;
+  font-weight: 400;
 }
-.agus-suggestions button > svg:last-child {
-  margin-left: auto;
+.agus-suggestions button:hover {
+  color: #f5f5f7;
+  border-color: #666;
 }
 .agus-error,
 .agus-handoff,
@@ -473,31 +572,23 @@
   padding: 12px 16px;
   margin-bottom: 12px;
   border: 1px solid #666;
-  border-radius: 12px;
+  border-radius: 18px;
 }
 .agus-error button {
-  text-decoration: underline;
-}
-.agus-signin-hint {
-  font-size: 14px;
-  margin-bottom: 8px;
-  text-align: center;
-}
-.agus-signin-hint button {
   text-decoration: underline;
 }
 .agus-latest {
   position: absolute;
   bottom: 230px;
   right: 32px;
-  background: #111;
+  background: #161618;
   border: 1px solid #666 !important;
 }
 .agus-dialog {
-  color: #f5f5f5;
-  background: #111;
+  color: #f5f5f7;
+  background: #161618;
   border: 1px solid #666;
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 24px;
   width: min(720px, calc(100% - 32px));
   max-height: calc(100dvh - 32px);
@@ -515,7 +606,7 @@
 .agus-dialog-heading {
   position: sticky;
   top: -24px;
-  background: #111;
+  background: #161618;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -545,7 +636,7 @@
 }
 .agus-plan-grid section {
   border: 1px solid #666;
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 16px;
 }
 .agus-plan-grid h3 {
@@ -558,7 +649,7 @@
 }
 .agus-preview {
   font-size: 13px;
-  color: #b3b3b3;
+  color: #a1a1aa;
 }
 .agus-drawer {
   position: fixed;
@@ -569,7 +660,7 @@
   margin: 0;
   border-radius: 0;
   padding: 16px;
-  background: #0a0a0a;
+  background: #161618;
 }
 .agus-drawer[open] {
   display: flex;
@@ -595,12 +686,15 @@
   z-index: 20;
   padding: 8px;
   background: #fff;
-  color: #000;
+  color: #0d0d0f;
 }
 .agus-skip:focus {
   transform: none;
 }
 @media (max-width: 1023px) {
+  .agus-rail {
+    display: none;
+  }
   .agus-sidebar {
     display: none;
   }
@@ -618,6 +712,20 @@
   }
 }
 @media (max-width: 767px) {
+  .agus-workspace .agus-welcome-question {
+    font-size: 24px;
+    margin-top: 28px;
+  }
+  .agus-empty .agus-composer-area {
+    padding-bottom: 32px;
+  }
+  .agus-composer {
+    padding: 16px;
+  }
+  .agus-suggestions {
+    gap: 8px;
+    margin-top: 16px;
+  }
   .agus-header {
     padding: 0 8px;
     gap: 4px;
@@ -649,10 +757,13 @@
     padding: 8px 16px;
     font-size: 14px;
     flex-shrink: 0;
-    border-bottom: 1px solid #2a2a2a;
+    border-bottom: 1px solid #2b2b31;
   }
   .agus-demo-strip {
     padding-inline: 16px;
+  }
+  .agus-demo-strip[open] > p {
+    left: 16px;
   }
   .agus-scroll {
     padding: 16px;
@@ -666,12 +777,11 @@
   .agus-welcome > p {
     margin: 12px 0;
   }
-  .agus-suggestions {
-    grid-template-columns: 1fr;
-  }
   .agus-suggestions button {
-    min-height: 44px;
     padding: 8px 12px;
+  }
+  .agus-suggestions button:nth-child(4) {
+    display: none;
   }
   .agus-turn {
     margin-bottom: 24px;
@@ -714,9 +824,6 @@
     padding: 8px 0;
   }
   .agus-mobile-scope {
-    display: none;
-  }
-  .agus-composer-note {
     display: none;
   }
   .agus-composer {

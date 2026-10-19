@@ -28,7 +28,6 @@ import {
   EyeOff,
   FileDown,
   LayoutDashboard,
-  Loader2,
   LogOut,
   Mic,
   MessageSquare,
@@ -630,72 +629,34 @@ export function Dashboard({
       <main className="login-shell">
         <div className="login-card">
           <header className="login-header">
-            <div className="brand-row">
-              <BrandAsset />
-              <div className="demo-pill" role="status">
-                <span className="demo-dot" aria-hidden="true" />
-                <span>
-                  {paymentMode === "fixture"
-                    ? "Demo Access"
-                    : paymentMode === "test"
-                      ? "Test Access"
-                      : "Live Access"}
-                </span>
-              </div>
-            </div>
-            <h1 className="login-title">Your money, and what's next.</h1>
+            <BrandAsset lockup />
+            <h1 className="login-title">Sign in</h1>
             <p className="login-subtitle">
-              Sign in to the shared operator workspace to prepare and review
-              payments.
+              This demo uses a shared operator identity. People using the same
+              identity share saved chats.
             </p>
           </header>
-
-          <div className="demo-notice" role="note">
-            <ShieldCheck
-              size={16}
-              className="demo-notice-icon"
-              aria-hidden="true"
-            />
-            <div className="demo-notice-text">
-              <strong>
-                {paymentMode === "fixture"
-                  ? "Demo Operator Portal"
-                  : paymentMode === "test"
-                    ? "Paystack Test Portal"
-                    : "Live Operator Portal"}
-              </strong>
-              <span>
-                {paymentMode === "fixture"
-                  ? "Transactions use local fixture simulation. No real funds move."
-                  : paymentMode === "test"
-                    ? "Transactions use Paystack test mode. No real funds move."
-                    : "Live payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}
-              </span>
-            </div>
-          </div>
-
+          <details className="simulation-disclosure login-mode">
+            <summary>
+              {paymentMode === "fixture"
+                ? "Demo · Fictional financial data"
+                : paymentMode === "test"
+                  ? "Test Access"
+                  : "Live Access"}
+            </summary>
+            <p>
+              {paymentMode === "fixture"
+                ? "Demo Access · Transactions use local fixture simulation. No real funds move."
+                : paymentMode === "test"
+                  ? "Transactions use Paystack test mode. No real funds move."
+                  : "Live payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}
+            </p>
+          </details>
           {error && (
-            <div className="login-alert" role="alert">
-              <CircleAlert
-                size={16}
-                className="alert-icon"
-                aria-hidden="true"
-              />
-              <div className="login-alert-body">
-                <strong>Authentication Notice</strong>
-                <p>{error}</p>
-              </div>
-              <button
-                type="button"
-                className="alert-dismiss"
-                aria-label="Dismiss error"
-                onClick={() => setError("")}
-              >
-                <X size={15} aria-hidden="true" />
-              </button>
-            </div>
+            <p className="login-alert" role="alert">
+              {error}
+            </p>
           )}
-
           {signedOut ? (
             <form
               className="login-form"
@@ -747,14 +708,9 @@ export function Dashboard({
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
-                    title={showPassword ? "Hide password" : "Show password"}
                     disabled={busy === "login"}
                   >
-                    {showPassword ? (
-                      <EyeOff size={18} aria-hidden="true" />
-                    ) : (
-                      <Eye size={18} aria-hidden="true" />
-                    )}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 {validationError && (
@@ -763,73 +719,23 @@ export function Dashboard({
                     className="field-error"
                     role="alert"
                   >
-                    <CircleAlert size={13} aria-hidden="true" />
-                    <span>{validationError}</span>
+                    {validationError}
                   </p>
                 )}
               </div>
-
               <button
                 type="submit"
                 className="primary full login-submit-btn"
                 disabled={!!busy}
               >
-                {busy === "login" ? (
-                  <>
-                    <Loader2 size={16} className="spin" aria-hidden="true" />
-                    <span>Signing you in…</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck size={16} aria-hidden="true" />
-                    <span>Sign in securely</span>
-                    <ArrowRight size={16} aria-hidden="true" />
-                  </>
-                )}
+                {busy === "login" ? "Signing in…" : "Continue"}
               </button>
             </form>
           ) : (
-            <div className="login-connecting" role="status" aria-live="polite">
-              <Loader2 size={20} className="spin" aria-hidden="true" />
-              <span>Connecting to Agus workspace…</span>
-            </div>
-          )}
-
-          <details className="setup-note">
-            <summary>
-              <KeyRound size={14} aria-hidden="true" />
-              <span>First-time operator setup</span>
-              <ChevronRight
-                size={13}
-                className="disclosure-chevron"
-                aria-hidden="true"
-              />
-            </summary>
-            <div className="setup-body">
-              <p>
-                Configure <code>OPERATOR_PASSWORD_HASH</code> with:
-              </p>
-              <pre>
-                <code>npm run operator:password</code>
-              </pre>
-              <p className="subtle">
-                Passwords use scrypt hashing with a 16-byte cryptographically
-                random salt. No password is built in.
-              </p>
-            </div>
-          </details>
-
-          <footer className="login-footer">
-            <div className="footer-meta">
-              <span className="footer-wordmark">agus.</span>
-              <span className="footer-separator">·</span>
-              <span className="footer-label">Agus</span>
-              <span className="footer-tag">Hackaholics 7.0</span>
-            </div>
-            <p className="footer-security">
-              Manual draft preparation is available without AI credentials.
+            <p className="login-connecting" role="status">
+              Opening workspace…
             </p>
-          </footer>
+          )}
         </div>
       </main>
     );
@@ -904,7 +810,7 @@ export function Dashboard({
   return (
     <div
       ref={appRef}
-      className={`app-shell ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
+      className={`app-shell ${!menuOpen ? "nav-collapsed" : ""} ${tab === "Agent" ? "chat-active" : ""} ${state.messages.length || pendingMessage || editor ? "chat-started" : "chat-welcome"}`}
     >
       <aside
         id="workspace-navigation"
@@ -915,31 +821,29 @@ export function Dashboard({
         </Link>
         <p className="workspace-label">WORKSPACE</p>
         <nav aria-label="Workspace navigation">
-          {conversationHref && (
-            <Link className="nav-item" href={conversationHref}>
-              <MessageSquare size={18} /> Return to chat
-            </Link>
-          )}
-          {[
-            { name: "Agent", icon: MessageSquare },
-            { name: "Payment jobs", icon: LayoutDashboard },
-            { name: "Activity", icon: Activity },
-            { name: "Insights", icon: Wallet },
-          ].map(({ name, icon: Icon }) => (
-            <button
-              key={name}
-              onClick={() => navigate(name)}
-              className={`nav-item ${tab === name ? "active" : ""}`}
-              aria-label={name}
-              aria-current={tab === name ? "page" : undefined}
-            >
-              <Icon size={18} />
-              {name === "Payment jobs" ? "Payment history" : name}
-              {name === "Payment jobs" && pending.length > 0 && (
-                <span className="nav-count">{pending.length}</span>
-              )}
-            </button>
-          ))}
+          <details className="workspace-tools">
+            <summary>Workspace tools</summary>
+            {[
+              { name: "Agent", icon: MessageSquare },
+              { name: "Payment jobs", icon: LayoutDashboard },
+              { name: "Activity", icon: Activity },
+              { name: "Insights", icon: Wallet },
+            ].map(({ name, icon: Icon }) => (
+              <button
+                key={name}
+                onClick={() => navigate(name)}
+                className={`nav-item ${tab === name ? "active" : ""}`}
+                aria-label={name}
+                aria-current={tab === name ? "page" : undefined}
+              >
+                <Icon size={18} />
+                {name === "Payment jobs" ? "Payment history" : name}
+                {name === "Payment jobs" && pending.length > 0 && (
+                  <span className="nav-count">{pending.length}</span>
+                )}
+              </button>
+            ))}
+          </details>
         </nav>
         <button
           className="secondary new-payment"
@@ -962,18 +866,14 @@ export function Dashboard({
           <ShieldCheck size={16} />
           {state.emergencyDisabled ? "Enable transfers" : "Emergency stop"}
         </button>
-        <div className="sidebar-bottom">
-          <div className="safety-card">
-            <ShieldCheck size={22} />
-            <strong>You stay in control</strong>
-            <p>
-              Agus prepares.
-              <br />
-              You review and authorize.
-            </p>
-          </div>
-          <p className="muted">Hackaholics 7.0 prototype</p>
-        </div>
+        <details className="workspace-info">
+          <summary>Workspace information</summary>
+          <p>
+            {state.aiEnabled
+              ? `${state.aiProvider === "openai" ? "OpenAI" : "Gemini"} configured. Only successful model responses are labeled model-assisted.`
+              : "Limited demonstration command parser; no AI model is connected."}
+          </p>
+        </details>
       </aside>
       <div className="workspace">
         <header className="topbar">
@@ -1066,18 +966,6 @@ export function Dashboard({
                   : "Transfers use the authorized business balance. Review all details before approval."}
               </p>
             </details>
-            <span
-              className="model-status"
-              title={
-                state.aiEnabled
-                  ? "A provider is configured. Only a successful response is labelled model-assisted."
-                  : "Limited demonstration command parser; no model calls are made."
-              }
-            >
-              {state.aiEnabled
-                ? `${state.aiProvider === "openai" ? "OpenAI" : "Gemini"} configured`
-                : "Demo · no AI"}
-            </span>
           </div>
           {state.emergencyDisabled && (
             <div className="alert" role="status">
@@ -1153,9 +1041,7 @@ export function Dashboard({
                 )}
                 {state.messages.length === 0 && !pendingMessage && !editor && (
                   <div className="welcome">
-                    <span className="welcome-identity" aria-hidden="true">
-                      agus.
-                    </span>
+                    <BrandAsset lockup />
                     <h1>What can I help you take care of?</h1>
                     <p>
                       Plan a payment, follow a transfer, or make sense of your
@@ -1372,9 +1258,7 @@ export function Dashboard({
                   {progress || announcement}
                 </p>
                 {(reviewActive || editor) && conversationHref ? (
-                  <Link className="review-return" href={conversationHref}>
-                    Return to chat · Payment review remains saved
-                  </Link>
+                  <p className="review-context">Payment review</p>
                 ) : (
                   <>
                     <form
@@ -1412,20 +1296,22 @@ export function Dashboard({
                         }}
                       />
                       <div>
-                        <button
-                          type="button"
-                          className="upload-button"
-                          disabled={!!busy}
-                          onClick={() =>
-                            state.aiEnabled
-                              ? uploadInput.current?.click()
-                              : setError(
-                                  "Image extraction requires server-side AI configuration. You can paste details in chat or use New payment details without a model.",
-                                )
-                          }
-                        >
-                          <Paperclip size={18} /> Attach image
-                        </button>
+                        {state.aiEnabled && (
+                          <button
+                            type="button"
+                            className="upload-button"
+                            disabled={!!busy}
+                            onClick={() =>
+                              state.aiEnabled
+                                ? uploadInput.current?.click()
+                                : setError(
+                                    "Image extraction requires server-side AI configuration. You can paste details in chat or use New payment details without a model.",
+                                  )
+                            }
+                          >
+                            <Paperclip size={18} /> Attach image
+                          </button>
+                        )}
                         <input
                           ref={uploadInput}
                           type="file"
@@ -1500,7 +1386,16 @@ export function Dashboard({
                             <button
                               disabled={!!busy}
                               key={title}
-                              onClick={() => void send(text)}
+                              onClick={() => {
+                                if (message.trim()) {
+                                  setError(
+                                    "Your draft is preserved. Clear it before choosing a suggestion.",
+                                  );
+                                  return;
+                                }
+                                setMessage(text);
+                                composerInput.current?.focus();
+                              }}
                             >
                               <Icon size={19} />
                               <strong>{title}</strong>
@@ -1513,12 +1408,15 @@ export function Dashboard({
                       mobile, Enter adds a line; use the Send message button to
                       send.
                     </p>
-                    <p className="chat-footnote">
-                      <ShieldCheck size={13} />
-                      Voice fills the message only; review every detail before
-                      sending. Browser speech services may process audio. Every
-                      payment still needs your review and approval.
-                    </p>
+                    {voiceAvailable && (
+                      <details className="voice-disclosure">
+                        <summary>About voice input</summary>
+                        <p>
+                          Voice fills the editable message without sending.
+                          Browser speech services may process audio.
+                        </p>
+                      </details>
+                    )}
                   </>
                 )}
               </div>

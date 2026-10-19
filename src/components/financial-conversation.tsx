@@ -11,6 +11,7 @@ import {
   CreditCard,
   LogOut,
   Menu,
+  PanelLeft,
   MessageSquare,
   Plus,
   Wallet,
@@ -31,7 +32,7 @@ type Account = {
 const suggestions = [
   {
     icon: ChartNoAxesCombined,
-    title: "Spend",
+    title: "Analyze spending",
     text: "Show my spending for October 2026",
   },
   {
@@ -40,14 +41,14 @@ const suggestions = [
     text: "Find payments to Ada in October 2026",
   },
   {
-    icon: CircleHelp,
-    title: "Explain a money topic",
-    text: "Explain how inflation affects purchasing power",
-  },
-  {
     icon: Wallet,
     title: "Prepare a payment",
     text: "Help me prepare a payment draft",
+  },
+  {
+    icon: CircleHelp,
+    title: "Ask anything",
+    text: "Explain how inflation affects purchasing power",
   },
 ];
 export function FinancialConversation() {
@@ -69,6 +70,7 @@ export function FinancialConversation() {
   const [password, setPassword] = useState("");
   const [signinError, setSigninError] = useState("");
   const [showLatest, setShowLatest] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [longWait, setLongWait] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [unknown, setUnknown] = useState<{
@@ -121,6 +123,16 @@ export function FinancialConversation() {
   function restoreFocus() {
     requestAnimationFrame(() => {
       if (!document.querySelector("dialog[open]")) modalReturn.current?.focus();
+    });
+  }
+  function toggleSidebar(open: boolean) {
+    setSidebarOpen(open);
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(
+          open ? ".agus-sidebar .agus-collapse" : ".agus-rail button",
+        )
+        ?.focus();
     });
   }
   const refresh = useCallback(async () => {
@@ -355,7 +367,7 @@ export function FinancialConversation() {
           window.history.replaceState(
             null,
             "",
-            `?chat=${encodeURIComponent(chatId)}`,
+            `/conversation?chat=${encodeURIComponent(chatId)}`,
           );
         setTurns((previous) => [...previous, data.turn]);
         setAnnouncement("Response saved. The answer is ready.");
@@ -427,7 +439,7 @@ export function FinancialConversation() {
         window.history.replaceState(
           null,
           "",
-          `?chat=${encodeURIComponent(unknown.chat)}`,
+          `/conversation?chat=${encodeURIComponent(unknown.chat)}`,
         );
         setError("");
         setUnknown(null);
@@ -530,12 +542,21 @@ export function FinancialConversation() {
   const scope = selected
     ? `${selected.displayName}${selected.maskedNumber ? ` · •${selected.maskedNumber}` : ""}`
     : "No account selected";
-  const paymentUrl = id ? `/?fromChat=${encodeURIComponent(id)}` : "/";
+  const paymentUrl = id
+    ? `/?fromChat=${encodeURIComponent(id)}`
+    : "/?workspace=payments";
   const empty = !loading && !turns.length && !pendingText;
   const sidebar = (
     <>
       <div className="agus-sidebar-brand">
         <BrandAsset />
+        <button
+          className="agus-icon-button agus-collapse"
+          aria-label="Collapse navigation"
+          onClick={() => toggleSidebar(false)}
+        >
+          <PanelLeft size={20} />
+        </button>
       </div>
       <button
         className="agus-new"
@@ -620,9 +641,49 @@ export function FinancialConversation() {
       <a className="agus-skip" href="#financial-message">
         Skip to message
       </a>
-      <aside className="agus-sidebar" aria-label="Conversation sidebar">
-        {sidebar}
-      </aside>
+      {sidebarOpen ? (
+        <aside
+          id="agus-navigation"
+          className="agus-sidebar"
+          aria-label="Conversation sidebar"
+        >
+          {sidebar}
+        </aside>
+      ) : (
+        <aside className="agus-rail" aria-label="Conversation navigation">
+          <button
+            className="agus-icon-button"
+            aria-label="Expand navigation"
+            aria-expanded={false}
+            aria-controls="agus-navigation"
+            onClick={() => toggleSidebar(true)}
+          >
+            <PanelLeft size={20} />
+          </button>
+          <button
+            className="agus-icon-button"
+            aria-label="New chat"
+            disabled={busy}
+            onClick={() => void openChat("")}
+          >
+            <Plus size={20} />
+          </button>
+          <button
+            className="agus-icon-button"
+            aria-label="Saved conversations"
+            onClick={() => toggleSidebar(true)}
+          >
+            <MessageSquare size={20} />
+          </button>
+          <Link
+            className="agus-icon-button agus-rail-payment"
+            aria-label="Payment workspace"
+            href={paymentUrl}
+          >
+            <Wallet size={20} />
+          </Link>
+        </aside>
+      )}
       <dialog
         ref={drawer}
         className="agus-dialog agus-drawer"
@@ -659,20 +720,29 @@ export function FinancialConversation() {
               {chats.find((c) => c.id === id)?.title ?? "New conversation"}
             </span>
           </div>
-          <button
-            className="agus-account-trigger"
-            aria-label={`Account: ${scope}`}
-            onClick={() => {
-              openModal(accountDialog.current);
-              if (authenticated) void loadAccounts();
-            }}
-          >
-            {selected ? (
-              <span className="agus-desktop-account">{scope}</span>
-            ) : (
-              "Account"
-            )}
-          </button>
+          {authenticated === false ? (
+            <button
+              className="agus-signin-trigger"
+              onClick={() => openModal(signin.current)}
+            >
+              Sign in
+            </button>
+          ) : (
+            <button
+              className="agus-account-trigger"
+              aria-label={`Account: ${scope}`}
+              onClick={() => {
+                openModal(accountDialog.current);
+                if (authenticated) void loadAccounts();
+              }}
+            >
+              {selected ? (
+                <span className="agus-desktop-account">{scope}</span>
+              ) : (
+                "Account"
+              )}
+            </button>
+          )}
         </header>
         <details className="agus-demo-strip">
           <summary>Demo · Fictional financial data</summary>
@@ -699,7 +769,9 @@ export function FinancialConversation() {
           ) : empty ? (
             <section className="agus-welcome">
               <BrandAsset lockup />
-              <p>Ask a question about your money, or explore an idea.</p>
+              <p className="agus-welcome-question">
+                What would you like help with?
+              </p>
             </section>
           ) : (
             <section className="agus-thread" aria-label="Conversation replies">
@@ -726,11 +798,7 @@ export function FinancialConversation() {
                     <FinancialResponse reply={turn.reply} choose={choose} />
                     {turn.reply.handoff && (
                       <div className="agus-handoff">
-                        <p>
-                          Open an editable draft. Review details and recipients,
-                          then approve and submit separately in the payment
-                          workspace.
-                        </p>
+                        <p>Payment preparation</p>
                         <button
                           className="agus-secondary"
                           disabled={busy || !!unknown}
@@ -809,12 +877,6 @@ export function FinancialConversation() {
                   : "Updating session…"}
             </p>
           )}
-          {authenticated === false && (
-            <p className="agus-signin-hint">
-              <button onClick={() => openModal(signin.current)}>Sign in</button>{" "}
-              to chat and save conversations.
-            </p>
-          )}
           <form
             className="agus-composer"
             aria-busy={busy}
@@ -866,16 +928,12 @@ export function FinancialConversation() {
               </button>
             </div>
           </form>
-          <p className="agus-composer-note">
-            agus. can make mistakes. Check financial details.
-          </p>
           {empty && (
             <div className="agus-suggestions">
               {suggestions.map(({ icon: Icon, title, text: prompt }) => (
                 <button key={title} onClick={() => choose(prompt)}>
                   <Icon size={18} />
                   <span>{title}</span>
-                  <ArrowUpRight size={18} />
                 </button>
               ))}
             </div>
@@ -902,7 +960,7 @@ export function FinancialConversation() {
           </button>
         </div>
         <p>
-          Choose an authorized account for financial questions. General
+          Choose fictional demo records for personal-record questions. General
           conversation needs no account.
         </p>
         {accountLoading && <p role="status">Loading authorized accounts…</p>}
@@ -928,17 +986,18 @@ export function FinancialConversation() {
             </option>
           ))}
         </select>
-        <p>Selections clear on reload, New chat and switching chats.</p>
         {accountError && <p role="alert">{accountError}</p>}
-        <button
-          className="agus-secondary"
-          disabled={accountLoading}
-          onClick={() =>
-            authenticated ? void loadAccounts() : openModal(signin.current)
-          }
-        >
-          {authenticated ? "Retry authorized accounts" : "Sign in"}
-        </button>
+        {(accountError || authenticated === false) && (
+          <button
+            className="agus-secondary"
+            disabled={accountLoading}
+            onClick={() =>
+              authenticated ? void loadAccounts() : openModal(signin.current)
+            }
+          >
+            {authenticated ? "Retry authorized accounts" : "Sign in"}
+          </button>
+        )}
       </dialog>
       <dialog
         className="agus-dialog agus-plans"
@@ -1040,7 +1099,7 @@ export function FinancialConversation() {
             disabled={busy}
           />
           <button className="agus-secondary" disabled={busy || !password}>
-            {operation === "signin" ? "Signing in…" : "Sign in securely"}
+            {operation === "signin" ? "Signing in…" : "Continue"}
           </button>
         </form>
         {signinError && (

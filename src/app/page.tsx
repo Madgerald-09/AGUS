@@ -1,4 +1,5 @@
 import { Dashboard } from "@/components/dashboard";
+import { FinancialConversation } from "@/components/financial-conversation";
 import { config } from "@/lib/config";
 export const dynamic = "force-dynamic";
 export default async function Page({
@@ -16,6 +17,8 @@ export default async function Page({
     process.env.FINANCIAL_DEMO_ENABLED === "true" && config().mode === "fixture"
       ? `/conversation${origin ? `?chat=${encodeURIComponent(origin)}` : ""}`
       : undefined;
+  if (conversationHref && !origin && params.workspace !== "payments")
+    return <FinancialConversation />;
   return (
     <>
       <Dashboard

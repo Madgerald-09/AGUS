@@ -1,0 +1,26 @@
+{
+  "inference": "mocked routing and narration; real application sessions, SQL and fictional financial facts",
+  "screenshots": 0,
+  "results": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "status": "passed",
+      "sends": 3,
+      "approvals": 0,
+      "executions": 0
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "sends": 3,
+      "approvals": 0,
+      "executions": 0
+    }
+  ]
+}
