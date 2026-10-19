@@ -1,3 +1,4 @@
+import { rememberConversationPayment } from "@/lib/conversation-payment";
 import { z } from "zod";
 import { operator, sameOrigin } from "@/lib/auth";
 import { chatHistory } from "@/lib/chat-history/store";
@@ -66,6 +67,13 @@ export async function POST(req: Request) {
         input.text,
         result,
       );
+      if (result.handoff)
+        await rememberConversationPayment(
+          owner,
+          input.conversationId,
+          turn.id,
+          input.text,
+        );
     } catch (error) {
       await history.release(input.conversationId, lease);
       throw error;

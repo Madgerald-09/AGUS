@@ -869,3 +869,31 @@ export const financialTools = {
   listPendingPayments,
   exportPaymentReport,
 };
+
+/** Reuse the configured extraction adapter, never the legacy command parser.
+ * This function returns untrusted editable fields only, with no payment tools. */
+export async function extractConversationPayment(
+  text: string,
+): Promise<Proposed[]> {
+  if (
+    !process.env.AI_API_KEY ||
+    !["openai", "gemini"].includes(process.env.AI_PROVIDER ?? "")
+  )
+    return [];
+  const plan = await modelPlan(text, { messages: [], batches: [] });
+  if (plan.intent !== "prepare") return [];
+  const banks = await provider().banks();
+  const mentioned = mentionedBanks(text, banks);
+  return plan.payments.map((p) =>
+    groundProposal(
+      {
+        ...p,
+        bankCode:
+          plan.payments.length === 1 && mentioned.length === 1
+            ? mentioned[0].code
+            : p.bankCode,
+      },
+      text,
+    ),
+  );
+}

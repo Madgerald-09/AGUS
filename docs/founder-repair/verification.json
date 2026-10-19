@@ -1,0 +1,66 @@
+{
+  "base": "7e7fddf2cefcee64341a49ccef61098cf4acd56f",
+  "branch": "fix/agus-founder-financial-routing-20261019",
+  "date": "2026-10-19",
+  "commands": [
+    {
+      "command": "npm test",
+      "passed": true,
+      "files": 37,
+      "testsPassed": 829,
+      "testsFailed": 0
+    },
+    {
+      "command": "npm run typecheck",
+      "passed": true
+    },
+    {
+      "command": "npm run lint",
+      "passed": true
+    },
+    {
+      "command": "npm run build",
+      "passed": true
+    },
+    {
+      "command": "BROWSER_WIDTHS=1440 npm run test:browser:chat-payments",
+      "passed": true,
+      "viewportWidths": [
+        1440
+      ],
+      "journeyGroups": 12
+    },
+    {
+      "command": "BROWSER_WIDTHS=820,390,320 npm run test:browser:chat-payments",
+      "passed": true,
+      "viewportWidths": [
+        820,
+        390,
+        320
+      ],
+      "journeyGroups": 30
+    },
+    {
+      "command": "git diff --check",
+      "passed": true
+    }
+  ],
+  "genuineModelCalls": 0,
+  "livePayments": 0,
+  "browser": "headless Chromium, production Next.js",
+  "data": "fictional SQL records and fixture payment engine; real local authorization/persistence APIs",
+  "simulated": [
+    "Gemini HTTP",
+    "speech recognition",
+    "MediaRecorder audio",
+    "AudioContext samples",
+    "clipboard access"
+  ],
+  "unverified": [
+    "genuine Gemini acceptance",
+    "physical microphone quality",
+    "OS clipboard permissions",
+    "audible synthesis",
+    "real bank integration"
+  ]
+}

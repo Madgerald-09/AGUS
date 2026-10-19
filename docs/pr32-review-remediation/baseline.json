@@ -1,0 +1,10 @@
+{
+  "reviewedSha": "61c1add9f74b6562cd45800e4af815e42672b365",
+  "independentReportAvailable": false,
+  "newUnitReproductionsAgainstOriginal": { "failed": 35, "passed": 12, "total": 47 },
+  "voiceBrowser": { "width": 1440, "result": "reproduced", "evidence": "Suggestion remained enabled during native speech recording; expected disabled assertion failed." },
+  "rejectionBrowser": { "width": 1440, "result": "reproduced", "evidence": "Emergency-gate pre-claim rejection retained its visible error after saved-payment recovery; recovery waited 12 seconds and timed out." },
+  "copyScope": "Synthetic geometry reproduction, not proof of an actual credential leak.",
+  "data": "fictional only",
+  "providers": "mocked transport only"
+}

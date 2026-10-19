@@ -220,7 +220,7 @@ describe("bounded provider adapter (HTTP mocked only in these unit tests)", () =
       expect(request).toHaveBeenCalledTimes(1);
     },
   );
-  it.each(["length", "content_filter", "tool_calls"])(
+  it.each(["length", "tool_calls"])(
     "rejects incomplete or function completion: %s",
     async (reason) => {
       vi.stubGlobal(
@@ -265,7 +265,6 @@ describe("bounded provider adapter (HTTP mocked only in these unit tests)", () =
       AI_API_KEY: "test-only",
     });
     for (const raw of [
-      { promptFeedback: { blockReason: "SAFETY" } },
       {
         candidates: [
           {
@@ -283,5 +282,97 @@ describe("bounded provider adapter (HTTP mocked only in these unit tests)", () =
         model.generate("classify", {}, signal()),
       ).rejects.toMatchObject({ code: "MODEL_COMPLETION" });
     }
+  });
+  it.each([
+    [
+      "openai",
+      {
+        choices: [
+          { finish_reason: "content_filter", message: { refusal: "withheld" } },
+        ],
+      },
+      "MODEL_REFUSAL",
+    ],
+    ["gemini", { promptFeedback: { blockReason: "SAFETY" } }, "MODEL_REFUSAL"],
+    ["gemini", { candidates: [{ finishReason: "SAFETY" }] }, "MODEL_REFUSAL"],
+    ["openai", null, "MODEL_ENVELOPE"],
+    [
+      "openai",
+      {
+        choices: [{ finish_reason: "stop", message: { content: "not JSON" } }],
+      },
+      "MODEL_JSON",
+    ],
+    [
+      "openai",
+      {
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: '{"route":"invented"}' },
+          },
+        ],
+      },
+      "MODEL_SCHEMA",
+    ],
+  ])(
+    "classifies %s output without retaining provider text: %#",
+    async (provider, raw, code) => {
+      const request = vi.fn(async () => new Response(JSON.stringify(raw)));
+      vi.stubGlobal("fetch", request);
+      await expect(
+        createConfiguredModel({
+          AI_PROVIDER: provider,
+          AI_API_KEY: "test-only",
+        }).generate("classify", {}, signal()),
+      ).rejects.toMatchObject({ code, message: code });
+      expect(request).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each([false, true])(
+    "classifies network failure and interruption: %s",
+    async (aborted) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new Error("secret transport details");
+        }),
+      );
+      const controller = new AbortController();
+      if (aborted) controller.abort();
+      const code = aborted ? "MODEL_INTERRUPTED" : "MODEL_NETWORK";
+      await expect(
+        createConfiguredModel({
+          AI_PROVIDER: "gemini",
+          AI_API_KEY: "test-only",
+        }).generate("classify", {}, controller.signal),
+      ).rejects.toMatchObject({ code, message: code });
+    },
+  );
+  it("classifies interrupted response consumption without disclosing stream errors", async () => {
+    const controller = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(stream) {
+                controller.abort();
+                stream.error(new Error("private stream detail"));
+              },
+            }),
+          ),
+      ),
+    );
+    await expect(
+      createConfiguredModel({
+        AI_PROVIDER: "gemini",
+        AI_API_KEY: "test-only",
+      }).generate("classify", {}, controller.signal),
+    ).rejects.toMatchObject({
+      code: "MODEL_INTERRUPTED",
+      message: "MODEL_INTERRUPTED",
+    });
   });
 });
