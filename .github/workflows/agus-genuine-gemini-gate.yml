@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - validation/agus-genuine-gemini-20261019
-    paths:
-      - .github/workflows/agus-genuine-gemini-gate.yml
 
 permissions:
   contents: read
