@@ -5,6 +5,7 @@ on:
       - validation/agus-genuine-gemini-20261019
 permissions:
   contents: read
+  statuses: write
 concurrency:
   group: agus-gemini-one-shot-20261019
   cancel-in-progress: false
@@ -29,6 +30,16 @@ jobs:
       DATABASE_URL: pglite://.data/agus-gemini-gate
       APP_ORIGIN: http://localhost:3000
     steps:
+      - name: Publish pending status for read-only inspection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending \
+            -f context="agus/genuine-gemini" \
+            -f description="Validating genuine Gemini against synthetic fixtures" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
       - name: Checkout approved candidate source
         uses: actions/checkout@v4
         with:
@@ -97,6 +108,23 @@ jobs:
           }));
           if(r.status!=="PASS"||c.status!=="PASS"||c.narration!=="ai"||Number(exitCode)!==0)process.exit(2);
           NODE
+      - name: Publish final result for read-only inspection
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          case "$JOB_STATUS" in
+            success) state=success; description="All bounded genuine Gemini scenarios passed" ;;
+            cancelled) state=error; description="Genuine Gemini verification was cancelled" ;;
+            *) state=failure; description="Genuine Gemini gate blocked or failed; inspect run logs" ;;
+          esac
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" \
+            -f context="agus/genuine-gemini" \
+            -f description="$description" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
       - name: Clarify test limits
         if: always()
         shell: bash
