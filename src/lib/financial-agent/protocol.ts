@@ -5,6 +5,7 @@ export const RouteSchema = z.strictObject({
   route: z.enum([
     "general",
     "financial_education",
+    "financial_reasoning",
     "product",
     "financial_read",
     "payment_draft",
@@ -37,11 +38,41 @@ export type Decision = z.infer<typeof DecisionSchema>;
 export const GeneralSchema = z.strictObject({
   text: z.string().trim().min(1).max(1800),
 });
+const figure = z.string().regex(/^\d{1,12}(?:\.\d{1,2})?$/);
+export const CalculationSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("savings_goal"),
+    monthlySavingsNaira: figure,
+    targetNaira: figure,
+    startingNaira: figure,
+  }),
+  z.strictObject({
+    kind: z.literal("savings_total"),
+    incomeNaira: figure,
+    savingsPercent: figure,
+    months: z.number().int().min(1).max(1200),
+  }),
+  z.strictObject({
+    kind: z.literal("simple_interest"),
+    principalNaira: figure,
+    annualRatePercent: figure,
+    months: z.number().int().min(1).max(1200),
+  }),
+]);
+export const ReasoningSchema = GeneralSchema.extend({
+  calculation: CalculationSchema.nullable().optional(),
+});
 export const ReviewSchema = z.strictObject({
   safeGeneralConversation: z.boolean(),
 });
 export type ModelTask =
-  "classify" | "general" | "review_general" | "product" | "plan" | "narrate";
+  | "classify"
+  | "general"
+  | "reason"
+  | "review_general"
+  | "product"
+  | "plan"
+  | "narrate";
 /** One request means one HTTP attempt. Implementations must honor signal; the executor also races it. */
 export interface AgentModel {
   readonly provider: string;
@@ -53,8 +84,9 @@ export interface AgentModel {
   ): Promise<unknown>;
 }
 export const QUESTIONS: Record<z.infer<typeof ClarificationSchema>, string> = {
-  account: "Which account should I use? Please choose an authorized account.",
-  date: "Which exact dates do you mean? I use Africa/Lagos time and an exclusive end date.",
+  account:
+    "I need transaction history to answer that. Choose an authorized demo account to continue.",
+  date: "Which exact dates do you mean? For example, tell me the month or the first and last day to check. I use Lagos time.",
   amount:
     "What exact amount or minimum and maximum should I search for? I need your confirmed tolerance for an approximate amount.",
   selection:
@@ -186,12 +218,5 @@ export function personalFinancialLanguage(text: string) {
     /\b(?:send|pay|transfer|wire|remit|move|deposit|withdraw)\s+(?:(?:the|your|our|my|some|all)\s+)?(?:money\b|funds\b|cash\b|[₦$€£]|\d|NGN\b)|\b(?:click|tap|press)\s+(?:the\s+)?(?:send|pay|transfer|submit|approve)\b/i.test(
       prose,
     )
-  );
-}
-
-/** Teaching requests addressed to the assistant need no personal records. */
-export function personalFinancialRequest(text: string) {
-  return /\b(?:my|mine|our|ours)\b|\b(?:I|we)\s+(?:have|had|earn|earned|spend|spent|paid|pay|owe|own)\b|\b(?:should|recommend|advise)\b|\b(?:this|that|those|smaller|larger|first|second)\b.{0,30}\b(?:payment|transaction|transfer|account|one)\b/i.test(
-    text,
   );
 }

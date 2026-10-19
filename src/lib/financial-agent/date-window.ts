@@ -32,7 +32,7 @@ const timestampWindow = new RegExp(
 /** Resolve only the current user's explicit window, never model-supplied dates
  * or persisted prose. Calendar dates use Lagos; explicit zoned instants keep
  * their meaning. Unsupported/partial/conflicting date expressions clarify. */
-export function resolveDateWindow(text: string): Resolution {
+export function resolveDateWindow(text: string, now?: string): Resolution {
   const clean = text.replace(/\bAfrica\/Lagos\b|\bWAT\b/gi, "");
   function resolved(
     match: RegExpMatchArray,
@@ -52,6 +52,63 @@ export function resolveDateWindow(text: string): Resolution {
       return { kind: "clarify" };
     }
   }
+
+  const relative = clean.match(
+    /\b(?:last month|this month|this week|today|yesterday)\b/i,
+  );
+  if (relative && now)
+    return resolved(relative, () => {
+      const today = new Date(
+        new Date(InstantSchema.parse(now)).getTime() + 3600000,
+      )
+        .toISOString()
+        .slice(0, 10);
+      const start = new Date(`${today}T00:00:00Z`),
+        end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 1);
+      switch (relative[0].toLowerCase()) {
+        case "last month":
+          end.setTime(start.getTime());
+          end.setUTCDate(1);
+          start.setUTCDate(1);
+          start.setUTCMonth(start.getUTCMonth() - 1);
+          break;
+        case "this month":
+          start.setUTCDate(1);
+          break;
+        case "this week":
+          start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+          break;
+        case "yesterday":
+          end.setTime(start.getTime());
+          start.setUTCDate(start.getUTCDate() - 1);
+          break;
+      }
+      return lagosDateInterval(
+        start.toISOString().slice(0, 10),
+        end.toISOString().slice(0, 10),
+      );
+    });
+
+  const pastWeek = clean.match(
+    /\b(?:in\s+|over\s+|during\s+)?(?:the\s+)?(?:past|last)\s+(?:week|seven days|7 days)\b/i,
+  );
+  if (pastWeek && now)
+    return resolved(pastWeek, () => {
+      const instant = new Date(InstantSchema.parse(now));
+      // Seven Lagos calendar days including today, ending at next local midnight.
+      const today = new Date(instant.getTime() + 3600000)
+        .toISOString()
+        .slice(0, 10);
+      const start = new Date(`${today}T00:00:00Z`);
+      const end = new Date(start);
+      start.setUTCDate(start.getUTCDate() - 6);
+      end.setUTCDate(end.getUTCDate() + 1);
+      return lagosDateInterval(
+        start.toISOString().slice(0, 10),
+        end.toISOString().slice(0, 10),
+      );
+    });
 
   const instants = clean.match(timestampWindow);
   if (instants)

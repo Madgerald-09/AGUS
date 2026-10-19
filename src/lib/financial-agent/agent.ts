@@ -24,6 +24,12 @@ import { makeFact, canonical, type Fact, type ReadResult } from "./facts";
 import { PRODUCT_KNOWLEDGE, productAnswer } from "./knowledge";
 import { resolveDateWindow } from "./date-window";
 import {
+  recordsRequest,
+  reasoningRequest,
+  calculateIllustration,
+  unsafeReasoning,
+} from "./reasoning";
+import {
   acceptNarration,
   factualPresentation,
   narrationContract,
@@ -35,6 +41,7 @@ import {
   RouteSchema,
   DecisionSchema,
   GeneralSchema,
+  ReasoningSchema,
   ReviewSchema,
   ProductTopicSchema,
   QUESTIONS,
@@ -43,7 +50,6 @@ import {
   bytes,
   financialLanguage,
   personalFinancialLanguage,
-  personalFinancialRequest,
   actionClaim,
   paymentIntent,
   historicalReadIntent,
@@ -74,6 +80,7 @@ export type AgentReply = {
   citations: string[];
   presentation?: FinancialPresentation;
   handoff?: { kind: "existing_payment_draft" };
+  accountAction?: "choose_demo_account";
   evidence: {
     modelCalls: number;
     toolCalls: number;
@@ -245,6 +252,11 @@ export function createFinancialAgent(options: AgentOptions) {
           await recheck();
           return value;
         }
+        const chooseAccount = () =>
+          finish({
+            ...reply("clarify", QUESTIONS.account),
+            accountAction: "choose_demo_account",
+          });
         async function financial(
           ids: string[],
           kind: "financial" | "clarify" = "financial",
@@ -323,6 +335,15 @@ export function createFinancialAgent(options: AgentOptions) {
           // only enters the existing permission-checked, read-only tool loop.
           route = "financial_read";
         if (
+          !payment &&
+          route !== "payment_action" &&
+          route !== "payment_draft"
+        ) {
+          if (recordsRequest(text) && financialLanguage(text))
+            route = "financial_read";
+          else if (reasoningRequest(text)) route = "financial_reasoning";
+        }
+        if (
           route === "general" &&
           (/\bAGUS\b/i.test(text) ||
             /what can you|your capabilities/i.test(text))
@@ -336,8 +357,13 @@ export function createFinancialAgent(options: AgentOptions) {
                 text,
               )))
         )
+          route =
+            recordsRequest(text) || selection
+              ? "financial_read"
+              : "financial_education";
+        if (route === "financial_education" && recordsRequest(text))
           route = "financial_read";
-        if (route === "financial_education" && personalFinancialRequest(text))
+        if (route === "financial_reasoning" && recordsRequest(text))
           route = "financial_read";
         if (route === "payment_draft") {
           selection = null;
@@ -362,6 +388,50 @@ export function createFinancialAgent(options: AgentOptions) {
               await model("product", { text, knowledge: PRODUCT_KNOWLEDGE }),
             );
           return await finish(reply("product", productAnswer(topic)));
+        }
+        if (route === "financial_reasoning") {
+          selection = null;
+          // User statements are assumptions, never verified records. No backend
+          // results, selections or assistant financial prose reach this channel.
+          const assumptions = history.filter((m) => m.role === "user");
+          const draft = ReasoningSchema.parse(
+            await model("reason", {
+              text,
+              history: assumptions,
+              reasoning: true,
+              educational: false,
+              source: "unverified_user_statements",
+            }),
+          );
+          const calculation = draft.calculation
+            ? calculateIllustration(
+                draft.calculation,
+                [...assumptions.map((m) => m.text), text].join("\n"),
+              )
+            : null;
+          if (calculation && /\d|[₦$€£]/.test(draft.text))
+            throw new AgentError("CALCULATION_PROSE");
+          const answer = calculation
+            ? `${calculation}\n\n${draft.text}`
+            : draft.text;
+          const review = ReviewSchema.parse(
+            await model("review_general", {
+              question: text,
+              answer,
+              history: assumptions,
+              reasoning: true,
+              educational: false,
+              source: "unverified_user_statements",
+            }),
+          );
+          if (!review.safeGeneralConversation)
+            throw new AgentError("GENERAL_MODEL_REJECTED");
+          if (unsafeReasoning(draft.text) || actionClaim(draft.text))
+            throw new AgentError("REASONING_POLICY");
+          const disclosure = draft.text.replace(/[\r\n\t]/g, " ");
+          if (scrub(disclosure) !== disclosure)
+            throw new AgentError("GENERAL_POLICY_DISCLOSURE");
+          return await finish(reply("general", answer));
         }
         if (route === "general" || route === "financial_education") {
           const educational = route === "financial_education";
@@ -402,8 +472,7 @@ export function createFinancialAgent(options: AgentOptions) {
             throw new AgentError("GENERAL_POLICY_DISCLOSURE");
           return await finish(reply("general", draft.text));
         }
-        if (!input.accountIds.length)
-          return await finish(reply("clarify", QUESTIONS.account));
+        if (!input.accountIds.length) return await chooseAccount();
         if (
           input.accountIds.length > 1 &&
           !selection &&
@@ -433,7 +502,7 @@ export function createFinancialAgent(options: AgentOptions) {
           return await finish(reply("clarify", QUESTIONS.amount));
         // Resolve before disclosure scrubbing, which can redact date-only ISO
         // strings as long numbers. Only validated endpoints leave the resolver.
-        const dateWindow = resolveDateWindow(input.text);
+        const dateWindow = resolveDateWindow(input.text, ctx().now);
         if (dateWindow.kind === "clarify")
           return await finish(reply("clarify", QUESTIONS.date));
         const facts = new Map<string, Fact>();

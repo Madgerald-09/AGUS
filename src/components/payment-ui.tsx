@@ -431,7 +431,7 @@ export function PaymentEditor({
               )}
             </div>
             {r.warnings?.length ? (
-              <details className="field-warning">
+              <details className="field-warning" open={!r.accountNumber}>
                 <summary>Extraction notes · review carefully</summary>
                 {r.warnings.map((w, j) => (
                   <p key={j}>{w}</p>

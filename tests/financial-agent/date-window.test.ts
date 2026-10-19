@@ -23,6 +23,18 @@ const respond = (
 
 describe("deterministic orchestration date windows", () => {
   it.each([
+    ["last month", "2026-08-31T23:00:00.000Z", "2026-09-30T23:00:00.000Z"],
+    ["this week", "2026-10-18T23:00:00.000Z", "2026-10-20T23:00:00.000Z"],
+    ["yesterday", "2026-10-18T23:00:00.000Z", "2026-10-19T23:00:00.000Z"],
+  ])(
+    "resolves %s from the trusted Lagos calendar",
+    (period, from, toExclusive) => {
+      expect(
+        resolveDateWindow(`Show my spending ${period}`, "2026-10-19T23:30:00Z"),
+      ).toEqual({ kind: "resolved", interval: { from, toExclusive } });
+    },
+  );
+  it.each([
     "October 2026",
     "for the full calendar month of October 2026, Africa/Lagos",
     "in Oct 2026 WAT",
@@ -149,7 +161,6 @@ describe("deterministic orchestration date windows", () => {
   it.each([
     "October",
     "last Friday",
-    "last month",
     "10/11/2026",
     "on 2026-02-30",
     "from 2026-10-01 to 2026-11-01",

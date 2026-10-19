@@ -20,39 +20,61 @@ export function useConversationPayments(
   const [bankError, setBankError] = useState("");
   const [bankLoading, setBankLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const active = useRef(false);
   const version = useRef(0);
+  const refreshVersion = useRef(0);
+  const unresolvedExecution = useRef<string | null>(null);
   const reset = useCallback(() => {
     ++version.current;
+    ++refreshVersion.current;
     active.current = false;
     setSnapshot(null);
     setBanks([]);
     setError("");
+    setErrorKey(null);
+    unresolvedExecution.current = null;
     setBusy(false);
     setUncertain(false);
   }, []);
-  const refresh = useCallback(async () => {
-    const token = version.current;
-    const response = await fetch("/api/state", { cache: "no-store" });
-    if (token !== version.current) return;
-    if (response.status === 401) {
-      reset();
-      unauthorized();
-      return;
-    }
-    if (!response.ok)
-      throw new Error(
-        "Saved payments couldn’t load. Check again before taking another payment action.",
-      );
-    const data: PaymentSnapshot = await response.json();
-    if (token === version.current) {
-      setSnapshot(data);
-      setUncertain(false);
-    }
-    return data;
-  }, [reset, unauthorized]);
+  const refresh = useCallback(
+    async (preserveError = false) => {
+      const token = version.current;
+      const request = ++refreshVersion.current;
+      const response = await fetch("/api/state", { cache: "no-store" });
+      if (token !== version.current || request !== refreshVersion.current)
+        return;
+      if (response.status === 401) {
+        reset();
+        unauthorized();
+        return;
+      }
+      if (!response.ok)
+        throw new Error(
+          "Saved payments couldn’t load. Check again before taking another payment action.",
+        );
+      const data: PaymentSnapshot = await response.json();
+      if (token === version.current && request === refreshVersion.current) {
+        setSnapshot(data);
+        const pendingBatch =
+          unresolvedExecution.current &&
+          data.batches.find((b) => b.id === unresolvedExecution.current);
+        const unresolved =
+          !!unresolvedExecution.current &&
+          (!pendingBatch || !pendingBatch.approval?.consumedAt);
+        if (!unresolved) unresolvedExecution.current = null;
+        setUncertain(unresolved);
+        if (!preserveError && !unresolved) {
+          setError("");
+          setErrorKey(null);
+        }
+      }
+      return data;
+    },
+    [reset, unauthorized],
+  );
   const loadBanks = useCallback(async () => {
     const token = version.current;
     setBankLoading(true);
@@ -73,11 +95,14 @@ export function useConversationPayments(
       reset();
       return;
     }
-    void refresh().catch((e) => setError(e.message));
+    void refresh().catch((e) => {
+      setErrorKey("history");
+      setError(e.message);
+    });
     void loadBanks();
     // Refresh display state only. Reconciliation and submission remain explicit.
     const timer = setInterval(() => {
-      if (!active.current) void refresh().catch(() => {});
+      if (!active.current) void refresh(true).catch(() => {});
     }, 20000);
     const generation = version;
     return () => {
@@ -85,36 +110,60 @@ export function useConversationPayments(
       ++generation.current;
     };
   }, [authenticated, refresh, loadBanks, reset]);
-  const run = async (_key: string, action: () => Promise<unknown>) => {
+  const run = async (key: string, action: () => Promise<unknown>) => {
     if (active.current || uncertain) return;
     active.current = true;
     setBusy(true);
     setError("");
+    setErrorKey(null);
     const token = version.current;
     try {
       await action();
     } catch (e) {
-      if (token === version.current)
+      if (token === version.current) {
+        setErrorKey(key);
+        // A lost execute response must never offer another submit while the
+        // persisted one-use claim/outcome is still unconfirmed.
+        if (key.includes(":execute-"))
+          unresolvedExecution.current = key.split(":")[1];
         setError(
           `${e instanceof Error ? e.message : "Payment response unconfirmed."} Check saved payment status before repeating an action.`,
         );
+      }
     } finally {
       if (token === version.current) {
         setUncertain(true);
         try {
-          await refresh();
+          await refresh(true);
         } catch (e) {
-          if (token === version.current)
+          if (token === version.current) {
+            setErrorKey(key);
             setError(
               e instanceof Error
                 ? e.message
                 : "Check saved payments before continuing.",
             );
+          }
         }
         if (token === version.current) {
           active.current = false;
           setBusy(false);
         }
+      }
+    }
+  };
+  const recover = async () => {
+    const token = version.current;
+    try {
+      await refresh();
+    } catch (e) {
+      if (token === version.current) {
+        setErrorKey((previous) => previous ?? "history");
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Saved payments could not be checked. Payment actions remain blocked until their status is confirmed.",
+        );
       }
     }
   };
@@ -126,7 +175,9 @@ export function useConversationPayments(
     loadBanks,
     busy: busy || uncertain,
     error,
+    errorKey,
     refresh,
+    recover,
     reset,
     run,
   };
@@ -135,19 +186,29 @@ export type PaymentController = ReturnType<typeof useConversationPayments>;
 
 export function PaymentNotice({
   controller: c,
+  scope,
+  recover,
 }: {
   controller: PaymentController;
+  scope: string;
+  recover?: () => void;
 }) {
   return (
     <>
-      {c.error && (
-        <div className="agus-error" role="alert">
-          <p>{c.error}</p>
-          <button onClick={() => void c.refresh().catch(() => {})}>
-            Check saved payments
-          </button>
-        </div>
-      )}
+      {c.error &&
+        (scope === "history" || c.errorKey?.startsWith(`${scope}:`)) && (
+          <div className="agus-error" role="alert">
+            <p>{c.error}</p>
+            <button
+              onClick={() => {
+                recover?.();
+                void c.recover();
+              }}
+            >
+              Check saved payments
+            </button>
+          </div>
+        )}
     </>
   );
 }
@@ -156,16 +217,21 @@ export function NativePayment({
   controller: c,
   message,
   batch: directBatch,
+  recover,
 }: {
   controller: PaymentController;
   message?: Message;
   batch?: ViewBatch;
+  recover?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const { snapshot: s } = c;
   if (!s) return null;
   const batch = directBatch ?? s.batches.find((b) => b.id === message?.batchId);
+  const scope = batch ? `batch:${batch.id}` : `turn:${message?.id}`;
+  const run: PaymentController["run"] = (key, action) =>
+    c.run(`${scope}:${key}`, action);
   const rows: Row[] = batch
     ? batch.payments.map((p) => ({
         name: p.name,
@@ -211,6 +277,7 @@ export function NativePayment({
         </small>
       </summary>
       <div className="agus-payment-body">
+        <PaymentNotice controller={c} scope={scope} recover={recover} />
         {batch && !editing ? (
           <BatchCard
             key={batch.reviewDigest}
@@ -218,7 +285,7 @@ export function NativePayment({
             banks={c.banks}
             busy={c.busy}
             editing={false}
-            run={c.run}
+            run={run}
             edit={() => setEditing(true)}
             mode={s.mode}
             stopped={s.emergencyDisabled}
@@ -233,7 +300,7 @@ export function NativePayment({
             sourceRequest={message?.sourceRequest}
             onCancel={batch ? () => setEditing(false) : undefined}
             onSave={(payments) =>
-              c.run("save", async () => {
+              run("save", async () => {
                 await paymentApi(
                   batch ? `batches/${batch.id}/edit` : "batches",
                   {
