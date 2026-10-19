@@ -434,6 +434,8 @@ export function FinancialConversation({
     }
   }
   async function send(question?: string) {
+    // API refs lock synchronously, before React renders disabled controls.
+    if (voice.isVoiceLocked()) return;
     if (
       pending.current ||
       loading ||

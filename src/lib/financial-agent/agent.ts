@@ -54,6 +54,7 @@ import {
   actionClaim,
   paymentIntent,
   historicalReadIntent,
+  historicalPaymentQuestion,
   scrub,
   type AgentModel,
   type ModelTask,
@@ -326,26 +327,23 @@ export function createFinancialAgent(options: AgentOptions) {
         let route = RouteSchema.parse(
           await model("classify", { text, history }),
         ).route;
-        if (
-          /\b(?:did I (?:pay|send)|have I (?:paid|sent))\b/i.test(input.text) &&
-          !historicalReadIntent(input.text)
-        )
+        const historicalQuestion = historicalPaymentQuestion(input.text);
+        if (historicalQuestion === "clarify")
           return await finish(
             reply(
               "clarify",
               "Are you asking about a past payment, or asking to prepare a new payment? Please ask these separately so I can keep the record search and payment draft distinct.",
             ),
           );
-        const payment = paymentIntent(text);
-        if (payment) route = payment;
-        else if (
-          (route === "payment_action" || route === "payment_draft") &&
-          historicalReadIntent(input.text)
-        )
+        const historical = historicalReadIntent(input.text);
+        const payment = historical ? null : paymentIntent(input.text);
+        if (historical)
           // Inspect original text so scrubbing cannot hide action intent. This
           // only enters the existing permission-checked, read-only tool loop.
           route = "financial_read";
+        else if (payment) route = payment;
         if (
+          !historical &&
           !payment &&
           route !== "payment_action" &&
           route !== "payment_draft"
@@ -403,7 +401,7 @@ export function createFinancialAgent(options: AgentOptions) {
           selection = null;
           // User statements are assumptions, never verified records. No backend
           // results, selections or assistant financial prose reach this channel.
-          const assumptions = calculationContext(text, history);
+          const assumptions = calculationContext(input.text, history);
           const draft = ReasoningSchema.parse(
             await model("reason", {
               text,
@@ -416,7 +414,7 @@ export function createFinancialAgent(options: AgentOptions) {
           const calculation = draft.calculation
             ? calculateIllustration(
                 draft.calculation,
-                [...assumptions.map((m) => m.text), text].join("\n"),
+                [...assumptions.map((m) => m.text), input.text].join("\n"),
               )
             : null;
           if (calculation && /\d|[₦$€£]/.test(draft.text))
