@@ -1,5 +1,5 @@
 /* global navigator: readonly, Blob: readonly, DOMException: readonly, KeyboardEvent: readonly, window: readonly, document: readonly */
-// Focused production integration journeys. Three responsive sizes, synthetic data and mocked provider/speech only.
+// Focused production integration journeys. Four responsive sizes, synthetic data and mocked provider/speech only.
 import assert from "node:assert/strict";
 import AxeBuilder from "@axe-core/playwright";
 import { URL } from "node:url";
@@ -247,6 +247,26 @@ try {
     await page
       .getByRole("button", { name: "Start recording", exact: true })
       .waitFor({ state: "visible" });
+    await input.fill("");
+    await page
+      .getByRole("button", { name: "Start recording", exact: true })
+      .click();
+    const suggestion = page.locator(".agus-suggestions button").first();
+    assert.equal(await suggestion.isDisabled(), true);
+    // Also dispatch a programmatic click: HTML readOnly alone never protected this.
+    await suggestion.evaluate((el) => el.click());
+    assert.equal(await input.inputValue(), "");
+    await page.evaluate(() =>
+      window.__voice.onresult({
+        results: [
+          { 0: { transcript: "Preserved voice draft" }, isFinal: true },
+        ],
+      }),
+    );
+    await page
+      .getByRole("button", { name: "Stop recording", exact: true })
+      .click();
+    assert.equal(await input.inputValue(), "Preserved voice draft");
     await input.fill("Typed first");
     const turnCount = turns;
     await page
@@ -482,11 +502,15 @@ try {
       releaseTranscription?.();
       await page.unroute("**/api/voice");
       assert.equal(await input.inputValue(), "Fallback draft recorded words");
+      await input.fill("");
       await page.evaluate(() => {
-        navigator.mediaDevices.getUserMedia = () =>
-          new Promise((resolve) => {
+        navigator.mediaDevices.getUserMedia = () => {
+          // Invoke before React can render disabled suggestions/readOnly.
+          document.querySelector(".agus-suggestions button")?.click();
+          return new Promise((resolve) => {
             window.__permissionResolve = resolve;
           });
+        };
       });
       await page
         .getByRole("button", { name: "Start recording", exact: true })
@@ -497,6 +521,8 @@ try {
       await page
         .getByRole("button", { name: "Cancel recording", exact: true })
         .click();
+      assert.equal(await input.inputValue(), "");
+      await input.fill("Fallback draft recorded words");
       const stopped = await page.evaluate(() => window.__tracksStopped);
       await page.evaluate(() => window.__permissionResolve(window.__stream()));
       await page.waitForFunction((n) => window.__tracksStopped > n, stopped);
@@ -589,6 +615,21 @@ try {
     await page.waitForFunction(
       () => window.__clipboard.text === "First line\nSecond line",
     );
+    for (const syntheticGeometry of [false, true]) {
+      await rendered.evaluate((el, synthetic) => {
+        el.innerHTML =
+          '<p>Visible prose</p><details><summary>Closed</summary><p>PRIVATE-CLOSED</p></details><details open><summary>Expanded</summary><p>Expanded prose</p><details><summary>Nested closed</summary><p>NESTED-PRIVATE</p></details><details open><summary>Nested expanded</summary><p>Nested visible</p></details></details><div data-redacted>REDACTED-VALUE</div><div data-copy-exclude>PAYMENT-CREDENTIAL</div><div class="batch-card">PAYMENT-INTERNALS</div>';
+        if (synthetic)
+          for (const child of el.querySelectorAll("*"))
+            child.getClientRects = () => [new window.DOMRect(0, 0, 100, 20)];
+      }, syntheticGeometry);
+      await copyUser.click();
+      await page.waitForFunction(
+        () =>
+          window.__clipboard.text ===
+          "Visible prose\nExpanded prose\nNested visible",
+      );
+    }
     await rendered.evaluate((el, html) => {
       el.innerHTML = html;
     }, originalMarkup);
@@ -598,6 +639,25 @@ try {
     const education = await send("What is inflation?");
     assert.equal(education.reply.kind, "general");
     assert.match(education.reply.text, /purchasing power/);
+    for (const suffix of [
+      "6% months",
+      "six months; actually use 20% instead",
+    ]) {
+      const invalid = await send(
+        `Calculate simple interest on ₦500 at 10% annual for ${suffix}`,
+      );
+      assert.equal(invalid.reply.kind, "clarify");
+      assert.equal(invalid.reply.evidence.toolCalls, 0);
+      assert.doesNotMatch(invalid.reply.text, /₦25.00/);
+    }
+    const interest = await send(
+      "Calculate simple interest on ₦500 at 10% annual for six months",
+    );
+    assert.equal(interest.reply.kind, "general");
+    assert.match(interest.reply.text, /₦25.00/);
+    checks.push(
+      "Calculator rejects percentage durations and stale corrected rates from the mocked model while preserving valid annual simple interest",
+    );
     const hypothetical =
       "If I earn ₦70,000 every month, how long until I become a millionaire?";
     const million = await send(hypothetical);
@@ -613,10 +673,19 @@ try {
     const budget = await send("How much should I spend next month?");
     assert.equal(budget.reply.kind, "general");
     assert.match(budget.reply.text, /income, fixed expenses and savings goals/);
-    const records = await send("How much did I spend in the past week?");
-    assert.equal(records.reply.accountAction, "choose_demo_account");
+    const historicalQuestion = "Was Musa paid last week?";
+    for (const question of [
+      "How much did I pay Musa last week?",
+      "Did I transfer money to Musa last week?",
+      historicalQuestion,
+    ]) {
+      const records = await send(question);
+      assert.equal(records.reply.accountAction, "choose_demo_account");
+      assert.equal(records.reply.handoff, undefined);
+    }
     await page
       .getByRole("button", { name: "Choose demo account", exact: true })
+      .last()
       .click();
     await page.getByRole("dialog", { name: "Account", exact: true }).waitFor();
     await page.getByLabel("Account (optional)").selectOption("amina-current");
@@ -629,9 +698,12 @@ try {
       .getByRole("button", { name: "Continue question", exact: true })
       .click();
     const resumed = await (await resumedResponse).json();
-    assert.equal(resumed.turn.text, "How much did I spend in the past week?");
+    assert.equal(resumed.turn.text, historicalQuestion);
     assert.equal(resumed.reply.kind, "financial");
-    assert.match(resumed.reply.text, /Available records only/);
+    assert.match(
+      resumed.reply.text,
+      /Available records only|not proof|SIMULATED|fictional/i,
+    );
     assert.doesNotMatch(resumed.reply.text, /exclusive end date/);
     await page.waitForFunction(
       () =>
@@ -916,14 +988,104 @@ try {
       .getByRole("button", { name: "Submit simulated transfers", exact: true })
       .waitFor();
     assert.equal(executions, 0);
+    // A server-authoritative pre-claim rejection must release the lock after
+    // recovery, without retrying or mutating approval/reference history.
+    const rejectedBefore = await page.request
+      .get(`${base}/api/state`)
+      .then((r) => r.json());
+    await page.request.post(`${base}/api/emergency`, {
+      headers: { Origin: base },
+      data: { disabled: true },
+    });
+    await batch
+      .getByRole("button", { name: "Submit simulated transfers", exact: true })
+      .click();
+    await card.getByRole("alert").waitFor();
+    await page.request.post(`${base}/api/emergency`, {
+      headers: { Origin: base },
+      data: { disabled: false },
+    });
+    await card
+      .getByRole("button", { name: "Check saved payments", exact: true })
+      .click();
+    const savedDialog = page.getByRole("dialog", {
+      name: "Saved payments",
+      exact: true,
+    });
+    await savedDialog.waitFor();
+    await savedDialog.getByRole("alert").waitFor({ state: "hidden" });
+    await page
+      .getByRole("button", { name: "Close saved payments", exact: true })
+      .click();
+    await page.waitForFunction(
+      () =>
+        !document
+          .querySelector(".batch-card button[disabled]")
+          ?.textContent?.includes("Submit simulated"),
+    );
+    assert.equal(
+      await batch
+        .getByRole("button", {
+          name: "Submit simulated transfers",
+          exact: true,
+        })
+        .isEnabled(),
+      true,
+    );
+    const rejectedAfter = await page.request
+      .get(`${base}/api/state`)
+      .then((r) => r.json());
+    assert.equal(
+      rejectedAfter.executionRejections.length,
+      rejectedBefore.executionRejections.length + 1,
+    );
+    assert.equal(
+      rejectedAfter.executionRejections.filter(
+        (r) => r.batchId === rejectedAfter.batches[0].id,
+      ).length,
+      1,
+    );
+    assert.equal(rejectedAfter.batches[0].approval.consumedAt, undefined);
+    assert.equal(
+      rejectedAfter.batches[0].approval.nonce,
+      rejectedBefore.batches[0].approval.nonce,
+    );
+    assert.deepEqual(
+      rejectedAfter.batches[0].payments.map((p) => p.reference),
+      rejectedBefore.batches[0].payments.map((p) => p.reference),
+    );
+    assert.equal(executions, 1);
+    checks.push(
+      "Confirmed pre-claim rejection recovers without retry; exact persisted receipt, approval nonce and references retained",
+    );
     // Editing a reviewed batch must invalidate approval and require verification again.
     await batch
       .getByRole("button", { name: "Edit instructions", exact: true })
       .click();
     await card.getByLabel("Amount (NGN)", { exact: true }).first().fill("450");
+    const savedEdit = page.waitForResponse(
+      (r) => r.url().endsWith("/edit") && r.request().method() === "POST",
+    );
+    const refreshedEdit = page.waitForResponse(async (r) => {
+      if (r.url() !== `${base}/api/state` || !r.ok()) return false;
+      const state = await r.json();
+      return state.batches.some(
+        (b) =>
+          b.id === rejectedAfter.batches[0].id &&
+          !b.approval &&
+          b.payments[0].amountKobo === 45000,
+      );
+    });
     await card
       .getByRole("button", { name: "Save changes", exact: true })
       .click();
+    const editedBatch = await (await savedEdit).json();
+    assert.equal(editedBatch.approval, undefined);
+    assert.equal(editedBatch.payments[0].amountKobo, 45000);
+    await refreshedEdit;
+    await batch
+      .getByRole("button", { name: "Submit simulated transfers", exact: true })
+      .waitFor({ state: "detached" });
     assert.equal(
       await batch
         .getByRole("button", {
@@ -998,7 +1160,7 @@ try {
     await batch
       .getByRole("button", { name: "Check provider", exact: true })
       .waitFor();
-    assert.equal(executions, 1);
+    assert.equal(executions, 2);
     assert.equal(
       await batch
         .getByRole("button", {

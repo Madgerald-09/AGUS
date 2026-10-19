@@ -27,6 +27,7 @@ export type Row = {
   warnings?: string[];
 };
 export type PaymentSnapshot = {
+  executionRejections?: { batchId: string; attemptId: string }[];
   mode: Mode;
   aiEnabled: boolean;
   emergencyDisabled: boolean;
@@ -511,8 +512,15 @@ export function BatchCard({
       "approved",
     ].includes(b.status) && !b.approval?.consumedAt;
   const total = b.payments.reduce((n, p) => n + p.amountKobo, 0);
-  const action = (op: string, body: unknown = {}) =>
-    run(`${op}-${b.id}`, () => paymentApi(`batches/${b.id}/${op}`, body));
+  const action = (op: string, body: Record<string, unknown> = {}) => {
+    const attemptId = op === "execute" ? crypto.randomUUID() : undefined;
+    return run(`${op}-${b.id}${attemptId ? `:${attemptId}` : ""}`, () =>
+      paymentApi(`batches/${b.id}/${op}`, {
+        ...body,
+        ...(attemptId ? { attemptId } : {}),
+      }),
+    );
+  };
   return (
     <section className="panel batch-card">
       <div className="batch-heading">

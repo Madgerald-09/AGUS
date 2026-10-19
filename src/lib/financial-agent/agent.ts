@@ -27,6 +27,7 @@ import {
   recordsRequest,
   reasoningRequest,
   calculateIllustration,
+  calculationContext,
   unsafeReasoning,
 } from "./reasoning";
 import {
@@ -53,6 +54,7 @@ import {
   actionClaim,
   paymentIntent,
   historicalReadIntent,
+  historicalPaymentQuestion,
   scrub,
   type AgentModel,
   type ModelTask,
@@ -325,22 +327,28 @@ export function createFinancialAgent(options: AgentOptions) {
         let route = RouteSchema.parse(
           await model("classify", { text, history }),
         ).route;
-        const payment = paymentIntent(text);
-        if (payment) route = payment;
-        else if (
-          (route === "payment_action" || route === "payment_draft") &&
-          historicalReadIntent(input.text)
-        )
+        const historicalQuestion = historicalPaymentQuestion(input.text);
+        if (historicalQuestion === "clarify")
+          return await finish(
+            reply(
+              "clarify",
+              "Are you asking about a past payment, or asking to prepare a new payment? Please ask these separately so I can keep the record search and payment draft distinct.",
+            ),
+          );
+        const historical = historicalReadIntent(input.text);
+        const payment = historical ? null : paymentIntent(input.text);
+        if (historical)
           // Inspect original text so scrubbing cannot hide action intent. This
           // only enters the existing permission-checked, read-only tool loop.
           route = "financial_read";
+        else if (payment) route = payment;
         if (
+          !historical &&
           !payment &&
           route !== "payment_action" &&
           route !== "payment_draft"
         ) {
-          if (recordsRequest(text) && financialLanguage(text))
-            route = "financial_read";
+          if (recordsRequest(text)) route = "financial_read";
           else if (reasoningRequest(text)) route = "financial_reasoning";
         }
         if (
@@ -393,7 +401,7 @@ export function createFinancialAgent(options: AgentOptions) {
           selection = null;
           // User statements are assumptions, never verified records. No backend
           // results, selections or assistant financial prose reach this channel.
-          const assumptions = history.filter((m) => m.role === "user");
+          const assumptions = calculationContext(input.text, history);
           const draft = ReasoningSchema.parse(
             await model("reason", {
               text,
@@ -406,7 +414,7 @@ export function createFinancialAgent(options: AgentOptions) {
           const calculation = draft.calculation
             ? calculateIllustration(
                 draft.calculation,
-                [...assumptions.map((m) => m.text), text].join("\n"),
+                [...assumptions.map((m) => m.text), input.text].join("\n"),
               )
             : null;
           if (calculation && /\d|[₦$€£]/.test(draft.text))
@@ -706,6 +714,17 @@ export function createFinancialAgent(options: AgentOptions) {
           error instanceof AgentError
             ? error.code
             : "VALIDATION_OR_DEPENDENCY_FAILURE";
+        if (
+          code.startsWith("CALCULATION_") ||
+          (error instanceof z.ZodError &&
+            error.issues.some((issue) => issue.path.includes("calculation")))
+        )
+          return reply(
+            "clarify",
+            "Please confirm the calculation figures with their roles and units: naira amounts, monthly income or savings, savings percentage or annual interest rate, and duration in months. Include any starting savings and target. I couldn’t safely match the proposed inputs to your request.",
+            [],
+            code,
+          );
         return reply("unavailable", UNAVAILABLE, [], code);
       }
     },

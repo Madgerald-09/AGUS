@@ -31,7 +31,10 @@ const timestampWindow = new RegExp(
 
 /** Resolve only the current user's explicit window, never model-supplied dates
  * or persisted prose. Calendar dates use Lagos; explicit zoned instants keep
- * their meaning. Unsupported/partial/conflicting date expressions clarify. */
+ * their meaning. Last week is the completed Monday–Sunday calendar week;
+ * this week/month include today through next Lagos midnight (exclusive).
+ * Past/last seven days are seven local calendar days including today, with the
+ * same exclusive endpoint. Unsupported/partial/conflicting expressions clarify. */
 export function resolveDateWindow(text: string, now?: string): Resolution {
   const clean = text.replace(/\bAfrica\/Lagos\b|\bWAT\b/gi, "");
   function resolved(
@@ -54,7 +57,7 @@ export function resolveDateWindow(text: string, now?: string): Resolution {
   }
 
   const relative = clean.match(
-    /\b(?:last month|this month|this week|today|yesterday)\b/i,
+    /\b(?:last month|this month|last week|this week|today|yesterday)\b/i,
   );
   if (relative && now)
     return resolved(relative, () => {
@@ -76,6 +79,11 @@ export function resolveDateWindow(text: string, now?: string): Resolution {
         case "this month":
           start.setUTCDate(1);
           break;
+        case "last week":
+          start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+          end.setTime(start.getTime());
+          start.setUTCDate(start.getUTCDate() - 7);
+          break;
         case "this week":
           start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
           break;
@@ -91,7 +99,7 @@ export function resolveDateWindow(text: string, now?: string): Resolution {
     });
 
   const pastWeek = clean.match(
-    /\b(?:in\s+|over\s+|during\s+)?(?:the\s+)?(?:past|last)\s+(?:week|seven days|7 days)\b/i,
+    /\b(?:in\s+|over\s+|during\s+)?(?:the\s+)?(?:past\s+week|(?:past|last)\s+(?:seven days|7 days))\b/i,
   );
   if (pastWeek && now)
     return resolved(pastWeek, () => {

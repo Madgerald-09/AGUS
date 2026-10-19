@@ -127,9 +127,50 @@ export function financialLanguage(text: string) {
     text,
   );
 }
+/** Recognize the historical clause before considering action words. Unknown or
+ * additional clauses clarify; no wording here authorizes a payment. */
+export function historicalPaymentQuestion(
+  text: string,
+): "read" | "clarify" | null {
+  const instruction = text.trim();
+  const wrapper = instruction.match(
+    /^(?:(?:can|could|would) you\s+)?(?:please\s+)?(?:check|find out|tell me|confirm|verify)\s+(?:(?:whether|if|that)\s+)?/i,
+  );
+  const body = wrapper ? instruction.slice(wrapper[0].length) : instruction;
+  const question = body.match(
+    /^(?:(?:how much )?did (?:I|we) (?:pay|send|transfer|make\s+(?:(?:a|the|any)\s+)?(?:payment|transfer))|have (?:I|we) (?:paid|sent|transferred|made\s+(?:(?:a|the|any)\s+)?(?:payment|transfer))|(?:was|were) [^;!?\n]{1,80}?\s+(?:paid|sent|transferred)|has [^;!?\n]{1,80}?\s+been paid)\b/i,
+  );
+  const statement =
+    wrapper &&
+    body.match(
+      /^(?:(?:I|we) (?:have\s+)?(?:paid|sent|transferred|made\s+(?:(?:a|the|any)\s+)?(?:payment|transfer))|[^;!?\n]{1,80}?\s+(?:was|were) (?:paid|sent|transferred)|(?:the\s+)?(?:payments?|transfers?)\s+(?:that\s+)?(?:I|we)\s+(?:made|sent))\b/i,
+    );
+  const reference =
+    !wrapper &&
+    body.match(
+      /^(?:(?:can|could|would) you\s+)?(?:please\s+)?(?:find|show|look up|retrieve)\s+(?:the\s+)?(?:payments?|transfers?)\s+(?:that\s+)?(?:I|we)\s+(?:made|sent)\b/i,
+    );
+  const match = question || statement || reference;
+  if (!match) {
+    // A historical question after another instruction is mixed intent too.
+    // Keep the complete original instruction; scrubbing may hide a clause.
+    return /\b(?:(?:how much )?did (?:I|we) (?:pay|send|transfer|make\s+(?:(?:a|the|any)\s+)?(?:payment|transfer))|have (?:I|we) (?:paid|sent|transferred|made\s+(?:(?:a|the|any)\s+)?(?:payment|transfer))|(?:was|were) [^;!?\n]{1,80}?\s+(?:paid|sent|transferred)|has [^;!?\n]{1,80}?\s+been paid|(?:check|confirm|verify)\s+(?:whether|if)\s+(?:I|we)\s+(?:have\s+)?(?:paid|sent|transferred))\b/i.test(
+      instruction,
+    )
+      ? "clarify"
+      : null;
+  }
+  const remainder = body.slice(match[0].length).replace(/[?.]$/, "");
+  return /[;!?\n&:]|\b(?:and|then|but|also|or|otherwise|if|please|now|approv\w*|authori[sz]\w*|submit|execute|retry|send|pay|transfer|make|prepare|draft|initiate|start|schedule|process|wire|remit|move|confirm|complete|proceed|repeat|rerun|otp)\b/i.test(
+    remainder,
+  )
+    ? "clarify"
+    : "read";
+}
 export function paymentIntent(
   text: string,
 ): "payment_draft" | "payment_action" | null {
+  if (historicalPaymentQuestion(text)) return null;
   const subject =
     /\b(?:payment|transfer|transaction|bank|funds|money|naira|NGN|otp)\b|₦/i.test(
       text,
@@ -155,6 +196,8 @@ export function paymentIntent(
  * Unknown clauses and even negated action words deliberately fail closed.
  */
 export function historicalReadIntent(text: string): boolean {
+  const historical = historicalPaymentQuestion(text);
+  if (historical) return historical === "read";
   if (
     paymentIntent(text) ||
     /\b(?:initiat\w*|start\w*|creat\w*|schedul\w*|process\w*|execut\w*|submi\w*|retry\w*|retried|retries|approv\w*|authori[sz]\w*|send\w*|pay|paying|draft\w*|prepar\w*|wir\w*|remit\w*|transferr\w*|mov\w*|confirm\w*|complet\w*|proceed\w*|continu\w*|handl\w*|resolv\w*|repeat\w*|rerun\w*|do|make|otp)\b|\b(?:go ahead|take care|set up)\b/i.test(
