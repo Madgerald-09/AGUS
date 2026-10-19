@@ -1,0 +1,109 @@
+name: AGUS genuine Gemini acceptance (bounded)
+on:
+  push:
+    branches:
+      - validation/agus-genuine-gemini-20261019
+permissions:
+  contents: read
+concurrency:
+  group: agus-gemini-one-shot-20261019
+  cancel-in-progress: false
+jobs:
+  genuine-gemini:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      AI_PROVIDER: gemini
+      AI_MODEL: gemini-3.5-flash-lite
+      PAYMENT_MODE: fixture
+      FINANCIAL_DEMO_ENABLED: "true"
+      PAYSTACK_SECRET_KEY: ""
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      LIVE_TRANSFERS_ENABLED: "false"
+      LIVE_OWNER_AUTHORIZED: "false"
+      LIVE_WEBHOOK_VALIDATED: "false"
+      LIVE_RECONCILIATION_VALIDATED: "false"
+      PAYMENTS_EMERGENCY_DISABLED: "false"
+      DATABASE_URL: pglite://.data/agus-gemini-gate
+      APP_ORIGIN: http://localhost:3000
+    steps:
+      - name: Checkout approved candidate source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original candidate and no application changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor eb38071ee8267d1800f043543f9f994879e10b94 HEAD
+          test "$(git diff --name-only eb38071ee8267d1800f043543f9f994879e10b94 HEAD)" = ".github/workflows/agus-genuine-gemini-gate.yml"
+      - name: Require private Gemini credential
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          if [ -z "$AI_API_KEY" ]; then
+            echo "::error::Setup required: add repository Actions secret AGUS_GEMINI_API_KEY. No model calls were made."
+            exit 2
+          fi
+          echo "Private Gemini key is configured (value never printed)."
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Genuine educational response (max 3 model calls)
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import=tsx scripts/verify-financial-model.ts --scenario=education-no-account --max-model-calls=3 --min-interval-ms=5000 > "$RUNNER_TEMP/agus-education.json" || {
+            node -e 'const r=require(process.argv[1]); console.error("Education: "+r.status+" / "+r.reason+" / calls: "+r.providerCalls)' "$RUNNER_TEMP/agus-education.json"
+            exit 2
+          }
+          node -e 'const r=require(process.argv[1]); console.log("Education: "+r.status+" / actual calls: "+r.providerCalls)' "$RUNNER_TEMP/agus-education.json"
+      - name: Genuine fictional October totals and narration (max 4 model calls)
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 6
+          status=0
+          node --import=tsx scripts/verify-financial-model.ts --scenario=totals --max-model-calls=4 --min-interval-ms=5000 --include-responses > "$RUNNER_TEMP/agus-totals.json" || status=$?
+          node --input-type=module - "$RUNNER_TEMP/agus-totals.json" "$status" <<'NODE'
+          import {readFileSync} from "node:fs";
+          const [file, exitCode] = process.argv.slice(2);
+          let r;
+          try { r = JSON.parse(readFileSync(file,"utf8")); }
+          catch { console.error("Gemini verification response was not valid JSON; output withheld."); process.exit(2); }
+          const c = r.cases?.find(x=>x.id==="totals") || {};
+          console.log(JSON.stringify({
+            status:r.status,
+            reason:r.reason,
+            actualProviderCalls:r.providerCalls,
+            kind:c.kind||null,
+            caseStatus:c.status||"UNVERIFIED",
+            narration:c.narration||"none",
+            errorClassification:c.errorClassification||null,
+            narrationDiagnostic:c.narrationDiagnostic||null,
+            grounding:c.grounding||null,
+          }));
+          if(r.status!=="PASS"||c.status!=="PASS"||c.narration!=="ai"||Number(exitCode)!==0)process.exit(2);
+          NODE
+      - name: Clarify test limits
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AGUS genuine Gemini acceptance"
+            echo "Runs the real model against fictional financial fixtures, max 7 model calls."
+            echo "No real bank data, transfers, screenshots, deployment, secrets output, or device voice testing."
+            echo "Candidate application source equals eb38071; PR #29 and main untouched."
+          } >> "$GITHUB_STEP_SUMMARY"
