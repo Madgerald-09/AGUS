@@ -42,11 +42,11 @@ jobs:
           test "$(git diff --name-only eb38071ee8267d1800f043543f9f994879e10b94 HEAD)" = ".github/workflows/agus-genuine-gemini-gate.yml"
       - name: Require private Gemini credential
         env:
-          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
         shell: bash
         run: |
           if [ -z "$AI_API_KEY" ]; then
-            echo "::error::Setup required: add repository Actions secret AGUS_GEMINI_API_KEY. No model calls were made."
+            echo "::error::No recognized repository Gemini secret found (checked AGUS_GEMINI_API_KEY, GEMINI_API_KEY, AI_API_KEY, GOOGLE_API_KEY). No model calls were made."
             exit 2
           fi
           echo "Private Gemini key is configured (value never printed)."
@@ -59,7 +59,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Genuine educational response (max 3 model calls)
         env:
-          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +70,7 @@ jobs:
           node -e 'const r=require(process.argv[1]); console.log("Education: "+r.status+" / actual calls: "+r.providerCalls)' "$RUNNER_TEMP/agus-education.json"
       - name: Genuine fictional October totals and narration (max 4 model calls)
         env:
-          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
