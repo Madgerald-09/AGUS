@@ -9,8 +9,8 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 
 const base = "http://127.0.0.1:3113";
-const dataDir = await mkdtemp(join(tmpdir(), "agus-visual-v1-1-"));
-const evidence = join(process.cwd(), "docs/visual-v1-1");
+const dataDir = await mkdtemp(join(tmpdir(), "agus-visual-v1-2-"));
+const evidence = join(process.cwd(), "docs/visual-v1-2");
 const capture = process.env.AGUS_CAPTURE_WELCOME === "true";
 const password = randomBytes(24).toString("hex");
 const salt = randomBytes(16).toString("hex");
@@ -99,7 +99,9 @@ try {
       if (request.url().endsWith("/execute")) executions++;
     });
     await page.goto(`${base}/`);
-    await page.locator(".agus-signin-trigger").waitFor();
+    await page
+      .getByRole("heading", { name: "Let's talk money.", exact: true })
+      .waitFor();
     const input = page.getByLabel("Message AGUS", { exact: true });
     const fit = async () => {
       const geometry = await page.evaluate(() => {
@@ -128,7 +130,7 @@ try {
       }
       if (!(await page.locator(".agus-sidebar").isVisible()))
         await page
-          .getByRole("button", { name: "Expand navigation", exact: true })
+          .getByRole("button", { name: "Open conversations", exact: true })
           .click();
       return page.locator(".agus-sidebar");
     };
@@ -151,10 +153,44 @@ try {
       return page.locator(".agus-assistant-message").last();
     };
     await fit();
-    assert.equal(
-      await page.locator(".agus-suggestions button:visible").count(),
-      viewport.width === 390 ? 3 : 4,
+    assert.deepEqual(
+      await page.locator(".agus-suggestions button:visible").allTextContents(),
+      ["Analyze spending", "Track a payment", "Prepare a transfer"],
     );
+    assert.equal(await input.getAttribute("placeholder"), "Ask agus...");
+    assert.equal(
+      await page.locator(".agus-header").getByRole("button").count(),
+      2,
+    );
+    assert.equal(await page.locator(".agus-welcome img").count(), 0);
+    assert.equal(
+      await page.locator(".agus-header .brand-asset img").getAttribute("alt"),
+      "agus.",
+    );
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Send message", exact: true })
+        .isDisabled(),
+      true,
+    );
+    const palette = await page.evaluate(() => ({
+      canvas: getComputedStyle(document.querySelector(".agus-workspace"))
+        .backgroundColor,
+      composer: getComputedStyle(document.querySelector(".agus-composer"))
+        .backgroundColor,
+      border: getComputedStyle(document.querySelector(".agus-composer"))
+        .borderTopColor,
+      send: getComputedStyle(document.querySelector(".agus-send"))
+        .backgroundColor,
+      arrow: getComputedStyle(document.querySelector(".agus-send")).color,
+    }));
+    assert.deepEqual(palette, {
+      canvas: "rgb(19, 18, 17)",
+      composer: "rgb(32, 31, 29)",
+      border: "rgb(52, 49, 45)",
+      send: "rgb(50, 155, 255)",
+      arrow: "rgb(19, 18, 17)",
+    });
     assert.equal(await page.locator(".agus-composer-note").count(), 0);
     assert.notEqual(
       await page.evaluate(() => document.activeElement?.id),
@@ -166,7 +202,7 @@ try {
         0,
         "Original artwork is required before final screenshots",
       );
-      const logo = page.locator(".agus-welcome .brand-asset img");
+      const logo = page.locator(".agus-header .brand-asset img");
       await logo.waitFor({ state: "visible" });
       await logo.evaluate(async (image) => {
         await image.decode();
@@ -177,6 +213,16 @@ try {
       await page.screenshot({
         path: join(evidence, `welcome-${viewport.width}.png`),
       });
+    }
+    for (const name of [
+      "Analyze spending",
+      "Track a payment",
+      "Prepare a transfer",
+    ]) {
+      await input.fill("");
+      await page.getByRole("button", { name, exact: true }).click();
+      assert.ok((await input.inputValue()).trim());
+      assert.equal(sends, 0, "Starter chips never send automatically");
     }
     await input.fill("Keep my unsent question");
     await page
@@ -194,7 +240,9 @@ try {
       .getByRole("button", { name: "Continue", exact: true })
       .click();
     await page.locator(".agus-signin").waitFor({ state: "hidden" });
-    await page.getByRole("button", { name: /^Account:/ }).waitFor();
+    await page
+      .locator(".agus-drawer .agus-account-trigger")
+      .waitFor({ state: "attached" });
     assert.equal(await input.inputValue(), "Keep my unsent question");
     assert.equal(sends, 0, "Sign-in must not automatically send");
     await send(`Hey there from ${viewport.width}px`);
@@ -219,7 +267,8 @@ try {
       await page
         .getByRole("button", { name: "Collapse navigation", exact: true })
         .click();
-    await page.getByRole("button", { name: /^Account:/ }).click();
+    sidebar = await nav();
+    await sidebar.getByRole("button", { name: /^Account:/ }).click();
     await page
       .locator("#agus-account option")
       .nth(1)
@@ -239,9 +288,12 @@ try {
     assert.match(await disclosure.innerText(), /Original response/);
     await page.reload();
     await page.locator(".agus-assistant-message").first().waitFor();
+    await page
+      .locator(".agus-drawer .agus-account-trigger")
+      .waitFor({ state: "attached" });
     assert.match(
       await page
-        .getByRole("button", { name: /^Account:/ })
+        .locator(".agus-drawer .agus-account-trigger")
         .getAttribute("aria-label"),
       /No account/,
     );

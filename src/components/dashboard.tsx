@@ -1041,7 +1041,6 @@ export function Dashboard({
                 )}
                 {state.messages.length === 0 && !pendingMessage && !editor && (
                   <div className="welcome">
-                    <BrandAsset lockup />
                     <h1>What can I help you take care of?</h1>
                     <p>
                       Plan a payment, follow a transfer, or make sense of your
@@ -1275,7 +1274,7 @@ export function Dashboard({
                         autoCapitalize="sentences"
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Tell me what you’d like to do…"
+                        placeholder="Ask agus..."
                         aria-label="Message Agus"
                         aria-describedby="composer-shortcuts"
                         rows={2}
