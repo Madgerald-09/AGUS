@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: agus-v1-2-final-validation
@@ -33,6 +34,15 @@ jobs:
       APP_ORIGIN: http://localhost:3000
       DATABASE_URL: pglite://.data/agus-validation
     steps:
+      - name: Report validation pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending -f context="agus/final-candidate-fixtures" \
+            -f description="Running all merged-candidate fixture checks" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
       - name: Checkout consolidated candidate
         uses: actions/checkout@v4
         with:
@@ -75,6 +85,24 @@ jobs:
         env:
           NODE_ENV: production
         run: npm run test:http
+      - name: Report final validation status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            state=success
+            description="AGUS merged candidate full fixture CI passed"
+          else
+            state=failure
+            description="AGUS merged candidate fixture CI needs review"
+          fi
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" -f context="agus/final-candidate-fixtures" \
+            -f description="$description" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
       - name: Report scope
         if: always()
         shell: bash
