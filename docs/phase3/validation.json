@@ -1,0 +1,114 @@
+{
+  "sourceCommit": "d353a14710868ce261399d46815ab53c239ae2a9",
+  "baseCommit": "a04a6a7fcbed062e1140eae0271fc9c2f3f71a0a",
+  "branch": "phase3/intelligence-verification-20261019",
+  "genuineInference": {
+    "status": "BLOCKED",
+    "reason": "MODEL_NOT_CONFIGURED",
+    "providerCalls": 0,
+    "evidence": "genuine-gate.json"
+  },
+  "checks": [
+    {
+      "command": "npm test -- tests/financial-agent tests/financial-data",
+      "stage": "baseline",
+      "passed": 449,
+      "failed": 1,
+      "finding": "Inherited test sliced prior-turn narration into next-principal prompts; repaired call offset."
+    },
+    {
+      "command": "npm test -- tests/financial-agent",
+      "stage": "after initial repairs",
+      "status": "PASS",
+      "tests": 337,
+      "files": 10
+    },
+    {
+      "command": "npm test -- tests/financial-agent/model.test.ts tests/financial-agent/grounded-narration.test.ts tests/financial-agent/verification-options.test.ts",
+      "status": "PASS",
+      "tests": 63,
+      "files": 3
+    },
+    {
+      "command": "npm test -- tests/financial-agent/verification-options.test.ts",
+      "stage": "after adding loop-limit grading regression",
+      "status": "PASS",
+      "tests": 14,
+      "files": 1
+    },
+    {
+      "command": "npm run test:integration",
+      "passed": 318,
+      "blockedBySandbox": 1,
+      "reason": "spawnSync EPERM for restart worker"
+    },
+    {
+      "command": "npm test -- tests/financial-integration/restart.test.ts",
+      "stage": "rerun only blocked worker with process permission",
+      "status": "PASS",
+      "tests": 1,
+      "files": 1
+    },
+    {
+      "command": "npm run typecheck",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run lint",
+      "status": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS"
+    },
+    {
+      "command": "NEXT_TELEMETRY_DISABLED=1 npm run build",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run test:browser:integration",
+      "status": "PASS",
+      "groupsPerViewport": 7,
+      "viewports": ["1440x1000", "390x844"],
+      "modelInference": "MOCKED",
+      "speech": "MOCKED",
+      "data": "fictional",
+      "evidence": "browser-integration.json"
+    },
+    {
+      "command": "npm run test:http",
+      "status": "PASS",
+      "providerNetworkCalls": 0,
+      "paymentMode": "fixture"
+    }
+  ],
+  "dateResolverProbes": [
+    {
+      "prompt": "What about last month?",
+      "resolution": "clarify"
+    },
+    {
+      "prompt": "How does that compare with September?",
+      "resolution": "clarify"
+    },
+    {
+      "prompt": "Why is that payment still pending?",
+      "resolution": "absent"
+    }
+  ],
+  "limitations": [
+    "No actual Gemini inference, response quality, provider quota or provider latency observed.",
+    "Relative dates and implicit September comparison are unsupported.",
+    "Narration remains grammar-constrained.",
+    "Reviewed product overview retains legacy Phase 2B wording."
+  ],
+  "preserved": [
+    "approved UI and logo",
+    "fictional fixtures and financial calculations",
+    "account permissions and conversation persistence",
+    "payment and voice source"
+  ],
+  "livePayments": 0,
+  "deployed": false,
+  "merged": false
+}

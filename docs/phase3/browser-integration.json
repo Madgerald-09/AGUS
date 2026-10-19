@@ -1,0 +1,45 @@
+{
+  "model": "mocked routing/narration",
+  "data": "fictional",
+  "paymentMode": "fixture",
+  "results": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "passed": true,
+      "checks": [
+        "v1.2 welcome, shared-operator sign-in, desktop/mobile newline and IME, general conversation and education",
+        "account-scoped SQL totals, accepted mocked narration, expandable evidence, search, three-tool historical investigation with evidence limitations",
+        "completed transcript survives reload, account authority clears, lost-response recovery restores saved turn",
+        "merged browser dictation preserves multiline text, fills without sending, ignores late results after stop",
+        "client navigation returns to originating chat with its transient unsent draft",
+        "editable draft, beneficiary verification, password approval, separate simulated submission, individual successful/pending outcomes survive reload",
+        "completed chat history restored after payment reload, composer visible, no horizontal overflow or page errors"
+      ],
+      "approvals": 1,
+      "submissions": 1,
+      "errors": []
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "passed": true,
+      "checks": [
+        "v1.2 welcome, shared-operator sign-in, desktop/mobile newline and IME, general conversation and education",
+        "account-scoped SQL totals, accepted mocked narration, expandable evidence, search, three-tool historical investigation with evidence limitations",
+        "completed transcript survives reload, account authority clears, lost-response recovery restores saved turn",
+        "merged browser dictation preserves multiline text, fills without sending, ignores late results after stop",
+        "client navigation returns to originating chat with its transient unsent draft",
+        "editable draft, beneficiary verification, password approval, separate simulated submission, individual successful/pending outcomes survive reload",
+        "completed chat history restored after payment reload, composer visible, no horizontal overflow or page errors"
+      ],
+      "approvals": 1,
+      "submissions": 1,
+      "errors": []
+    }
+  ]
+}

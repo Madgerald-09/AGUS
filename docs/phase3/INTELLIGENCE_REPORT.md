@@ -8,6 +8,7 @@ The intended founder model remains configurable through `AI_MODEL`; no applicati
 Base: PR #29, `integration/agus-v1-2-candidate-20261019`, exact commit
 `a04a6a7fcbed062e1140eae0271fc9c2f3f71a0a`.
 Repair branch: `phase3/intelligence-verification-20261019`.
+Verified source commit: `d353a14710868ce261399d46815ab53c239ae2a9`; the subsequent evidence commit changes only documentation and JSON records.
 The initial provisioned checkout was older; the exact candidate was fetched before inspection or edits.
 
 ## Capability verdicts
@@ -92,3 +93,5 @@ Harness pacing is **test-only** and included in recorded latency; `pacingMs` rep
 - **Production browser integration PASS:** seven groups each at 1440×1000 and 390×844, with zero page errors. **HTTP payment smoke PASS:** authentication, verification, approval, separate fixture submission, duplicate rejection, reconciliation and persisted status. AI and speech in the browser journey are explicitly mocked; SQL, auth, tool calculations, persisted history and fixture payment boundaries use application code. See [browser-integration.json](browser-integration.json).
 
 See [LOCAL_GENUINE_VERIFICATION.md](LOCAL_GENUINE_VERIFICATION.md) for exact Windows Git Bash commands and integrated acceptance steps. No merge, deployment or live payment was performed.
+
+Machine-readable evidence: [validation.json](validation.json), [genuine-gate.json](genuine-gate.json), [browser-integration.json](browser-integration.json).
