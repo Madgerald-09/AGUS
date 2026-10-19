@@ -10,13 +10,13 @@ const respond = (_task: string, input: { results: { resultId: string }[] }) => (
 describe("Persisted evidence selection keeps fresh-detail safeguards", () => {
   it("automatically reads saved candidate details before evidence", async () => {
     const s = setup(scripted(
-      { route: "financial_read" }, search("Ada"), respond,
+      { route: "financial_read" }, search("Ada"),
       { route: "financial_read" }, evidence("ada-okafor-oct"), respond,
     ));
     const first = await s.agent().turn({
       ...s.input, text: "Find Ada payments on amina-current for October 2026.",
     });
-    expect(first.kind).toBe("financial");
+    expect(first.kind).toBe("clarify");
     expect(first.evidence.toolCalls).toBe(1);
 
     const second = await s.agent().turn({
@@ -35,7 +35,7 @@ describe("Persisted evidence selection keeps fresh-detail safeguards", () => {
 
   it("does not automatically read unlisted transaction IDs", async () => {
     const s = setup(scripted(
-      { route: "financial_read" }, search("Ada"), respond,
+      { route: "financial_read" }, search("Ada"),
       { route: "financial_read" }, evidence("unlisted-transaction"),
     ));
     await s.agent().turn({
