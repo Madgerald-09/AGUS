@@ -15,7 +15,9 @@
     "format": "prettier --write .",
     "test:http": "node scripts/http-smoke.mjs",
     "test:browser": "node scripts/browser-safety.mjs && node scripts/browser-chat-first.mjs && node scripts/browser-chat-ux.mjs && node scripts/browser-conversation.mjs && node scripts/browser-demo-polish.mjs",
-    "test:browser:workspace": "node scripts/browser-workspace.mjs"
+    "test:browser:workspace": "node scripts/browser-workspace.mjs",
+    "test:browser:approved-p0": "node scripts/browser-approved-p0.mjs",
+    "verify:narration": "tsx scripts/verify-grounded-narration.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.10",
@@ -30,6 +32,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@types/node": "^22.18.0",
     "@types/pg": "^8.15.0",
     "@types/react": "^19.1.0",

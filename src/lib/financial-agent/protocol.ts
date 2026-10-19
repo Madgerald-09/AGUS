@@ -41,7 +41,7 @@ export const ReviewSchema = z.strictObject({
   safeGeneralConversation: z.boolean(),
 });
 export type ModelTask =
-  "classify" | "general" | "review_general" | "product" | "plan";
+  "classify" | "general" | "review_general" | "product" | "plan" | "narrate";
 /** One request means one HTTP attempt. Implementations must honor signal; the executor also races it. */
 export interface AgentModel {
   readonly provider: string;

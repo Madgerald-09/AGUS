@@ -24,6 +24,12 @@ import { makeFact, canonical, type Fact, type ReadResult } from "./facts";
 import { PRODUCT_KNOWLEDGE, productAnswer } from "./knowledge";
 import { resolveDateWindow } from "./date-window";
 import {
+  acceptNarration,
+  factualPresentation,
+  narrationContract,
+} from "./narration";
+import type { FinancialPresentation } from "./presentation";
+import {
   RouteSchema,
   DecisionSchema,
   GeneralSchema,
@@ -64,6 +70,7 @@ export type AgentReply = {
     | "conflict";
   text: string;
   citations: string[];
+  presentation?: FinancialPresentation;
   handoff?: { kind: "existing_payment_draft" };
   evidence: {
     modelCalls: number;
@@ -233,6 +240,57 @@ export function createFinancialAgent(options: AgentOptions) {
             );
           await recheck();
           return value;
+        }
+        async function financial(
+          ids: string[],
+          kind: "financial" | "clarify" = "financial",
+          code?: string,
+        ) {
+          await recheck();
+          const selected = ids.map((id) => facts.get(id)!);
+          for (const f of selected) {
+            // Display labels come only from the server's current permission snapshot.
+            for (const [id, label] of Object.entries(access?.labels ?? {})) {
+              f.presentation.scope = f.presentation.scope.replace(
+                id,
+                scrub(label),
+              );
+              f.presentation.records = f.presentation.records.map((r) =>
+                r.account === id ? { ...r, account: scrub(label) } : r,
+              );
+            }
+          }
+          const presentation = factualPresentation(selected);
+          try {
+            if (code || monotonic() + 1000 >= deadline)
+              throw new AgentError("NARRATION_BUDGET");
+            const contract = narrationContract(selected);
+            const raw = await model("narrate", {
+              question: text,
+              facts: selected.map((f) => ({
+                resultId: f.resultId,
+                ...(f.modelData as object),
+              })),
+              authoring: contract,
+            });
+            await recheck();
+            presentation.explanation = acceptNarration(raw, selected);
+            presentation.narration = "ai";
+          } catch {
+            // Only narration may fall back. Revoked/stale facts must still fail.
+            await recheck();
+          }
+          const canonicalText = selected.map((f) => f.text).join("\n\n");
+          const value = reply(
+            kind,
+            presentation.narration === "ai"
+              ? `${presentation.explanation.join("\n\n")}\n\n${canonicalText}`
+              : canonicalText,
+            ids,
+            code,
+          );
+          value.presentation = presentation;
+          return finish(value);
         }
         // Classification has no financial results, selections, principal, account or consent metadata.
         let route = RouteSchema.parse(
@@ -480,15 +538,7 @@ export function createFinancialAgent(options: AgentOptions) {
               decision.resultIds.some((id) => !facts.has(id))
             )
               throw new AgentError("UNCITED_RESPONSE");
-            return await finish(
-              reply(
-                "financial",
-                decision.resultIds
-                  .map((id) => facts.get(id)!.text)
-                  .join("\n\n"),
-                decision.resultIds,
-              ),
-            );
+            return await financial(decision.resultIds);
           }
           let call = ToolCallSchema.parse(decision.call);
           if (
@@ -547,12 +597,9 @@ export function createFinancialAgent(options: AgentOptions) {
               };
             else selection = null;
             if (data.selection !== "single_candidate")
-              return await finish(
-                reply(
-                  data.selection === "ambiguous" ? "clarify" : "financial",
-                  facts.get(result.meta.resultId)!.text,
-                  [result.meta.resultId],
-                ),
+              return await financial(
+                [result.meta.resultId],
+                data.selection === "ambiguous" ? "clarify" : "financial",
               );
           }
         }

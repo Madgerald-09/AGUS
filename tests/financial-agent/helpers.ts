@@ -53,8 +53,21 @@ export const evidence = (transactionId = "ada-okafor-oct") =>
 export function scripted(...outputs: unknown[]) {
   const generate = vi.fn(
     async (_task: ModelTask, _input: unknown, _signal: AbortSignal) => {
+      if (
+        _task === "narrate" &&
+        !(
+          outputs[0] &&
+          typeof outputs[0] === "object" &&
+          "narration" in (outputs[0] as object)
+        )
+      )
+        throw new Error("No narration scripted; factual fallback");
       if (!outputs.length) throw new Error("script exhausted");
-      const next = outputs.shift();
+      const output = outputs.shift();
+      const next =
+        _task === "narrate"
+          ? (output as { narration: unknown }).narration
+          : output;
       return typeof next === "function" ? next(_task, _input, _signal) : next;
     },
   );

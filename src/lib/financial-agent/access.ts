@@ -13,6 +13,7 @@ export type AccessSnapshot = {
   accountIds: string[];
   version: string;
   expiresAt: string;
+  labels?: Record<string, string>;
 };
 /** Server-owned resolver. Never accept account bindings or this snapshot from the model/client. */
 export interface AccessResolver {
@@ -31,6 +32,7 @@ export function createRepositoryAccess(
       if (!ids.length || ids.length > 5 || new Set(ids).size !== ids.length)
         throw new AgentError("PERMISSION_DENIED");
       const revisions: unknown[] = [];
+      const labels: Record<string, string> = {};
       let expiresAt = "9999-01-01T00:00:00.000Z";
       const now = Date.parse(clock());
       if (!Number.isFinite(now)) throw new AgentError("PERMISSION_DENIED");
@@ -42,6 +44,8 @@ export function createRepositoryAccess(
         const c = ConsentSchema.parse(
           await repository.getConsent(ctx, a.consentId),
         );
+        labels[id] =
+          `${a.displayName}${a.maskedNumber ? ` · •${a.maskedNumber}` : ""}`;
         if (
           a.tenantId !== ctx.tenantId ||
           a.ownerId !== ctx.actorId ||
@@ -67,6 +71,7 @@ export function createRepositoryAccess(
           .update(JSON.stringify(revisions))
           .digest("hex"),
         expiresAt,
+        labels,
       };
     },
   };

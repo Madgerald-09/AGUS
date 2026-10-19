@@ -9,12 +9,14 @@ it.each([
   ["live", "Transfers can move real funds", "Live Access"],
 ])(
   "discloses server mode %s without credentials",
-  (mode, disclosure, label) => {
+  async (mode, disclosure, label) => {
     vi.stubEnv("PAYMENT_MODE", mode);
     vi.stubEnv("PAYSTACK_SECRET_KEY", "private-payment-key");
     vi.stubEnv("AI_API_KEY", "private-model-key");
     vi.stubEnv("LIVE_TRANSFERS_ENABLED", "false");
-    const html = renderToStaticMarkup(Page());
+    const html = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({}) }),
+    );
     expect(html).toContain(disclosure);
     expect(html).toContain(label);
     expect(html).not.toContain("private-payment-key");

@@ -1,176 +1,64 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
   ArrowUpRight,
   ChartNoAxesCombined,
   Check,
-  ChevronDown,
   CircleHelp,
   CreditCard,
-  Loader2,
   LogOut,
   Menu,
   MessageSquare,
   Plus,
-  ShieldCheck,
-  Sparkles,
   Wallet,
   X,
 } from "lucide-react";
-import type { AgentReply } from "@/lib/financial-agent";
 import type { SavedChat, SavedTurn } from "@/lib/chat-history/store";
+import { BrandAsset } from "./brand-asset";
+import { FinancialResponse } from "./financial-response";
+import { conversationDrafts as drafts } from "@/lib/chat-history/drafts";
 import "./financial-conversation.css";
 
-type Account = { accountId: string; displayName: string; maskedNumber: string };
+type Account = {
+  accountId: string;
+  displayName: string;
+  maskedNumber: string | null;
+};
+// Transient only. No transcripts, account selection or draft text enter browser storage.
 const suggestions = [
   {
     icon: ChartNoAxesCombined,
-    title: "See the bigger picture",
+    title: "Spend",
     text: "Show my spending for October 2026",
-    caption: "Understand spending across your records",
   },
   {
     icon: MessageSquare,
     title: "Find a transaction",
     text: "Find payments to Ada in October 2026",
-    caption: "Find the details, then check the evidence",
   },
   {
     icon: CircleHelp,
-    title: "Make money make sense",
+    title: "Explain a money topic",
     text: "Explain how inflation affects purchasing power",
-    caption: "Get a clear explanation, without the jargon",
   },
   {
     icon: Wallet,
     title: "Prepare a payment",
     text: "Help me prepare a payment draft",
-    caption: "Start a draft you can review and approve",
   },
 ];
-function Brand({ small = false }: { small?: boolean }) {
-  return (
-    <span className={`agus-brand ${small ? "small" : ""}`}>
-      <span className="agus-mark" aria-hidden="true">
-        a<span>✦</span>
-      </span>
-      {!small && (
-        <span>
-          agus<span className="brand-dot">.</span>
-        </span>
-      )}
-    </span>
-  );
-}
-function ResponseBody({
-  reply,
-  choose,
-}: {
-  reply: AgentReply;
-  choose: (value: string) => void;
-}) {
-  // Format only literal amounts in the server's deterministic response. No client calculations.
-  const totals =
-    reply.kind === "financial"
-      ? /Expenses (₦[\d,]+\.\d{2}); income (₦[\d,]+\.\d{2}); (net|filtered difference) (-?₦[\d,]+\.\d{2})/.exec(
-          reply.text,
-        )
-      : null;
-  const sources = reply.text.match(/^\[Source [^\]\n]+\]$/gm) ?? [];
-  const paragraphs = reply.text
-    .replace(/^\[Source [^\]\n]+\]$/gm, "")
-    .trim()
-    .split(/\n+/)
-    .filter(Boolean);
-  const selection =
-    reply.kind === "clarify" && /candidate record/.test(reply.text);
-  return (
-    <>
-      {totals && (
-        <div className="agus-totals" aria-label="Financial totals">
-          {[
-            ["Expenses", totals[1]],
-            ["Income", totals[2]],
-            [totals[3] === "net" ? "Net" : "Filtered difference", totals[4]],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="agus-prose">
-        {paragraphs.map((p, i) => (
-          <p
-            key={i}
-            className={
-              /^[\w-]+(?:; source counterparty| on account)/.test(p)
-                ? "agus-record"
-                : ""
-            }
-          >
-            {p
-              .split(/(-?₦[\d,]+\.\d{2})/g)
-              .map((part, j) =>
-                /^-?₦/.test(part) ? <strong key={j}>{part}</strong> : part,
-              )}
-          </p>
-        ))}
-      </div>
-      {selection && (
-        <div className="agus-choices" aria-label="Clarification choices">
-          <button
-            type="button"
-            onClick={() => choose("Show details for the first candidate")}
-          >
-            First candidate
-          </button>
-          <button
-            type="button"
-            onClick={() => choose("Show details for the second candidate")}
-          >
-            Second candidate
-          </button>
-          <button
-            type="button"
-            onClick={() => choose("I want to refine the search: ")}
-          >
-            Refine search
-          </button>
-        </div>
-      )}
-      {(sources.length > 0 || reply.citations.length > 0) && (
-        <details className="agus-sources">
-          <summary>
-            <ShieldCheck size={14} /> Sources & evidence{" "}
-            <span>{reply.citations.length}</span>
-          </summary>
-          <p>
-            SIMULATED FICTIONAL DATA · Saved results reflect the source at the
-            time of this response.
-          </p>
-          {sources.map((source, i) => (
-            <p key={i}>{source.slice(1, -1)}</p>
-          ))}
-          {reply.citations.length > 0 && (
-            <p>Evidence references: {reply.citations.join(" · ")}</p>
-          )}
-        </details>
-      )}
-    </>
-  );
-}
 export function FinancialConversation() {
+  const router = useRouter();
   const [id, setId] = useState("");
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<SavedTurn[]>([]);
   const [chats, setChats] = useState<SavedChat[]>([]);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState("");
   const [pendingText, setPendingText] = useState("");
   const [error, setError] = useState("");
   const [historyError, setHistoryError] = useState("");
@@ -179,17 +67,40 @@ export function FinancialConversation() {
   const [accountError, setAccountError] = useState("");
   const [accountLoading, setAccountLoading] = useState(false);
   const [password, setPassword] = useState("");
+  const [signinError, setSigninError] = useState("");
+  const [showLatest, setShowLatest] = useState(false);
+  const [longWait, setLongWait] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [unknown, setUnknown] = useState<{
+    chat: string;
+    count: number;
+    payment?: boolean;
+  } | null>(null);
   const pending = useRef(false);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const scroll = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLDialogElement>(null);
   const plans = useRef<HTMLDialogElement>(null);
   const signin = useRef<HTMLDialogElement>(null);
+  const accountDialog = useRef<HTMLDialogElement>(null);
+  const modalReturn = useRef<HTMLElement | null>(null);
   const requestVersion = useRef(0);
   const privacyVersion = useRef(0);
+  const follow = useRef(true);
+  const busy = !!operation;
+  const updateText = (value: string) => {
+    setText(value);
+    drafts.set(id, value);
+  };
   const clearPrivate = useCallback(() => {
     ++privacyVersion.current;
     ++requestVersion.current;
+    drafts.clear();
+    pending.current = false;
+    setOperation("");
+    setAccountLoading(false);
     setLoading(false);
     setAuthenticated(false);
     setTurns([]);
@@ -197,7 +108,21 @@ export function FinancialConversation() {
     setAccounts([]);
     setAccount("");
     setId("");
+    setPendingText("");
+    setUnknown(null);
+    setPassword("");
   }, []);
+  function openModal(target: HTMLDialogElement | null) {
+    const active = document.activeElement as HTMLElement;
+    modalReturn.current = active?.closest("dialog") ? menu.current : active;
+    [drawer, plans, signin, accountDialog].forEach((r) => r.current?.close());
+    target?.showModal();
+  }
+  function restoreFocus() {
+    requestAnimationFrame(() => {
+      if (!document.querySelector("dialog[open]")) modalReturn.current?.focus();
+    });
+  }
   const refresh = useCallback(async () => {
     const version = privacyVersion.current;
     const response = await fetch("/api/conversations", { cache: "no-store" });
@@ -207,7 +132,7 @@ export function FinancialConversation() {
       return false;
     }
     if (!response.ok)
-      throw new Error("Your saved chats couldn’t load. Try again.");
+      throw new Error("Saved chats couldn’t load. Retry the list.");
     const data = await response.json();
     if (version !== privacyVersion.current) return false;
     setAuthenticated(true);
@@ -216,20 +141,26 @@ export function FinancialConversation() {
     return true;
   }, [clearPrivate]);
   const openChat = useCallback(
-    async (next: string) => {
+    async (next: string, push = true) => {
       const version = ++requestVersion.current;
-      setLoading(true);
+      setLoading(!!next);
       setError("");
-      setText("");
+      setText(drafts.get(next) ?? "");
       setAccount("");
+      setAccounts([]);
       setTurns([]);
       setId(next);
+      setUnknown(null);
+      setPendingText("");
+      follow.current = true;
       drawer.current?.close();
-      window.history.replaceState(
-        null,
-        "",
-        `?chat=${encodeURIComponent(next)}`,
-      );
+      if (push)
+        window.history.pushState(
+          null,
+          "",
+          next ? `?chat=${encodeURIComponent(next)}` : "/conversation",
+        );
+      if (!next) return;
       try {
         const response = await fetch(
           `/api/conversations?id=${encodeURIComponent(next)}`,
@@ -238,14 +169,12 @@ export function FinancialConversation() {
         if (version !== requestVersion.current) return;
         if (response.status === 401) {
           clearPrivate();
-          throw new Error(
-            "Your session expired. Sign in to open your saved chats.",
-          );
+          throw new Error("Your session expired. Sign in to open saved chats.");
         }
         if (!response.ok)
           throw new Error(
             response.status === 404
-              ? "This chat is unavailable for your account. Start a new chat."
+              ? "This chat is unavailable. Start a new chat."
               : "This chat couldn’t load. Select it again to retry.",
           );
         const data = await response.json();
@@ -265,7 +194,7 @@ export function FinancialConversation() {
       try {
         const ok = await refresh();
         const active = new URLSearchParams(window.location.search).get("chat");
-        if (live && ok && active) await openChat(active);
+        if (live && ok) await openChat(active ?? "", false);
       } catch (e) {
         if (live)
           setHistoryError(
@@ -275,66 +204,123 @@ export function FinancialConversation() {
         if (live) setLoading(false);
       }
     })();
+    const pop = () =>
+      void openChat(
+        new URLSearchParams(window.location.search).get("chat") ?? "",
+        false,
+      );
+    window.addEventListener("popstate", pop);
+    const versions = requestVersion;
     return () => {
       live = false;
+      ++versions.current;
+      window.removeEventListener("popstate", pop);
     };
   }, [refresh, openChat]);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end", behavior: "instant" });
+    if (follow.current) {
+      end.current?.scrollIntoView({ block: "end", behavior: "instant" });
+      setShowLatest(false);
+    } else if (turns.length) setShowLatest(true);
   }, [turns, pendingText]);
-  function newChat() {
-    ++requestVersion.current;
-    setId("");
-    setTurns([]);
-    setText("");
-    setAccount("");
-    setError("");
-    setLoading(false);
-    window.history.replaceState(null, "", "/conversation");
-    drawer.current?.close();
-    composer.current?.focus();
-  }
+  useEffect(() => {
+    const input = composer.current;
+    if (input) {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, window.innerHeight < 520 ? 80 : 160)}px`;
+    }
+  }, [text]);
+  useEffect(() => {
+    if (!busy) {
+      setLongWait(false);
+      return;
+    }
+    const timer = setTimeout(() => setLongWait(true), 10000);
+    return () => clearTimeout(timer);
+  }, [busy]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const fit = () => {
+      const el = document.querySelector<HTMLElement>(".agus-workspace");
+      el?.style.setProperty(
+        "--workspace-height",
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      el?.style.setProperty("--workspace-top", `${viewport?.offsetTop ?? 0}px`);
+    };
+    fit();
+    viewport?.addEventListener("resize", fit);
+    viewport?.addEventListener("scroll", fit);
+    return () => {
+      viewport?.removeEventListener("resize", fit);
+      viewport?.removeEventListener("scroll", fit);
+    };
+  }, []);
   function choose(value: string) {
-    setText(value);
+    if (text.trim()) {
+      setError(
+        "Your draft is preserved. Clear it before choosing a suggestion.",
+      );
+      return;
+    }
+    updateText(value);
     composer.current?.focus();
   }
   async function loadAccounts() {
-    const version = privacyVersion.current;
+    const version = privacyVersion.current,
+      request = requestVersion.current;
     setAccountLoading(true);
     setAccountError("");
     try {
       const response = await fetch("/api/financial-agent", {
         cache: "no-store",
       });
-      if (version !== privacyVersion.current) return;
+      if (
+        version !== privacyVersion.current ||
+        request !== requestVersion.current
+      )
+        return;
       if (response.status === 401) {
         clearPrivate();
-        throw new Error("Sign in to load your authorized fictional accounts.");
+        throw new Error("Sign in to load authorized accounts.");
       }
       if (!response.ok)
         throw new Error(
-          "Accounts couldn’t load. You can still ask a general question.",
+          "Accounts couldn’t load. General conversation remains available.",
         );
       const data = await response.json();
-      if (version === privacyVersion.current) setAccounts(data.accounts);
+      if (
+        version === privacyVersion.current &&
+        request === requestVersion.current
+      )
+        setAccounts(data.accounts);
     } catch (e) {
-      setAccountError(e instanceof Error ? e.message : "Accounts unavailable.");
+      if (version === privacyVersion.current)
+        setAccountError(
+          e instanceof Error ? e.message : "Accounts unavailable.",
+        );
     } finally {
-      setAccountLoading(false);
+      if (version === privacyVersion.current) setAccountLoading(false);
     }
   }
   async function send() {
-    if (pending.current || loading || !text.trim()) return;
+    if (pending.current || loading || unknown || !text.trim()) return;
     if (!authenticated) {
-      signin.current?.showModal();
+      openModal(signin.current);
       return;
     }
     pending.current = true;
-    setBusy(true);
+    setOperation("message");
     setError("");
-    const original = text;
-    const chatId = id || crypto.randomUUID();
+    const original = text,
+      chatId = id || crypto.randomUUID(),
+      version = privacyVersion.current,
+      request = requestVersion.current;
     setPendingText(original);
+    setText("");
+    drafts.set(id, "");
+    const controller = new AbortController(),
+      timeout = setTimeout(() => controller.abort(), 65000);
     try {
       const response = await fetch("/api/conversation", {
         method: "POST",
@@ -344,76 +330,158 @@ export function FinancialConversation() {
           text: original,
           accountIds: account ? [account] : [],
         }),
+        signal: controller.signal,
       });
       const data = await response.json();
+      if (
+        version !== privacyVersion.current ||
+        request !== requestVersion.current
+      )
+        return;
       if (response.status === 401) {
         clearPrivate();
-        throw new Error(
-          "Your session expired. Sign in again; your message is still here.",
+        setText(original);
+        drafts.set("", original);
+        setError(
+          "Your session expired. Sign in again; your unsent question is retained.",
         );
+        return;
       }
       if (data.turn) {
         setId(chatId);
+        drafts.delete(id);
+        drafts.set(chatId, "");
+        if (!id)
+          window.history.replaceState(
+            null,
+            "",
+            `?chat=${encodeURIComponent(chatId)}`,
+          );
+        setTurns((previous) => [...previous, data.turn]);
+        setAnnouncement("Response saved. The answer is ready.");
+        void refresh().catch(() => {
+          if (version === privacyVersion.current)
+            setHistoryError(
+              "Reply saved; conversation list could not refresh.",
+            );
+        });
+      } else {
+        setText(original);
+        drafts.set(id, original);
+        setError(
+          response.status === 409
+            ? "A response is already in progress. Check the saved conversation before trying again."
+            : "Your message wasn’t completed. Review it and try again.",
+        );
+        if (response.status === 409 || response.status >= 500)
+          setUnknown({ chat: chatId, count: turns.length });
+      }
+    } catch {
+      if (
+        version !== privacyVersion.current ||
+        request !== requestVersion.current
+      )
+        return;
+      setText(original);
+      drafts.set(id, original);
+      setUnknown({ chat: chatId, count: turns.length });
+      setError(
+        "The response could not be confirmed. Check this conversation before trying again.",
+      );
+    } finally {
+      clearTimeout(timeout);
+      pending.current = false;
+      if (version === privacyVersion.current) {
+        setOperation("");
+        setPendingText("");
+      }
+    }
+  }
+  async function checkSaved() {
+    if (!unknown) return;
+    const version = privacyVersion.current,
+      request = requestVersion.current;
+    setOperation("check");
+    try {
+      const response = await fetch(
+        `/api/conversations?id=${encodeURIComponent(unknown.chat)}`,
+        { cache: "no-store" },
+      );
+      if (response.status === 401) {
+        clearPrivate();
+        return;
+      }
+      const data = response.ok ? await response.json() : null;
+      if (
+        version !== privacyVersion.current ||
+        request !== requestVersion.current
+      )
+        return;
+      if (!response.ok && response.status !== 404) throw new Error();
+      if (data?.turns.length > unknown.count) {
+        setTurns(data.turns);
+        setId(unknown.chat);
+        setText("");
+        drafts.delete(id);
+        drafts.set(unknown.chat, "");
         window.history.replaceState(
           null,
           "",
-          `?chat=${encodeURIComponent(chatId)}`,
+          `?chat=${encodeURIComponent(unknown.chat)}`,
         );
-        setTurns((previous) => [...previous, data.turn]);
-        setText("");
-        void refresh().catch(() =>
-          setHistoryError(
-            "Your reply is saved, but the chat list couldn’t refresh. Retry the list.",
-          ),
+        setError("");
+        setUnknown(null);
+        void refresh();
+      } else if (data?.inProgress)
+        setError(
+          "The saved conversation is still processing. Check again before trying to send.",
         );
-      } else if (!response.ok)
-        throw new Error(
-          response.status === 409
-            ? "Another response is in progress in this chat. Wait a moment, then try again."
-            : "AGUS couldn’t connect. Your message is preserved; please try again.",
+      else {
+        setError(
+          "No new saved response was found. Your draft is preserved. You can now explicitly retry.",
         );
-    } catch (e) {
+        setUnknown(null);
+      }
+    } catch {
       setError(
-        e instanceof TypeError
-          ? "AGUS couldn’t connect. Your message is preserved; please try again."
-          : e instanceof Error
-            ? e.message
-            : "Request unavailable. Please try again.",
+        "Saved state couldn’t be checked. Check again before trying to send.",
       );
     } finally {
-      pending.current = false;
-      setBusy(false);
-      setPendingText("");
-      window.requestAnimationFrame(() => composer.current?.focus());
+      if (version === privacyVersion.current) setOperation("");
     }
   }
   async function draft(original: string) {
-    if (pending.current) return;
+    if (pending.current || unknown) return;
     pending.current = true;
-    setBusy(true);
+    setOperation("draft");
     setError("");
+    const version = privacyVersion.current;
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: original }),
       });
-      if (!response.ok)
-        throw new Error(
-          "The draft couldn’t open. Please try again or open the payment workspace.",
+      if (version !== privacyVersion.current) return;
+      if (!response.ok) throw new Error();
+      router.push(`/?fromChat=${encodeURIComponent(id)}`);
+    } catch {
+      if (version === privacyVersion.current) {
+        setUnknown({ chat: id, count: turns.length, payment: true });
+        setError(
+          "The draft response could not be confirmed. Check the payment workspace for a saved draft before creating another.",
         );
-      window.location.assign("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Draft unavailable.");
+      }
+    } finally {
       pending.current = false;
-      setBusy(false);
+      if (version === privacyVersion.current) setOperation("");
     }
   }
   async function signIn() {
     if (pending.current) return;
     pending.current = true;
-    setBusy(true);
-    setError("");
+    setOperation("signin");
+    setSigninError("");
     try {
       const response = await fetch("/api/session", {
         method: "POST",
@@ -423,81 +491,82 @@ export function FinancialConversation() {
       if (!response.ok)
         throw new Error(
           response.status === 429
-            ? "Too many attempts. Please try again in 15 minutes."
-            : "Sign-in failed. Check your operator password and try again.",
+            ? "Too many attempts. Try again in 15 minutes."
+            : "Sign-in failed. Check your operator password.",
         );
       setPassword("");
       signin.current?.close();
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in unavailable.");
+      setSigninError(
+        e instanceof Error ? e.message : "Sign-in unavailable. Try again.",
+      );
     } finally {
       pending.current = false;
-      setBusy(false);
+      setOperation("");
     }
   }
   async function signOut() {
-    if (pending.current) return;
-    pending.current = true;
-    setBusy(true);
+    setOperation("signout");
+    ++privacyVersion.current;
+    ++requestVersion.current;
     try {
       const response = await fetch("/api/session", { method: "DELETE" });
       if (!response.ok) throw new Error();
-      ++requestVersion.current;
       clearPrivate();
       setText("");
+      setError("");
       window.history.replaceState(null, "", "/conversation");
       drawer.current?.close();
     } catch {
-      setError("Sign-out couldn’t complete. Please try again.");
+      setError("Sign-out couldn’t complete. Try again.");
     } finally {
       pending.current = false;
-      setBusy(false);
+      setPendingText("");
+      setOperation("");
     }
   }
+  const selected = accounts.find((a) => a.accountId === account);
+  const scope = selected
+    ? `${selected.displayName}${selected.maskedNumber ? ` · •${selected.maskedNumber}` : ""}`
+    : "No account selected";
+  const paymentUrl = id ? `/?fromChat=${encodeURIComponent(id)}` : "/";
+  const empty = !loading && !turns.length && !pendingText;
   const sidebar = (
     <>
       <div className="agus-sidebar-brand">
-        <Brand />
-        <span className="agus-eyebrow">FINANCIAL COPILOT</span>
+        <BrandAsset />
       </div>
-      <button className="agus-new" disabled={busy} onClick={newChat}>
-        <Plus size={18} /> New chat <ArrowUpRight size={14} />
+      <button
+        className="agus-new"
+        disabled={busy}
+        onClick={() => void openChat("")}
+      >
+        <Plus size={18} /> New chat
       </button>
-      <div className="agus-history-heading">
-        YOUR CONVERSATIONS <MessageSquare size={13} />
-      </div>
+      <div className="agus-history-heading">Saved conversations</div>
       <nav aria-label="Saved chats" className="agus-history">
-        {loading && chats.length === 0 ? (
-          <p className="agus-sidebar-empty">Loading your chats…</p>
-        ) : chats.length ? (
-          chats.map((chat) => (
-            <button
-              key={chat.id}
-              className={id === chat.id ? "active" : ""}
-              aria-current={id === chat.id ? "page" : undefined}
-              disabled={busy}
-              onClick={() => void openChat(chat.id)}
-              title={chat.title}
-            >
-              <MessageSquare size={15} />
-              <span>{chat.title}</span>
-            </button>
-          ))
-        ) : (
-          <div className="agus-sidebar-empty">
-            <MessageSquare size={23} />
-            <p>
-              {authenticated === false
-                ? "Your conversations, in one place."
-                : "A little clarity starts with a conversation."}
-            </p>
-            <small>
-              {authenticated === false
-                ? "Sign in to save and revisit your chats."
-                : "Your first chat will appear here."}
-            </small>
-          </div>
+        {chats.map((chat) => (
+          <button
+            key={chat.id}
+            className={id === chat.id ? "active" : ""}
+            aria-current={id === chat.id ? "page" : undefined}
+            disabled={busy}
+            onClick={() => void openChat(chat.id)}
+            title={chat.title}
+          >
+            <MessageSquare size={18} />
+            <span>{chat.title}</span>
+          </button>
+        ))}
+        {!chats.length && (
+          <p className="agus-sidebar-empty">
+            {loading
+              ? "Loading conversations…"
+              : authenticated
+                ? "Your first saved chat will appear here."
+                : "Sign in to save and revisit chats."}
+          </p>
         )}
         {historyError && (
           <div className="agus-sidebar-empty" role="alert">
@@ -505,9 +574,7 @@ export function FinancialConversation() {
             <button
               onClick={() =>
                 void refresh().catch(() =>
-                  setHistoryError(
-                    "Saved chats are still unavailable. Please retry.",
-                  ),
+                  setHistoryError("Saved chats are still unavailable."),
                 )
               }
             >
@@ -517,44 +584,39 @@ export function FinancialConversation() {
         )}
       </nav>
       <div className="agus-sidebar-bottom">
-        <Link href="/" className="agus-sidebar-link">
-          <Wallet size={17} /> Payment workspace <ArrowUpRight size={15} />
+        <Link href={paymentUrl} className="agus-sidebar-link">
+          <Wallet size={18} /> Payment workspace
         </Link>
         <button
           className="agus-plan-link"
-          onClick={() => plans.current?.showModal()}
+          onClick={() => openModal(plans.current)}
         >
-          <Sparkles size={17} />
-          <span>
-            Explore AGUS plans<small>Free · Personal Plus · Business</small>
-          </span>
-          <span className="agus-preview">Preview</span>
+          <CreditCard size={18} /> Plans · Preview
         </button>
         <div className="agus-profile">
-          <span className="agus-avatar">{authenticated ? "D" : "G"}</span>
           <span>
             {authenticated ? "Demo workspace" : "Guest workspace"}
             <small>
               {authenticated
-                ? "Signed in · Fictional data"
-                : "Sign in to get started"}
+                ? "Shared operator identity"
+                : "Sign in to continue"}
             </small>
           </span>
           <button
             aria-label={authenticated ? "Sign out" : "Sign in"}
-            disabled={busy}
             onClick={() =>
-              authenticated ? void signOut() : signin.current?.showModal()
+              authenticated ? void signOut() : openModal(signin.current)
             }
           >
-            {authenticated ? <LogOut size={16} /> : <ArrowUpRight size={16} />}
+            <LogOut size={18} />
           </button>
         </div>
       </div>
     </>
   );
   return (
-    <main className="agus-workspace">
+    <main className={`agus-workspace ${empty ? "agus-empty" : ""}`}>
+      <h1 className="agus-sr-only">Conversation</h1>
       <a className="agus-skip" href="#financial-message">
         Skip to message
       </a>
@@ -565,6 +627,7 @@ export function FinancialConversation() {
         ref={drawer}
         className="agus-dialog agus-drawer"
         aria-label="Conversations"
+        onClose={restoreFocus}
       >
         <button
           className="agus-icon-button agus-drawer-close"
@@ -575,128 +638,77 @@ export function FinancialConversation() {
         </button>
         {sidebar}
       </dialog>
-      <section className="agus-main" aria-label="AGUS conversation workspace">
+      <section className="agus-main" aria-label="agus. conversation workspace">
         <header className="agus-header">
           <div>
             <button
+              ref={menu}
               className="agus-icon-button agus-mobile-menu"
               aria-label="Open conversations"
-              onClick={() => drawer.current?.showModal()}
+              onClick={() => openModal(drawer.current)}
             >
-              <Menu size={21} />
+              <Menu size={20} />
             </button>
-            <span className="agus-header-title">
-              AGUS <span> / </span>
-              <span>{id ? "Conversation" : "New conversation"}</span>
+            <span className="agus-mobile-brand">
+              <BrandAsset />
+            </span>
+            <span
+              className="agus-header-title"
+              title={chats.find((c) => c.id === id)?.title}
+            >
+              {chats.find((c) => c.id === id)?.title ?? "New conversation"}
             </span>
           </div>
-          <details className="agus-account-picker">
-            <summary>
-              <span className="agus-status-dot" />
-              {account ? "Account selected" : "Choose account"}
-              <ChevronDown size={14} />
-            </summary>
-            <div className="agus-account-panel">
-              <h2>Financial context</h2>
-              <p>
-                Choose an authorized fictional account for personal financial
-                questions. General conversation needs no account.
-              </p>
-              <button
-                className="agus-secondary"
-                disabled={busy || accountLoading}
-                onClick={() => void loadAccounts()}
-              >
-                {accountLoading
-                  ? "Loading accounts…"
-                  : "Load authorized accounts"}
-              </button>
-              <label htmlFor="agus-account">Account (optional)</label>
-              <select
-                id="agus-account"
-                value={account}
-                disabled={busy}
-                onChange={(e) => setAccount(e.target.value)}
-              >
-                <option value="">No account · General conversation</option>
-                {accounts.map((a) => (
-                  <option key={a.accountId} value={a.accountId}>
-                    {a.displayName} {a.maskedNumber}
-                  </option>
-                ))}
-              </select>
-              <small>
-                Selections are cleared when switching chats. Follow-up context
-                expires after 15 minutes; saved transcripts remain.
-              </small>
-              {accountError && <p role="alert">{accountError}</p>}
-            </div>
-          </details>
+          <button
+            className="agus-account-trigger"
+            aria-label={`Account: ${scope}`}
+            onClick={() => {
+              openModal(accountDialog.current);
+              if (authenticated) void loadAccounts();
+            }}
+          >
+            {selected ? (
+              <span className="agus-desktop-account">{scope}</span>
+            ) : (
+              "Account"
+            )}
+          </button>
         </header>
-        <div className="agus-demo-strip">
-          <ShieldCheck size={13} />
-          <span>
-            SIMULATED FICTIONAL DATA{" "}
-            <span className="agus-strip-detail">
-              · No real banking or money movement
-            </span>
-          </span>
-        </div>
-        <div className="agus-scroll">
+        <details className="agus-demo-strip">
+          <summary>Demo · Fictional financial data</summary>
+          <p>
+            These are fictional source records. No real banking is connected and
+            no real funds move.
+          </p>
+        </details>
+        {selected && <p className="agus-mobile-scope">{scope}</p>}
+        <div
+          className="agus-scroll"
+          ref={scroll}
+          onScroll={() => {
+            const el = scroll.current;
+            if (el) {
+              follow.current =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              if (follow.current) setShowLatest(false);
+            }
+          }}
+        >
           {loading ? (
-            <div className="agus-loading" role="status">
-              <Loader2 className="agus-spin" size={22} /> Opening your
-              workspace…
-            </div>
-          ) : turns.length === 0 && !pendingText ? (
+            <p role="status">Opening conversation…</p>
+          ) : empty ? (
             <section className="agus-welcome">
-              <div className="agus-welcome-kicker">
-                <span /> A LITTLE CLARITY. A LOT OF POSSIBILITY.
-              </div>
-              <Brand small />
-              <h1>
-                Big plans.
-                <br />
-                <span>Let’s talk money.</span>
-              </h1>
-              <p>
-                Your financial life, a little less complicated.
-                <br className="agus-desktop-break" /> Ask a question, explore
-                your records, or work through an idea.
-              </p>
-              <div className="agus-suggestions">
-                {suggestions.map(
-                  ({ icon: Icon, title, text: prompt, caption }) => (
-                    <button key={title} onClick={() => choose(prompt)}>
-                      <span className="agus-prompt-icon">
-                        <Icon size={20} />
-                      </span>
-                      <span>
-                        <strong>{title}</strong>
-                        <small>{caption}</small>
-                      </span>
-                      <ArrowUpRight size={16} />
-                    </button>
-                  ),
-                )}
-              </div>
-              <p className="agus-welcome-note">
-                <ShieldCheck size={14} /> You stay in control. Payments always
-                need your approval.
-              </p>
+              <BrandAsset lockup />
+              <p>Ask a question about your money, or explore an idea.</p>
             </section>
           ) : (
-            <section
-              className="agus-thread"
-              aria-label="Conversation replies"
-              role="log"
-              aria-live="polite"
-              aria-relevant="additions"
-            >
-              <p className="agus-history-note">
-                Saved conversation · Follow-up context expires after 15 minutes.
-                Choose an account to check current records.
-              </p>
+            <section className="agus-thread" aria-label="Conversation replies">
+              {turns.some((t) => t.reply.kind === "financial") && !account && (
+                <p className="agus-history-note">
+                  Saved results reflect the data available then. Choose an
+                  account to check current records.
+                </p>
+              )}
               {turns.map((turn) => (
                 <article key={turn.id} className="agus-turn">
                   <div className="agus-user-message">
@@ -704,48 +716,41 @@ export function FinancialConversation() {
                     <p>{turn.text}</p>
                   </div>
                   <div className="agus-assistant-message">
-                    <div className="agus-response-heading">
-                      <Brand small />
-                      <strong>AGUS</strong>
-                      <span>
-                        {turn.reply.kind === "financial"
-                          ? "Fictional financial records"
-                          : turn.reply.kind === "clarify"
-                            ? "Let’s clarify"
-                            : "Your financial copilot"}
-                      </span>
-                    </div>
-                    {(turn.reply.kind === "unavailable" ||
-                      turn.reply.kind === "conflict") && (
+                    <h2 className="agus-response-heading">agus.</h2>
+                    {turn.reply.kind === "conflict" && (
                       <p className="agus-reply-notice">
-                        {turn.reply.kind === "conflict"
-                          ? "The financial context changed. Repeat the request with the account and dates, or start a new chat."
-                          : "This request wasn’t completed. You can try again or ask another question."}
+                        Your financial context changed. Choose an account and
+                        check the records again.
                       </p>
                     )}
-                    <ResponseBody reply={turn.reply} choose={choose} />
+                    <FinancialResponse reply={turn.reply} choose={choose} />
                     {turn.reply.handoff && (
                       <div className="agus-handoff">
                         <p>
-                          Start an editable draft. Verify the details, review
-                          and approve in the payment workspace.
+                          Open an editable draft. Review details and recipients,
+                          then approve and submit separately in the payment
+                          workspace.
                         </p>
                         <button
                           className="agus-secondary"
-                          disabled={busy}
+                          disabled={busy || !!unknown}
                           onClick={() => void draft(turn.text)}
                         >
-                          Continue in payment draft <ArrowUpRight size={16} />
+                          Open payment draft <ArrowUpRight size={18} />
                         </button>
                       </div>
                     )}
                     <span className="agus-response-time">
-                      {new Date(turn.createdAt).toLocaleTimeString("en-NG", {
+                      Saved{" "}
+                      {new Date(turn.createdAt).toLocaleString("en-NG", {
+                        timeZone: "Africa/Lagos",
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
-                        timeZone: "Africa/Lagos",
                       })}{" "}
-                      WAT · Saved
+                      WAT
                     </span>
                   </div>
                 </article>
@@ -753,39 +758,61 @@ export function FinancialConversation() {
               {pendingText && (
                 <article className="agus-turn">
                   <div className="agus-user-message">
-                    <span className="agus-speaker">You</span>
+                    <span className="agus-speaker">You · Sending</span>
                     <p>{pendingText}</p>
                   </div>
-                  <div className="agus-thinking" role="status">
-                    <Brand small />
-                    <span>
-                      Thinking through your question
-                      <span className="agus-thinking-dots">…</span>
-                    </span>
-                  </div>
+                  <p className="agus-thinking" role="status">
+                    Working on your question…
+                    {longWait && " This is taking longer than usual."}
+                  </p>
                 </article>
               )}
               <div ref={end} />
             </section>
           )}
         </div>
+        {showLatest && (
+          <button
+            className="agus-latest"
+            onClick={() => {
+              follow.current = true;
+              end.current?.scrollIntoView({
+                block: "end",
+                behavior: "instant",
+              });
+              setShowLatest(false);
+            }}
+          >
+            Latest response
+          </button>
+        )}
         <div className="agus-composer-area">
           {error && (
             <div className="agus-error" role="alert">
-              {error}
-              {authenticated === false && (
-                <button onClick={() => signin.current?.showModal()}>
-                  Sign in
-                </button>
-              )}
+              <p>{error}</p>
+              {unknown &&
+                (unknown.payment ? (
+                  <Link href={paymentUrl}>Check payment workspace</Link>
+                ) : (
+                  <button disabled={busy} onClick={() => void checkSaved()}>
+                    Check saved conversation
+                  </button>
+                ))}
             </div>
+          )}
+          {busy && operation !== "message" && (
+            <p role="status">
+              {operation === "draft"
+                ? "Opening payment draft…"
+                : operation === "check"
+                  ? "Checking saved conversation…"
+                  : "Updating session…"}
+            </p>
           )}
           {authenticated === false && (
             <p className="agus-signin-hint">
-              <button onClick={() => signin.current?.showModal()}>
-                Sign in
-              </button>{" "}
-              to chat and keep your conversations saved.
+              <button onClick={() => openModal(signin.current)}>Sign in</button>{" "}
+              to chat and save conversations.
             </p>
           )}
           <form
@@ -802,17 +829,18 @@ export function FinancialConversation() {
             <textarea
               ref={composer}
               id="financial-message"
-              placeholder="Ask AGUS anything…"
+              placeholder="Message agus."
               value={text}
-              rows={2}
+              rows={1}
               maxLength={4000}
-              disabled={busy || loading}
-              onChange={(e) => setText(e.target.value)}
+              readOnly={busy || loading}
+              onChange={(e) => updateText(e.target.value)}
               onKeyDown={(e) => {
                 if (
                   e.key === "Enter" &&
                   !e.shiftKey &&
-                  !e.nativeEvent.isComposing
+                  !e.nativeEvent.isComposing &&
+                  !window.matchMedia("(pointer: coarse)").matches
                 ) {
                   e.preventDefault();
                   void send();
@@ -820,39 +848,106 @@ export function FinancialConversation() {
               }}
             />
             <div className="agus-composer-toolbar">
-              <span>
-                <Sparkles size={14} /> Think it through with AGUS
-              </span>
               <span className="agus-character-count">
-                {text.length > 3500 ? `${text.length}/4000` : ""}
+                {text.length >= 3500
+                  ? `${text.length}/4000${text.length === 4000 ? " · Message limit reached" : ""}`
+                  : busy
+                    ? "Wait for this request before sending another."
+                    : ""}
               </span>
+              {/* Gerald's optional toolbar action belongs here; no second voice implementation. */}
               <button
                 className="agus-send"
                 type="submit"
                 aria-label="Send message"
-                disabled={busy || loading || !text.trim()}
+                disabled={busy || loading || !!unknown || !text.trim()}
               >
-                {busy ? (
-                  <Loader2 size={19} className="agus-spin" />
-                ) : (
-                  <ArrowUp size={20} />
-                )}
+                <ArrowUp size={20} />
               </button>
             </div>
           </form>
           <p className="agus-composer-note">
-            AGUS can make mistakes. Check financial details.{" "}
-            <span>Enter to send · Shift + Enter for a new line</span>
+            agus. can make mistakes. Check financial details.
           </p>
+          {empty && (
+            <div className="agus-suggestions">
+              {suggestions.map(({ icon: Icon, title, text: prompt }) => (
+                <button key={title} onClick={() => choose(prompt)}>
+                  <Icon size={18} />
+                  <span>{title}</span>
+                  <ArrowUpRight size={18} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
+      <div className="agus-sr-only" role="status" aria-live="polite">
+        {announcement}
+      </div>
+      <dialog
+        className="agus-dialog agus-account-dialog"
+        ref={accountDialog}
+        aria-labelledby="agus-account-title"
+        onClose={restoreFocus}
+      >
+        <div className="agus-dialog-heading">
+          <h2 id="agus-account-title">Account</h2>
+          <button
+            className="agus-icon-button"
+            aria-label="Close account"
+            onClick={() => accountDialog.current?.close()}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <p>
+          Choose an authorized account for financial questions. General
+          conversation needs no account.
+        </p>
+        {accountLoading && <p role="status">Loading authorized accounts…</p>}
+        <label htmlFor="agus-account">Account (optional)</label>
+        <select
+          id="agus-account"
+          value={account}
+          disabled={busy || accountLoading}
+          onChange={(e) => {
+            setAccount(e.target.value);
+            setAnnouncement(
+              e.target.value
+                ? `Selected ${accounts.find((a) => a.accountId === e.target.value)?.displayName}`
+                : "General conversation selected",
+            );
+          }}
+        >
+          <option value="">General conversation · No account selected</option>
+          {accounts.map((a) => (
+            <option key={a.accountId} value={a.accountId}>
+              {a.displayName}
+              {a.maskedNumber ? ` · •${a.maskedNumber}` : ""}
+            </option>
+          ))}
+        </select>
+        <p>Selections clear on reload, New chat and switching chats.</p>
+        {accountError && <p role="alert">{accountError}</p>}
+        <button
+          className="agus-secondary"
+          disabled={accountLoading}
+          onClick={() =>
+            authenticated ? void loadAccounts() : openModal(signin.current)
+          }
+        >
+          {authenticated ? "Retry authorized accounts" : "Sign in"}
+        </button>
+      </dialog>
       <dialog
         className="agus-dialog agus-plans"
         ref={plans}
         aria-labelledby="agus-plans-title"
+        onClose={restoreFocus}
       >
         <div className="agus-dialog-heading">
-          <span className="agus-eyebrow">ROOM TO GROW</span>
+          <h2 id="agus-plans-title">Plans</h2>
           <button
             className="agus-icon-button"
             aria-label="Close plans"
@@ -861,17 +956,13 @@ export function FinancialConversation() {
             <X size={20} />
           </button>
         </div>
-        <h2 id="agus-plans-title">A plan for every next step.</h2>
-        <p>
-          Proposed AGUS plans <span className="agus-preview">Preview</span>
-        </p>
+        <p>Preview · Subscriptions and billing are not active.</p>
+        <p>Usage isn’t metered in this demo.</p>
         <div className="agus-plan-grid">
           {[
             {
               name: "Free",
-              icon: MessageSquare,
-              description: "A place to start finding clarity.",
-              features: [
+              items: [
                 "Everyday conversations",
                 "Financial education",
                 "Explore the demo workspace",
@@ -879,9 +970,7 @@ export function FinancialConversation() {
             },
             {
               name: "Personal Plus",
-              icon: Sparkles,
-              description: "More room for your financial life.",
-              features: [
+              items: [
                 "Proposed expanded access",
                 "Personal finance workflows",
                 "Deeper record exploration",
@@ -889,45 +978,38 @@ export function FinancialConversation() {
             },
             {
               name: "Business",
-              icon: CreditCard,
-              description: "Clarity for the work you’re building.",
-              features: [
+              items: [
                 "Proposed team workspace",
                 "Business finance workflows",
                 "Collaborative payment review",
               ],
             },
-          ].map(({ name, icon: Icon, description, features }) => (
-            <section key={name}>
-              <Icon size={22} />
-              <h3>{name}</h3>
-              <p>{description}</p>
+          ].map((tier) => (
+            <section key={tier.name}>
+              <h3>{tier.name}</h3>
+              <span className="agus-preview">Proposed tier</span>
               <ul>
-                {features.map((f) => (
-                  <li key={f}>
-                    <Check size={14} />
-                    {f}
+                {tier.items.map((item) => (
+                  <li key={item}>
+                    <Check size={14} /> {item}
                   </li>
                 ))}
               </ul>
-              <span className="agus-preview">Proposed tier</span>
             </section>
           ))}
         </div>
-        <p className="agus-plan-disclosure">
-          Plans are a product preview. Pricing, quotas and subscriptions are not
-          active. Usage is not metered here, and no billing or plan activation
-          is available.
-        </p>
       </dialog>
       <dialog
         className="agus-dialog agus-signin"
-        aria-labelledby="agus-signin-title"
         ref={signin}
-        onClose={() => setPassword("")}
+        aria-labelledby="agus-signin-title"
+        onClose={() => {
+          setPassword("");
+          restoreFocus();
+        }}
       >
         <div className="agus-dialog-heading">
-          <Brand />
+          <h2 id="agus-signin-title">Sign in</h2>
           <button
             className="agus-icon-button"
             aria-label="Close sign in"
@@ -936,10 +1018,10 @@ export function FinancialConversation() {
             <X size={20} />
           </button>
         </div>
-        <h2 id="agus-signin-title">Welcome to your workspace.</h2>
+        <BrandAsset lockup />
         <p>
-          Sign in with the existing demo operator password. Your chats are saved
-          to your authenticated workspace.
+          This demo uses a shared operator identity. People using the same
+          operator identity share its saved chats.
         </p>
         <form
           onSubmit={(e) => {
@@ -958,15 +1040,14 @@ export function FinancialConversation() {
             disabled={busy}
           />
           <button className="agus-secondary" disabled={busy || !password}>
-            {busy ? "Signing in…" : "Sign in securely"}
+            {operation === "signin" ? "Signing in…" : "Sign in securely"}
           </button>
         </form>
-        {error && (
+        {signinError && (
           <p className="agus-error" role="alert">
-            {error}
+            {signinError}
           </p>
         )}
-        <small>Fictional demo · No real banking credentials</small>
       </dialog>
     </main>
   );

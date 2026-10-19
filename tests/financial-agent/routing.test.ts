@@ -27,13 +27,14 @@ describe.each(["payment_action", "payment_draft"])(
       const result = await s.agent().turn({ ...s.input, text });
       expect(result).toMatchObject({
         kind: "financial",
-        evidence: { modelCalls: 3, toolCalls: 1 },
+        evidence: { modelCalls: 4, toolCalls: 1 },
       });
       expect(result.citations).toHaveLength(1);
       expect(s.model.generate.mock.calls.map(([task]) => task)).toEqual([
         "classify",
         "plan",
         "plan",
+        "narrate",
       ]);
     });
 
@@ -54,7 +55,7 @@ describe.each(["payment_action", "payment_draft"])(
       const result = await s.agent().turn({ ...s.input, text });
       expect(result).toMatchObject({
         kind: "financial",
-        evidence: { modelCalls: 5, toolCalls: 3 },
+        evidence: { modelCalls: 6, toolCalls: 3 },
       });
       const calls = vi
         .mocked(s.tools.dispatch)

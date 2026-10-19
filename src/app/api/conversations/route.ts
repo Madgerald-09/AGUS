@@ -26,7 +26,10 @@ export async function GET(req: Request) {
     const id = params.get("id");
     return Response.json(
       id !== null
-        ? { turns: await history.read(id) }
+        ? {
+            turns: await history.read(id),
+            inProgress: await history.inProgress(id),
+          }
         : { chats: await history.list() },
       { headers },
     );

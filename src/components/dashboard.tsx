@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { BrandAsset } from "./brand-asset";
+import { conversationDrafts } from "@/lib/chat-history/drafts";
 import {
   useCallback,
   useEffect,
@@ -203,7 +205,13 @@ function operationProgress(key: string, fixture: boolean, aiEnabled: boolean) {
   };
   return messages[operation] ?? "Updating your saved workspace…";
 }
-export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "live" }) {
+export function Dashboard({
+  paymentMode,
+  conversationHref,
+}: {
+  paymentMode: "fixture" | "test" | "live";
+  conversationHref?: string;
+}) {
   const [state, setState] = useState<Snapshot | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [password, setPassword] = useState("");
@@ -232,6 +240,9 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   const [bankError, setBankError] = useState("");
   const [bankLoading, setBankLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [voiceAvailable, setVoiceAvailable] = useState(false);
+  const voiceEpoch = useRef(0);
+  const [reviewActive, setReviewActive] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
   const [listening, setListening] = useState(false);
   const [editor, setEditor] = useState<{
@@ -252,6 +263,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
       if (request !== snapshotRequest.current && !throwOnError) return;
       const text = e instanceof Error ? e.message : "Unable to load workspace";
       if (/Sign in|expired/.test(text)) {
+        conversationDrafts.clear();
         setSignedOut(true);
         setState(null);
       } else if (!throwOnError) setError(text);
@@ -259,6 +271,13 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     }
   }, []);
   useEffect(() => {
+    const browser = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    setVoiceAvailable(
+      !!(browser.SpeechRecognition ?? browser.webkitSpeechRecognition),
+    );
     void refresh();
     const timer = setInterval(() => {
       if (!operationInFlight.current) void refresh();
@@ -370,6 +389,10 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   ) {
     if (operationInFlight.current) return;
     operationInFlight.current = true;
+    if (key === "logout") {
+      ++voiceEpoch.current;
+      speechRecognition.current?.stop();
+    }
     setBusy(key);
     setError("");
     setAnnouncement("");
@@ -404,6 +427,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
   }
   async function send(text: string) {
     if (!text.trim() || operationInFlight.current) return;
+    ++voiceEpoch.current;
     speechRecognition.current?.stop();
     followLatest.current = true;
     const submittedText = text.trim();
@@ -487,6 +511,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     }
 
     const recognition = new SpeechRecognition();
+    const epoch = voiceEpoch.current;
     let failed = false;
     recognition.lang = "en-NG";
     recognition.continuous = false;
@@ -502,9 +527,17 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         .map((result) => result[0].transcript.trim())
         .filter(Boolean)
         .join(" ");
-      if (!transcript) return;
-      setMessage((current) =>
-        current.trim() ? `${current.trim()} ${transcript}` : transcript,
+      if (
+        !transcript ||
+        failed ||
+        epoch !== voiceEpoch.current ||
+        speechRecognition.current !== recognition ||
+        operationInFlight.current
+      )
+        return;
+      setMessage(
+        (current) =>
+          `${current}${current && !/\s$/.test(current) ? " " : ""}${transcript}`,
       );
     };
     recognition.onerror = (event) => {
@@ -556,7 +589,10 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
     setShowLatest(false);
   }
   function navigate(next: string) {
-    if (next !== "Agent") speechRecognition.current?.stop();
+    if (next !== "Agent") {
+      ++voiceEpoch.current;
+      speechRecognition.current?.stop();
+    }
     setTab(next);
     setMenuOpen(false);
   }
@@ -595,35 +631,56 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         <div className="login-card">
           <header className="login-header">
             <div className="brand-row">
-              <span className="agus-wordmark" aria-label="agus.">agus.</span>
+              <BrandAsset />
               <div className="demo-pill" role="status">
                 <span className="demo-dot" aria-hidden="true" />
-                <span>{paymentMode === "fixture" ? "Demo Access" : paymentMode === "test" ? "Test Access" : "Live Access"}</span>
+                <span>
+                  {paymentMode === "fixture"
+                    ? "Demo Access"
+                    : paymentMode === "test"
+                      ? "Test Access"
+                      : "Live Access"}
+                </span>
               </div>
             </div>
-            <h1 className="login-title">
-              Vigilant financial intelligence.
-            </h1>
+            <h1 className="login-title">Your money, and what's next.</h1>
             <p className="login-subtitle">
-              Agus safeguards Nigerian business transfers with continuous review and operator oversight.
+              Sign in to the shared operator workspace to prepare and review
+              payments.
             </p>
           </header>
 
           <div className="demo-notice" role="note">
-            <ShieldCheck size={16} className="demo-notice-icon" aria-hidden="true" />
+            <ShieldCheck
+              size={16}
+              className="demo-notice-icon"
+              aria-hidden="true"
+            />
             <div className="demo-notice-text">
-              <strong>{paymentMode === "fixture" ? "Demo Operator Portal" : paymentMode === "test" ? "Paystack Test Portal" : "Live Operator Portal"}</strong>
-              <span>{paymentMode === "fixture"
-                ? "Transactions use local fixture simulation. No real funds move."
-                : paymentMode === "test"
-                  ? "Transactions use Paystack test mode. No real funds move."
-                  : "Live payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}</span>
+              <strong>
+                {paymentMode === "fixture"
+                  ? "Demo Operator Portal"
+                  : paymentMode === "test"
+                    ? "Paystack Test Portal"
+                    : "Live Operator Portal"}
+              </strong>
+              <span>
+                {paymentMode === "fixture"
+                  ? "Transactions use local fixture simulation. No real funds move."
+                  : paymentMode === "test"
+                    ? "Transactions use Paystack test mode. No real funds move."
+                    : "Live payment mode is configured. Transfers can move real funds only when all server safeguards permit them; operator review and authorization are required."}
+              </span>
             </div>
           </div>
 
           {error && (
             <div className="login-alert" role="alert">
-              <CircleAlert size={16} className="alert-icon" aria-hidden="true" />
+              <CircleAlert
+                size={16}
+                className="alert-icon"
+                aria-hidden="true"
+              />
               <div className="login-alert-body">
                 <strong>Authentication Notice</strong>
                 <p>{error}</p>
@@ -646,7 +703,9 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!password.trim()) {
-                  setValidationError("Please enter your operator password to continue.");
+                  setValidationError(
+                    "Please enter your operator password to continue.",
+                  );
                   return;
                 }
                 setValidationError("");
@@ -677,13 +736,17 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                     disabled={busy === "login"}
                     className={`password-input ${validationError ? "input-has-error" : ""}`}
                     aria-invalid={!!validationError}
-                    aria-describedby={validationError ? "operator-password-error" : undefined}
+                    aria-describedby={
+                      validationError ? "operator-password-error" : undefined
+                    }
                   />
                   <button
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                     title={showPassword ? "Hide password" : "Show password"}
                     disabled={busy === "login"}
                   >
@@ -695,7 +758,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                   </button>
                 </div>
                 {validationError && (
-                  <p id="operator-password-error" className="field-error" role="alert">
+                  <p
+                    id="operator-password-error"
+                    className="field-error"
+                    role="alert"
+                  >
                     <CircleAlert size={13} aria-hidden="true" />
                     <span>{validationError}</span>
                   </p>
@@ -732,15 +799,22 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
             <summary>
               <KeyRound size={14} aria-hidden="true" />
               <span>First-time operator setup</span>
-              <ChevronRight size={13} className="disclosure-chevron" aria-hidden="true" />
+              <ChevronRight
+                size={13}
+                className="disclosure-chevron"
+                aria-hidden="true"
+              />
             </summary>
             <div className="setup-body">
               <p>
                 Configure <code>OPERATOR_PASSWORD_HASH</code> with:
               </p>
-              <pre><code>npm run operator:password</code></pre>
+              <pre>
+                <code>npm run operator:password</code>
+              </pre>
               <p className="subtle">
-                Passwords use scrypt hashing with a 16-byte cryptographically random salt. No password is built in.
+                Passwords use scrypt hashing with a 16-byte cryptographically
+                random salt. No password is built in.
               </p>
             </div>
           </details>
@@ -778,7 +852,16 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
       />
     );
     return tab === "Agent" ? (
-      <details className="compact-payment" key={b.id}>
+      <details
+        className="compact-payment"
+        key={b.id}
+        onToggle={(e) => {
+          const open = e.currentTarget.open;
+          setReviewActive((current) =>
+            open ? b.id : current === b.id ? "" : current,
+          );
+        }}
+      >
         <summary>
           <span>
             <strong>
@@ -828,11 +911,15 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
         className={`sidebar ${menuOpen ? "menu-open" : ""}`}
       >
         <Link className="brand" href="/">
-          <span className="agus-wordmark">agus.</span>
-          <span className="brand-caption">Your financial workspace</span>
+          <BrandAsset />
         </Link>
         <p className="workspace-label">WORKSPACE</p>
         <nav aria-label="Workspace navigation">
+          {conversationHref && (
+            <Link className="nav-item" href={conversationHref}>
+              <MessageSquare size={18} /> Return to chat
+            </Link>
+          )}
           {[
             { name: "Agent", icon: MessageSquare },
             { name: "Payment jobs", icon: LayoutDashboard },
@@ -902,7 +989,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
             </button>
             <strong>
               {tab === "Agent" ? (
-                <span className="agus-wordmark topbar-wordmark">agus.</span>
+                <span>Payment workspace</span>
               ) : tab === "Payment jobs" ? (
                 "Payment history"
               ) : (
@@ -911,6 +998,11 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
             </strong>
           </div>
           <div className="header-actions">
+            {conversationHref && (
+              <Link className="return-chat" href={conversationHref}>
+                Return to chat
+              </Link>
+            )}
             <button
               className="sign-out"
               disabled={!!busy}
@@ -919,6 +1011,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                   await api("session", undefined, "DELETE");
                   setState(null);
                   setSignedOut(true);
+                  conversationDrafts.clear();
                   setEditor(undefined);
                   setMessage("");
                   setTab("Agent");
@@ -961,7 +1054,7 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                 <ShieldCheck size={14} />
                 <span>
                   {state.mode === "fixture"
-                    ? "Simulation · no real money"
+                    ? "Demo · Fictional financial data"
                     : `${state.mode} mode · review required`}
                 </span>
                 <ChevronRight size={12} />
@@ -1277,138 +1370,156 @@ export function Dashboard({ paymentMode }: { paymentMode: "fixture" | "test" | "
                   )}
                   {progress || announcement}
                 </p>
-                <form
-                  className="composer"
-                  aria-busy={busy === "chat" || busy === "image"}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void send(message);
-                  }}
-                >
-                  <textarea
-                    ref={composerInput}
-                    enterKeyHint="enter"
-                    autoCapitalize="sentences"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Tell me what you’d like to do…"
-                    aria-label="Message Agus"
-                    aria-describedby="composer-shortcuts"
-                    rows={2}
-                    maxLength={4000}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        !e.shiftKey &&
-                        !e.nativeEvent.isComposing &&
-                        e.keyCode !== 229 &&
-                        !window.matchMedia(
-                          "(pointer: coarse), (max-width: 700px)",
-                        ).matches
-                      ) {
+                {(reviewActive || editor) && conversationHref ? (
+                  <Link className="review-return" href={conversationHref}>
+                    Return to chat · Payment review remains saved
+                  </Link>
+                ) : (
+                  <>
+                    <form
+                      className="composer"
+                      aria-busy={busy === "chat" || busy === "image"}
+                      onSubmit={(e) => {
                         e.preventDefault();
                         void send(message);
-                      }
-                    }}
-                  />
-                  <div>
-                    <button
-                      type="button"
-                      className="upload-button"
-                      disabled={!!busy}
-                      onClick={() =>
-                        state.aiEnabled
-                          ? uploadInput.current?.click()
-                          : setError(
-                              "Image extraction requires server-side AI configuration. You can paste details in chat or use New payment details without a model.",
-                            )
-                      }
-                    >
-                      <Paperclip size={18} /> Attach image
-                    </button>
-                    <input
-                      ref={uploadInput}
-                      type="file"
-                      hidden
-                      accept="image/png,image/jpeg,image/webp"
-                      aria-label="Attach payment image"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void upload(file);
-                        e.target.value = "";
                       }}
-                    />
-                    <button
-                      type="button"
-                      className={`voice-button${listening ? " listening" : ""}`}
-                      disabled={!!busy}
-                      aria-label={
-                        listening ? "Stop voice input" : "Start voice input"
-                      }
-                      aria-pressed={listening}
-                      onClick={toggleVoiceInput}
                     >
-                      <Mic size={17} />
-                      {listening ? "Stop listening" : "Voice input"}
-                    </button>
-                    <button
-                      className="send-button"
-                      disabled={!!busy || !message.trim()}
-                      aria-label="Send message"
-                    >
-                      <ArrowRight size={20} />
-                    </button>
-                  </div>
-                </form>
-                {voiceStatus && (
-                  <p className="voice-status" role="status" aria-live="polite">
-                    {voiceStatus}
-                  </p>
-                )}
-                {state.messages.length === 0 && !pendingMessage && !editor && (
-                  <div className="suggestions">
-                    {[
-                      {
-                        title: "Supplier payments",
-                        detail: "Start with who and how much",
-                        text: "Pay my bills",
-                        icon: Send,
-                      },
-                      {
-                        title: "Pending transfers",
-                        detail: "Pick up where you left off",
-                        text: "What payments are still pending?",
-                        icon: Clock3,
-                      },
-                      {
-                        title: "Spending",
-                        detail: "Explore the fictional demo ledger",
-                        text: "Review my spending",
-                        icon: Wallet,
-                      },
-                    ].map(({ title, text, icon: Icon }) => (
-                      <button
-                        disabled={!!busy}
-                        key={title}
-                        onClick={() => void send(text)}
+                      <textarea
+                        ref={composerInput}
+                        enterKeyHint="enter"
+                        autoCapitalize="sentences"
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder="Tell me what you’d like to do…"
+                        aria-label="Message Agus"
+                        aria-describedby="composer-shortcuts"
+                        rows={2}
+                        maxLength={4000}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            !e.shiftKey &&
+                            !e.nativeEvent.isComposing &&
+                            e.keyCode !== 229 &&
+                            !window.matchMedia(
+                              "(pointer: coarse), (max-width: 700px)",
+                            ).matches
+                          ) {
+                            e.preventDefault();
+                            void send(message);
+                          }
+                        }}
+                      />
+                      <div>
+                        <button
+                          type="button"
+                          className="upload-button"
+                          disabled={!!busy}
+                          onClick={() =>
+                            state.aiEnabled
+                              ? uploadInput.current?.click()
+                              : setError(
+                                  "Image extraction requires server-side AI configuration. You can paste details in chat or use New payment details without a model.",
+                                )
+                          }
+                        >
+                          <Paperclip size={18} /> Attach image
+                        </button>
+                        <input
+                          ref={uploadInput}
+                          type="file"
+                          hidden
+                          accept="image/png,image/jpeg,image/webp"
+                          aria-label="Attach payment image"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void upload(file);
+                            e.target.value = "";
+                          }}
+                        />
+                        {voiceAvailable && (
+                          <button
+                            type="button"
+                            className={`voice-button${listening ? " listening" : ""}`}
+                            disabled={!!busy}
+                            aria-label={
+                              listening
+                                ? "Stop voice input"
+                                : "Start voice input"
+                            }
+                            aria-pressed={listening}
+                            onClick={toggleVoiceInput}
+                          >
+                            <Mic size={17} />
+                            {listening ? "Stop listening" : "Voice input"}
+                          </button>
+                        )}
+                        <button
+                          className="send-button"
+                          disabled={!!busy || !message.trim()}
+                          aria-label="Send message"
+                        >
+                          <ArrowRight size={20} />
+                        </button>
+                      </div>
+                    </form>
+                    {voiceStatus && (
+                      <p
+                        className="voice-status"
+                        role="status"
+                        aria-live="polite"
                       >
-                        <Icon size={19} />
-                        <strong>{title}</strong>
-                      </button>
-                    ))}
-                  </div>
+                        {voiceStatus}
+                      </p>
+                    )}
+                    {state.messages.length === 0 &&
+                      !pendingMessage &&
+                      !editor && (
+                        <div className="suggestions">
+                          {[
+                            {
+                              title: "Supplier payments",
+                              detail: "Start with who and how much",
+                              text: "Pay my bills",
+                              icon: Send,
+                            },
+                            {
+                              title: "Pending transfers",
+                              detail: "Pick up where you left off",
+                              text: "What payments are still pending?",
+                              icon: Clock3,
+                            },
+                            {
+                              title: "Spending",
+                              detail: "Explore the fictional demo ledger",
+                              text: "Review my spending",
+                              icon: Wallet,
+                            },
+                          ].map(({ title, text, icon: Icon }) => (
+                            <button
+                              disabled={!!busy}
+                              key={title}
+                              onClick={() => void send(text)}
+                            >
+                              <Icon size={19} />
+                              <strong>{title}</strong>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    <p id="composer-shortcuts" className="sr-only">
+                      On desktop, Enter sends and Shift+Enter adds a line. On
+                      mobile, Enter adds a line; use the Send message button to
+                      send.
+                    </p>
+                    <p className="chat-footnote">
+                      <ShieldCheck size={13} />
+                      Voice fills the message only; review every detail before
+                      sending. Browser speech services may process audio. Every
+                      payment still needs your review and approval.
+                    </p>
+                  </>
                 )}
-                <p id="composer-shortcuts" className="sr-only">
-                  On desktop, Enter sends and Shift+Enter adds a line. On
-                  mobile, Enter adds a line; use the Send message button to
-                  send.
-                </p>
-                <p className="chat-footnote">
-                  <ShieldCheck size={13} />
-                  Voice fills the message only; review every detail before
-                  sending. Browser speech services may process audio. Every
-                  payment still needs your review and approval.
-                </p>
               </div>
             </section>
           )}

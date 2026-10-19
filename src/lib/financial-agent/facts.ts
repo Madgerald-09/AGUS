@@ -8,9 +8,15 @@ import {
   type TransactionView,
 } from "../financial-data/contracts";
 import { AgentError, bytes, scrub } from "./protocol";
+import type { PresentedResult } from "./presentation";
 
 export type ReadResult = ToolResult<ToolData[ToolName]>;
-export type Fact = { resultId: string; text: string; modelData: unknown };
+export type Fact = {
+  resultId: string;
+  text: string;
+  modelData: unknown;
+  presentation: PresentedResult;
+};
 export const canonical = (v: unknown): string => {
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
   if (v && typeof v === "object")
@@ -247,6 +253,135 @@ export function makeFact(
         data: modelData,
         meta: { ...result.meta, warnings: undefined, nextCursor: undefined },
       },
+      presentation: present(call, result, `${text}\n${header}`),
     },
   };
+}
+
+function present(
+  call: ToolCall,
+  result: ReadResult,
+  originalText: string,
+): PresentedResult {
+  const value: PresentedResult = {
+    resultId: result.meta.resultId,
+    type: call.name,
+    metrics: [],
+    records: [],
+    scope: "Available source records",
+    limits: [],
+    sources: result.meta.sources.map((s) => ({
+      provider: s.provider,
+      mode: s.mode,
+    })),
+    asOf: result.meta.asOf,
+    coverage: result.meta.coverage?.state ?? "not supplied",
+    originalText,
+  };
+  if (value.coverage !== "complete")
+    value.limits.push(
+      value.coverage === "not supplied"
+        ? "Coverage not supplied"
+        : `Available records only · Coverage is ${value.coverage}`,
+    );
+  if (result.meta.truncated)
+    value.limits.push("Results are truncated; more records may be available.");
+  if (result.error) {
+    value.limits.push(
+      "Data unavailable. No financial conclusion can be drawn.",
+    );
+    return value;
+  }
+  if (call.name === "calculate_spending") {
+    const d = ToolDataSchemas.calculate_spending.parse(result.data);
+    value.metrics = [
+      { label: "Expenses", value: money(d.expenseKobo) },
+      { label: "Income", value: money(d.incomeKobo) },
+      {
+        label:
+          d.appliedFilters.direction ||
+          d.appliedFilters.category ||
+          d.appliedFilters.amountKobo
+            ? "Filtered difference"
+            : "Difference",
+        value: money(d.netKobo),
+      },
+    ];
+    value.scope = `${d.appliedFilters.accountIds.join(", ")} · ${period(d.appliedFilters.from, d.appliedFilters.toExclusive)} · Posted records`;
+    if (d.appliedFilters.direction)
+      value.scope += ` · ${d.appliedFilters.direction} only`;
+    if (d.appliedFilters.category)
+      value.scope += ` · Category: ${scrub(d.appliedFilters.category)}`;
+    if (d.appliedFilters.amountKobo)
+      value.scope += ` · Amount: ${money(d.appliedFilters.amountKobo.min)}–${money(d.appliedFilters.amountKobo.max)}`;
+    if (
+      d.coverage.state !== "complete" &&
+      !value.limits.some((s) => s.includes(d.coverage.state))
+    )
+      value.limits.push(
+        `Available records only · Coverage is ${d.coverage.state}`,
+      );
+    value.limits.push(
+      "Difference is income less expenses, not an account balance.",
+    );
+  }
+  if (call.name === "search_transactions" || call.name === "get_transaction") {
+    const rows =
+      call.name === "search_transactions"
+        ? ToolDataSchemas.search_transactions.parse(result.data).matches
+        : [ToolDataSchemas.get_transaction.parse(result.data)];
+    value.records = rows.map((t, i) => ({
+      name: t.counterparty.displayName
+        ? scrub(t.counterparty.displayName)
+        : `Record ${i + 1}`,
+      amount: money(t.amountKobo),
+      direction: t.direction,
+      date: t.bookedAt ?? t.occurredAt,
+      status: t.status,
+      account: t.accountId,
+      ...(call.name === "search_transactions" && i < 2
+        ? {
+            choice: `Show details for the ${i === 0 ? "first" : "second"} candidate`,
+          }
+        : {}),
+    }));
+    if (call.name === "search_transactions") {
+      value.scope = `${call.args.accountIds.join(", ")} · ${period(call.args.from, call.args.toExclusive)}`;
+      const d = ToolDataSchemas.search_transactions.parse(result.data);
+      if (!rows.length)
+        value.limits.push(
+          "No matching records were found in the available data. This does not prove no payment occurred.",
+        );
+      if (d.hasMore)
+        value.limits.push(
+          "More candidates are available; this page is not the full history.",
+        );
+    }
+    value.limits.push(
+      "Source status does not confirm the recipient’s bank was credited.",
+    );
+    if (rows.some((t) => t.reversalOfId))
+      value.limits.push("Returned funds are excluded from ordinary income.");
+  }
+  if (call.name === "find_payment_evidence") {
+    const d = ToolDataSchemas.find_payment_evidence.parse(result.data);
+    value.limits.push(
+      d.evidence.length
+        ? "Source evidence does not establish recipient bank credit."
+        : "No evidence is available. A receipt or recipient bank credit cannot be confirmed.",
+    );
+    if (d.evidence.some((e) => e.simulated))
+      value.limits.push("Fictional synthetic evidence, not a bank receipt.");
+  }
+  return value;
+}
+function period(from: string, to: string) {
+  const format = (date: Date) =>
+    date.toLocaleDateString("en-NG", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Africa/Lagos",
+    });
+  return `${format(new Date(from))}–${format(new Date(Date.parse(to) - 1))} (WAT)`;
 }

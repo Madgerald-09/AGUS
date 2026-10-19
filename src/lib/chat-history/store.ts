@@ -40,6 +40,14 @@ async function storage() {
 export function chatHistory(owner: string) {
   if (!owner) throw new AppError("Sign in to continue", 401);
   return {
+    async inProgress(id: string): Promise<boolean> {
+      IdSchema.parse(id);
+      const d = await storage();
+      const result = await d.execute(
+        sql`SELECT id FROM chat_history WHERE owner=${owner} AND id=${id} AND lease_until > now()`,
+      );
+      return result.rows.length > 0;
+    },
     async list(): Promise<SavedChat[]> {
       const d = await storage();
       const result = await d.execute(

@@ -62,6 +62,19 @@ globalThis.fetch = async (input, init) => {
         },
       };
     }
+  } else if (task === "narrate") {
+    const spending = "{{r0.expenses}}" in data.authoring.slots;
+    const main = spending
+      ? "Expenses come to {{r0.expenses}}, while income comes to {{r0.income}}. The difference comes to {{r0.difference}}."
+      : "I found {{r0.count}} candidate records.";
+    answer = {
+      paragraphs: [
+        {
+          resultIds: data.facts.map((f) => f.resultId),
+          text: main + " " + data.authoring.required.join(" "),
+        },
+      ],
+    };
   } else throw new Error("Unknown fixture task");
   await delay(180);
   return Response.json({
