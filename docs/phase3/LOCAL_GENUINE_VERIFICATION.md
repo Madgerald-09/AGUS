@@ -1,5 +1,7 @@
 # Bounded genuine verification — Windows Git Bash
 
+For the focused repair following the founder's genuine totals run, use the **single totals retest** in [NARRATION_REPAIR.md](NARRATION_REPAIR.md). Its safe `narrationDiagnostic` is included in the existing harness output when a draft is rejected; no raw rejected draft is emitted.
+
 Run from the repository using Node 22+ and the founder's existing private `.env.local`.
 It must already contain `AI_API_KEY` and, for the application, the existing operator password hash.
 Do not print the file, export a browser HAR, paste credentials, or commit local response outputs.

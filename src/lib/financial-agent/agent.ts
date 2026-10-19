@@ -27,6 +27,8 @@ import {
   acceptNarration,
   factualPresentation,
   narrationContract,
+  NarrationError,
+  type NarrationDiagnostic,
 } from "./narration";
 import type { FinancialPresentation } from "./presentation";
 import {
@@ -78,6 +80,7 @@ export type AgentReply = {
     resultBytes: number;
     code?: string;
     narrationCode?: string;
+    narrationDiagnostic?: NarrationDiagnostic;
   };
 };
 export type AgentOptions = {
@@ -263,6 +266,7 @@ export function createFinancialAgent(options: AgentOptions) {
           }
           const presentation = factualPresentation(selected);
           let narrationCode: string | undefined;
+          let narrationDiagnostic: NarrationDiagnostic | undefined;
           try {
             if (code || monotonic() + 1000 >= deadline)
               throw new AgentError("NARRATION_BUDGET");
@@ -279,6 +283,8 @@ export function createFinancialAgent(options: AgentOptions) {
             presentation.explanation = acceptNarration(raw, selected);
             presentation.narration = "ai";
           } catch (error) {
+            if (error instanceof NarrationError)
+              narrationDiagnostic = error.diagnostic;
             narrationCode =
               error instanceof AgentError
                 ? error.code
@@ -298,6 +304,8 @@ export function createFinancialAgent(options: AgentOptions) {
             code,
           );
           if (narrationCode) value.evidence.narrationCode = narrationCode;
+          if (narrationDiagnostic)
+            value.evidence.narrationDiagnostic = narrationDiagnostic;
           value.presentation = presentation;
           return finish(value);
         }

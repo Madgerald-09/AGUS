@@ -1,0 +1,80 @@
+{
+  "baseCommit": "48701edf2e92d8db638445d9839b2fe2a63bc852",
+  "branch": "phase3/intelligence-verification-20261019",
+  "scope": "Focused financial narration acceptance, concrete authoring examples, and safe rejection diagnostics",
+  "founderReportedGenuineVerification": {
+    "sourceCommit": "48701edf2e92d8db638445d9839b2fe2a63bc852",
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "education": {
+      "status": "PASS",
+      "providerCalls": 3,
+      "toolCalls": 0
+    },
+    "totals": {
+      "status": "UNVERIFIED",
+      "acceptanceStatus": "PASS",
+      "providerCalls": 4,
+      "toolCalls": 1,
+      "narration": "factual_fallback",
+      "narrationCode": "NARRATION_CLAIM",
+      "expenseKobo": 1975151,
+      "incomeKobo": 25000000,
+      "differenceKobo": 23024849
+    },
+    "observedByDevelopmentEnvironment": false,
+    "rejectedDraftAvailable": false
+  },
+  "developmentVerification": {
+    "genuineProviderCalls": 0,
+    "initialReproductions": {
+      "tests": 7,
+      "failedBeforeRepair": 7,
+      "passedAfterRepair": 7
+    },
+    "newRegressions": {
+      "tests": 51,
+      "files": 2,
+      "providerTransport": "mocked or not used"
+    },
+    "checks": [
+      {
+        "command": "npm test -- tests/financial-agent tests/financial-integration/conversation.test.ts tests/financial-integration/chat-history.test.ts tests/narration-boundary.test.ts",
+        "status": "PASS",
+        "tests": 440,
+        "files": 15
+      },
+      {
+        "command": "npm run typecheck",
+        "status": "PASS"
+      },
+      {
+        "command": "npm run lint",
+        "status": "PASS"
+      },
+      {
+        "command": "NEXT_TELEMETRY_DISABLED=1 npm run build",
+        "status": "PASS"
+      },
+      {
+        "command": "git diff --check",
+        "status": "PASS"
+      }
+    ],
+    "mockedGeminiAdapterScenarios": [
+      "accepted narration",
+      "invented balance falls back with diagnostic",
+      "consent revocation suppresses all facts and narration"
+    ]
+  },
+  "repairGenuineStatus": "UNVERIFIED_PENDING_SINGLE_FOUNDER_RETEST",
+  "unchanged": [
+    "v1.2 UI",
+    "financial-data source and calculations",
+    "fixtures",
+    "payment operations",
+    "permission and source checks"
+  ],
+  "deployed": false,
+  "merged": false
+}

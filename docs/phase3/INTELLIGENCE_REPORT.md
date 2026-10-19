@@ -1,5 +1,7 @@
 # Phase 3 intelligence verification — 19 October 2026
 
+**Subsequent founder verification:** on `48701edf`, genuine Gemini education passed and totals/calculations passed structural acceptance, while narration remained UNVERIFIED with `NARRATION_CLAIM`. See [the focused narration repair and single local retest](NARRATION_REPAIR.md). The original development-environment evidence below is retained as historical evidence.
+
 **Genuine intelligence verdict: BLOCKED / MODEL_NOT_CONFIGURED. Zero genuine provider calls.**
 The managed environment has no `AI_API_KEY`, configured provider identity or private `.env.local`.
 No genuine Gemini response, provider latency, current quota or end-to-end genuine-model PASS was observed.
