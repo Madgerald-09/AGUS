@@ -28,6 +28,7 @@ import {
   exportPaymentReport,
   extractImage,
   proposedSchema,
+  transcribeAudio,
 } from "@/lib/intelligence";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -189,6 +190,38 @@ async function handle(req: Request) {
         });
       }
       return reply(await chat(actor, message));
+    }
+    if (action === "voice" && req.method === "POST") {
+      const bytes = await boundedBody(req, 10 * 1024 * 1024);
+      const form = await new Response(new Uint8Array(bytes), {
+        headers: { "Content-Type": req.headers.get("content-type") ?? "" },
+      }).formData();
+      const file = form.get("audio");
+      if (!(file instanceof File))
+        throw new AppError("A voice recording is required");
+      const requestedMime = file.type.split(";")[0].toLowerCase();
+      const mimeType =
+        requestedMime === "audio/x-wav" ? "audio/wav" : requestedMime;
+      if (
+        ![
+          "audio/aac",
+          "audio/flac",
+          "audio/mp4",
+          "audio/mpeg",
+          "audio/ogg",
+          "audio/wav",
+          "audio/webm",
+        ].includes(mimeType)
+      )
+        throw new AppError("This browser's audio format is not supported.", 415);
+      return reply(
+        {
+          transcript: await transcribeAudio(
+            Buffer.from(await file.arrayBuffer()),
+            mimeType,
+          ),
+        },
+      );
     }
     if (action === "extract" && req.method === "POST") {
       if (Number(req.headers.get("content-length") ?? 0) > 6 * 1024 * 1024)

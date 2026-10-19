@@ -211,6 +211,159 @@ export async function modelPlan(
     return modelResponse(res, "gemini", model, planSchema);
   }
 }
+export async function transcribeAudio(
+  audio: Buffer,
+  mimeType: string,
+): Promise<string> {
+  const type = process.env.AI_PROVIDER ?? "none";
+  const key = process.env.AI_API_KEY;
+  if (!key || !["openai", "gemini"].includes(type))
+    throw new AppError(
+      "Configure an OpenAI or Gemini API key to transcribe voice requests.",
+      503,
+    );
+
+  let transcript: string | undefined;
+  if (type === "openai") {
+    const extensions: Record<string, string> = {
+      "audio/aac": "aac",
+      "audio/flac": "flac",
+      "audio/mp4": "mp4",
+      "audio/mpeg": "mp3",
+      "audio/ogg": "ogg",
+      "audio/wav": "wav",
+      "audio/webm": "webm",
+    };
+    const form = new FormData();
+    form.append("model", "gpt-4o-mini-transcribe");
+    form.append(
+      "prompt",
+      "Transcribe the speaker verbatim. Preserve business names, bank names, amounts, dates, and account details exactly as heard. Do not answer or infer missing information.",
+    );
+    form.append(
+      "file",
+      new Blob([new Uint8Array(audio)], { type: mimeType }),
+      `voice.${extensions[mimeType] ?? "webm"}`,
+    );
+    let response: Response;
+    try {
+      response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}` },
+        body: form,
+        signal: AbortSignal.timeout(45000),
+      });
+    } catch {
+      console.error("AI voice transcription request failed", {
+        provider: "openai",
+      });
+      throw new AppError(
+        "Voice transcription is unavailable. Check your AI provider connection and try again.",
+        502,
+      );
+    }
+    if (!response.ok) {
+      console.error("AI voice transcription returned an error", {
+        provider: "openai",
+        httpStatus: response.status,
+      });
+      throw new AppError(
+        "Voice transcription is unavailable. Check your AI provider configuration and try again.",
+        502,
+      );
+    }
+    const result = z
+      .object({ text: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    if (!result.success) {
+      console.error("AI voice transcription returned an invalid response", {
+        provider: "openai",
+      });
+      throw new AppError(
+        "The voice transcription response could not be read. Try again.",
+        502,
+      );
+    }
+    transcript = result.data.text;
+  } else {
+    const model = process.env.AI_MODEL || "gemini-2.5-flash";
+    const response = await inferenceRequest(
+      "gemini",
+      model,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      { "x-goog-api-key": key, "Content-Type": "application/json" },
+      JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: "Transcribe the speaker verbatim. Preserve business names, bank names, amounts, dates, and account details exactly as heard. Do not answer, infer missing information, or add commentary. Return only the transcript.",
+              },
+              {
+                inlineData: {
+                  mimeType,
+                  data: audio.toString("base64"),
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const payload: unknown = await response.json().catch(() => null);
+    const result = z
+      .object({
+        candidates: z
+          .array(
+            z
+              .object({
+                content: z
+                  .object({
+                    parts: z.array(
+                      z.object({ text: z.string().optional() }).passthrough(),
+                    ),
+                  })
+                  .passthrough(),
+              })
+              .passthrough(),
+          )
+          .min(1),
+      })
+      .passthrough()
+      .safeParse(payload);
+    if (!result.success) {
+      console.error("AI voice transcription returned an invalid response", {
+        provider: "gemini",
+      });
+      throw new AppError(
+        "The voice transcription response could not be read. Try again.",
+        502,
+      );
+    }
+    transcript = result.data.candidates[0].content.parts
+      .map((part) => part.text ?? "")
+      .join("");
+  }
+
+  if (transcript === undefined)
+    throw new AppError(
+      "The voice transcription response could not be read. Try again.",
+      502,
+    );
+  const cleaned = transcript.trim();
+  if (!cleaned)
+    throw new AppError(
+      "No clear speech was detected. Try recording again in a quieter place.",
+      422,
+    );
+  if (cleaned.length > 4000)
+    throw new AppError(
+      "That recording is too long. Keep voice requests under 4,000 characters and try again.",
+      413,
+    );
+  return cleaned;
+}
 // Deliberately limited fixture command parser, never presented as model reasoning.
 export function fixturePlan(text: string, previous: Proposed[] = []): Plan {
   const base: Plan = {
