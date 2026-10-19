@@ -1,0 +1,83 @@
+{
+  "parent": "a4927462b6394533aaf7d9797ac84c98c337457b",
+  "branch": "integration/agus-chat-payments-voice-20261019",
+  "unit": {
+    "files": 35,
+    "passed": 780,
+    "failed": 0
+  },
+  "focusedNewTests": 6,
+  "checks": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "productionBuild": "pass",
+    "gitDiffCheck": "pass"
+  },
+  "genuineProviderCalls": 0,
+  "livePayments": 0,
+  "physicalMicrophone": "unverified",
+  "audibleSpeech": "unverified",
+  "browser": {
+    "model": "mocked Gemini HTTP",
+    "speech": "mocked browser APIs",
+    "data": "fictional",
+    "paymentMode": "fixture",
+    "results": [
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "passed": true,
+        "checks": [
+          "Microphone beside Send, stop appends to current edited draft, cancel rejects late callbacks, no automatic send",
+          "Mocked MediaRecorder/provider transcription appends without sending; tracks close; cancelled transcription and late permission are discarded; permission denial preserves typed text",
+          "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+          "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+          "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+          "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+          "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+        ],
+        "preparations": 1,
+        "executions": 1,
+        "errors": []
+      },
+      {
+        "viewport": {
+          "width": 820,
+          "height": 900
+        },
+        "passed": true,
+        "checks": [
+          "Microphone beside Send, stop appends to current edited draft, cancel rejects late callbacks, no automatic send",
+          "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+          "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+          "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+          "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+          "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+        ],
+        "preparations": 1,
+        "executions": 1,
+        "errors": []
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "passed": true,
+        "checks": [
+          "Microphone beside Send, stop appends to current edited draft, cancel rejects late callbacks, no automatic send",
+          "Same mocked Gemini conversation adapter: general/education, account-scoped SQL totals, accepted narration, expandable evidence, ambiguous candidates and three-tool historical investigation",
+          "Keyboard newline/IME and saved conversation recovery after a lost response without replay",
+          "Two recipients, persisted edits, approval invalidated by edit, separate password approval/submission, lost response recovery, reload retains references and successful/pending outcomes with one execution POST",
+          "Expanded payment card has no horizontal overflow or automated WCAG A/AA violations",
+          "Saved payment history, legacy links, sidebar/drawer close, visible composer, no overflow/page errors, no automatic playback after reload, recording cleanup on new chat"
+        ],
+        "preparations": 1,
+        "executions": 1,
+        "errors": []
+      }
+    ]
+  }
+}

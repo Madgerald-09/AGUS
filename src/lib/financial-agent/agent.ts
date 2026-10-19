@@ -343,7 +343,7 @@ export function createFinancialAgent(options: AgentOptions) {
           selection = null;
           const value = reply(
             "handoff",
-            "Continue in the existing editable payment-draft workflow. Review all details there; nothing has been verified or submitted here.",
+            "Prepare an editable payment card below. Review the details, verify beneficiaries, approve with your password and submit separately.",
           );
           value.handoff = { kind: "existing_payment_draft" };
           return await finish(value);
