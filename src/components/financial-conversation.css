@@ -1,4 +1,6 @@
 .agus-workspace {
+  container-name: agus-workspace;
+  container-type: size;
   display: flex;
   height: var(--workspace-height, 100dvh);
   margin-top: var(--workspace-top, 0px);
@@ -732,7 +734,7 @@
     font-size: 22px;
   }
 }
-@media (max-height: 520px) {
+@container agus-workspace (max-height: 520px) {
   .agus-empty .agus-composer-area {
     padding-bottom: 16px;
   }
@@ -766,7 +768,7 @@
   background: transparent;
   padding: 0;
 }
-@media (max-height: 520px) {
+@container agus-workspace (max-height: 520px) {
   .agus-drawer {
     padding-top: 56px;
     gap: 8px;

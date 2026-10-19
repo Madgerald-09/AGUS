@@ -1,7 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowUp,
   ArrowUpRight,
@@ -25,6 +31,12 @@ type Account = {
   accountId: string;
   displayName: string;
   maskedNumber: string | null;
+};
+type DraftSelection = {
+  start: number;
+  end: number;
+  direction: "forward" | "backward" | "none";
+  scrollTop: number;
 };
 // Transient only. No transcripts, account selection or draft text enter browser storage.
 const suggestions = [
@@ -78,9 +90,47 @@ export function FinancialConversation() {
   const signin = useRef<HTMLDialogElement>(null);
   const accountDialog = useRef<HTMLDialogElement>(null);
   const modalReturn = useRef<HTMLElement | null>(null);
+  const modalSelection = useRef<DraftSelection | undefined>(undefined);
   const requestVersion = useRef(0);
   const privacyVersion = useRef(0);
   const follow = useRef(true);
+  const editorId = useRef("");
+  const selections = useRef(new Map<string, DraftSelection>());
+  const rememberSelection = useCallback(() => {
+    const input = composer.current;
+    if (input)
+      selections.current.set(editorId.current, {
+        start: input.selectionStart,
+        end: input.selectionEnd,
+        direction: input.selectionDirection,
+        scrollTop: input.scrollTop,
+      });
+  }, []);
+  const restoreSelection = useCallback((saved?: DraftSelection) => {
+    const input = composer.current;
+    const selection = saved ?? selections.current.get(editorId.current);
+    if (input && selection) {
+      input.setSelectionRange(
+        selection.start,
+        selection.end,
+        selection.direction,
+      );
+      input.scrollTop = selection.scrollTop;
+    }
+  }, []);
+  const resizeComposer = useCallback(() => {
+    const input = composer.current;
+    if (input) {
+      input.style.height = "auto";
+      const maximum =
+        Number.parseFloat(getComputedStyle(input).maxHeight) || 160;
+      input.style.height = `${Math.min(input.scrollHeight, maximum)}px`;
+    }
+  }, []);
+  useLayoutEffect(() => {
+    editorId.current = id;
+    restoreSelection();
+  }, [id, restoreSelection]);
   const busy = !!operation;
   const updateText = (value: string) => {
     setText(value);
@@ -90,6 +140,9 @@ export function FinancialConversation() {
     ++privacyVersion.current;
     ++requestVersion.current;
     drafts.clear();
+    selections.current.clear();
+    editorId.current = "";
+    modalSelection.current = undefined;
     pending.current = false;
     setOperation("");
     setAccountLoading(false);
@@ -105,6 +158,8 @@ export function FinancialConversation() {
     setPassword("");
   }, []);
   function openModal(target: HTMLDialogElement | null) {
+    rememberSelection();
+    modalSelection.current = selections.current.get(editorId.current);
     const active = document.activeElement as HTMLElement;
     modalReturn.current = active?.closest("dialog") ? menu.current : active;
     [drawer, plans, signin, accountDialog].forEach((r) => r.current?.close());
@@ -112,7 +167,12 @@ export function FinancialConversation() {
   }
   function restoreFocus() {
     requestAnimationFrame(() => {
-      if (!document.querySelector("dialog[open]")) modalReturn.current?.focus();
+      if (!document.querySelector("dialog[open]")) {
+        const selection = modalSelection.current;
+        modalReturn.current?.focus({ preventScroll: true });
+        if (modalReturn.current === composer.current)
+          restoreSelection(selection);
+      }
     });
   }
   function toggleSidebar(open: boolean) {
@@ -144,6 +204,7 @@ export function FinancialConversation() {
   }, [clearPrivate]);
   const openChat = useCallback(
     async (next: string, push = true) => {
+      rememberSelection();
       const version = ++requestVersion.current;
       setLoading(!!next);
       setError("");
@@ -188,7 +249,7 @@ export function FinancialConversation() {
         if (version === requestVersion.current) setLoading(false);
       }
     },
-    [clearPrivate],
+    [clearPrivate, rememberSelection],
   );
   useEffect(() => {
     let live = true;
@@ -226,12 +287,8 @@ export function FinancialConversation() {
     } else if (turns.length) setShowLatest(true);
   }, [turns, pendingText]);
   useEffect(() => {
-    const input = composer.current;
-    if (input) {
-      input.style.height = "auto";
-      input.style.height = `${Math.min(input.scrollHeight, window.innerHeight < 520 ? 80 : 160)}px`;
-    }
-  }, [text]);
+    resizeComposer();
+  }, [text, resizeComposer]);
   useEffect(() => {
     if (!busy) {
       setLongWait(false);
@@ -249,15 +306,18 @@ export function FinancialConversation() {
         `${viewport?.height ?? window.innerHeight}px`,
       );
       el?.style.setProperty("--workspace-top", `${viewport?.offsetTop ?? 0}px`);
+      resizeComposer();
     };
     fit();
     viewport?.addEventListener("resize", fit);
     viewport?.addEventListener("scroll", fit);
+    window.addEventListener("resize", fit);
     return () => {
       viewport?.removeEventListener("resize", fit);
       viewport?.removeEventListener("scroll", fit);
+      window.removeEventListener("resize", fit);
     };
-  }, []);
+  }, [resizeComposer]);
   function choose(value: string) {
     if (text.trim()) {
       setError(
@@ -843,12 +903,16 @@ export function FinancialConversation() {
               rows={1}
               maxLength={4000}
               readOnly={busy || loading}
+              onSelect={rememberSelection}
+              onBlur={rememberSelection}
+              onScroll={rememberSelection}
               onChange={(e) => updateText(e.target.value)}
               onKeyDown={(e) => {
                 if (
                   e.key === "Enter" &&
                   !e.shiftKey &&
                   !e.nativeEvent.isComposing &&
+                  e.keyCode !== 229 &&
                   !window.matchMedia("(pointer: coarse)").matches
                 ) {
                   e.preventDefault();

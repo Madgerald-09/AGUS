@@ -1,0 +1,149 @@
+{
+  "inference": "mocked model; real application sessions and SQL",
+  "mediaCaptured": false,
+  "mobileCoverage": "Chromium touch emulation; reduced layout viewport plus synthetic visual viewport shrink/pan. Physical iOS/Android software keyboards are not verified.",
+  "results": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "checks": [
+        {
+          "name": "new-chat composer is centered and grows without losing the insertion point",
+          "passed": true,
+          "measurements": {
+            "initialHeight": 146,
+            "expandedHeight": 196
+          }
+        },
+        {
+          "name": "sign-in retains the guest draft without automatic submission",
+          "passed": true
+        },
+        {
+          "name": "desktop Shift+Enter inserts a line and Enter sends once",
+          "passed": true
+        },
+        {
+          "name": "conversation composer stays at the bottom and grows upward into an internally scrolling input",
+          "passed": true,
+          "measurements": {
+            "shortTop": 790,
+            "longTop": 682,
+            "bottom": 936,
+            "inputHeight": 160
+          }
+        },
+        {
+          "name": "a delayed reply does not steal reading scroll or focus",
+          "passed": true
+        },
+        {
+          "name": "chat navigation retains the draft and its insertion point without forcing input focus",
+          "passed": true
+        },
+        {
+          "name": "native Chromium composition and composing Enter never send",
+          "passed": true
+        },
+        {
+          "name": "IME keyCode 229 cannot submit after a composition boundary",
+          "passed": true
+        },
+        {
+          "name": "no browser runtime errors",
+          "passed": true,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "checks": [
+        {
+          "name": "new-chat composer is centered and grows without losing the insertion point",
+          "passed": true,
+          "measurements": {
+            "initialHeight": 138,
+            "expandedHeight": 188
+          }
+        },
+        {
+          "name": "new-chat composer remains usable in a keyboard-sized visual viewport",
+          "passed": true,
+          "measurements": {
+            "form": {
+              "top": 161.796875,
+              "bottom": 303.796875,
+              "height": 142,
+              "left": 16,
+              "right": 374
+            },
+            "inputHeight": 80
+          }
+        },
+        {
+          "name": "sign-in retains the guest draft without automatic submission",
+          "passed": true
+        },
+        {
+          "name": "mobile Return inserts a line without sending",
+          "passed": true
+        },
+        {
+          "name": "conversation composer stays at the bottom and grows upward into an internally scrolling input",
+          "passed": true,
+          "measurements": {
+            "shortTop": 642,
+            "longTop": 534,
+            "bottom": 780,
+            "inputHeight": 160
+          }
+        },
+        {
+          "name": "keyboard-style visual viewport shrink and pan keep the input and Send visible",
+          "passed": true,
+          "measurements": {
+            "compactForm": {
+              "top": 176,
+              "bottom": 318,
+              "height": 142,
+              "left": 16,
+              "right": 374
+            },
+            "inputHeight": 80
+          }
+        },
+        {
+          "name": "layout viewport resizing preserves draft, caret and focus, then restores natural expansion",
+          "passed": true,
+          "measurements": {
+            "compactHeight": 80,
+            "restoredHeight": 160
+          }
+        },
+        {
+          "name": "a delayed reply does not steal reading scroll or focus",
+          "passed": true
+        },
+        {
+          "name": "chat navigation retains the draft and its insertion point without forcing input focus",
+          "passed": true
+        },
+        {
+          "name": "native Chromium composition and composing Enter never send",
+          "passed": true
+        },
+        {
+          "name": "no browser runtime errors",
+          "passed": true,
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

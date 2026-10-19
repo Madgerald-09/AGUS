@@ -20,4 +20,4 @@ Only the updated welcome screenshots are captured by `AGUS_CAPTURE_WELCOME=true 
 - [Desktop · 1440×1000](welcome-1440.png)
 - [Mobile · 390×844](welcome-390.png)
 
-See `smoke-results.json` for the final run. No videos, screenshot matrix or unrelated audits were produced. Founder approval of the working implementation remains pending. No merge or deployment occurred.
+See `smoke-results.json` for the visual-stage run. The founder approved these v1.2 desktop/mobile welcome designs; the visual direction is frozen. The subsequent [composer behavior verification](composer-verification.md) records focused checks and fixes without additional media capture or redesign. No merge or deployment occurred.
