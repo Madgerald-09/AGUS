@@ -1005,6 +1005,7 @@ export function Dashboard({
             )}
             <button
               className="sign-out"
+              aria-label="Sign out"
               disabled={!!busy}
               onClick={() =>
                 void run("logout", async () => {

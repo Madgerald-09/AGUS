@@ -746,3 +746,30 @@
   background: transparent;
   padding: 0;
 }
+@media (max-height: 520px) {
+  .agus-drawer {
+    padding-top: 56px;
+    gap: 8px;
+  }
+  .agus-drawer-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
+  .agus-drawer .agus-sidebar-brand,
+  .agus-drawer .agus-history-heading {
+    display: none;
+  }
+  .agus-drawer .agus-sidebar-bottom,
+  .agus-drawer .agus-profile {
+    padding-top: 0;
+  }
+  .agus-drawer .agus-profile small {
+    display: none;
+  }
+  .agus-workspace .agus-mobile-scope {
+    display: block;
+    min-height: 32px;
+    padding: 4px 16px;
+  }
+}

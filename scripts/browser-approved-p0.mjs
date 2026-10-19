@@ -190,9 +190,11 @@ try {
     const send = async (text) => {
       const n = await page.locator(".agus-assistant-message").count();
       await input.fill(text);
-      await page
-        .getByRole("button", { name: "Send message", exact: true })
-        .click();
+      if (viewport.width >= 768) await input.press("Enter");
+      else
+        await page
+          .getByRole("button", { name: "Send message", exact: true })
+          .click();
       await page.waitForFunction(
         (n) => document.querySelectorAll(".agus-assistant-message").length > n,
         n,
@@ -482,9 +484,8 @@ try {
         color: [...root.querySelectorAll("*")].filter(visible).flatMap((el) =>
           ["color", "backgroundColor", "borderTopColor", "outlineColor"]
             .filter((key) => {
-              const c = getComputedStyle(el)
-                [key].match(/[\d.]+/g)
-                ?.map(Number);
+              const style = getComputedStyle(el);
+              const c = style[key].match(/[\d.]+/g)?.map(Number);
               return c?.length >= 3 && (c[0] !== c[1] || c[1] !== c[2]);
             })
             .map((key) => `${el.className}:${key}`),

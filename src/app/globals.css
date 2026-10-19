@@ -3002,3 +3002,59 @@ td code {
 .app-shell .new-payment {
   font-size: 14px !important;
 }
+.app-shell .checkbox-label {
+  min-height: 44px;
+  align-items: center;
+  cursor: pointer;
+}
+@media (max-width: 767px) {
+  .app-shell.app-shell .topbar > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .app-shell.app-shell .topbar > div:first-child > strong {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .app-shell.app-shell .header-actions {
+    flex-shrink: 0;
+  }
+  .app-shell.app-shell .return-chat {
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  .app-shell.app-shell .sign-out {
+    width: 44px;
+    padding: 8px;
+  }
+  .app-shell .sign-out > span {
+    display: none;
+  }
+  .app-shell .payment-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .recipient-details {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .app-shell .payment-value {
+    grid-column: 1;
+    grid-row: auto;
+    max-width: none;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+  }
+  .app-shell .payment-value > strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .app-shell .payment-value .badge {
+    border-radius: 8px;
+  }
+}
