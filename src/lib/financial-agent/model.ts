@@ -86,7 +86,11 @@ export function createConfiguredModel(
                 },
           ),
         },
-      );
+      ).catch(() => {
+        throw new AgentError(
+          signal.aborted ? "MODEL_INTERRUPTED" : "MODEL_NETWORK",
+        );
+      });
       if (!response.ok) {
         await response.body?.cancel();
         throw new AgentError(`MODEL_HTTP_${response.status}`);
@@ -103,13 +107,30 @@ export function createConfiguredModel(
           if (length > 64 * 1024) throw new AgentError("MODEL_BYTES");
           chunks.push(part.value);
         }
+      } catch (error) {
+        if (error instanceof AgentError) throw error;
+        throw new AgentError(
+          signal.aborted ? "MODEL_INTERRUPTED" : "MODEL_NETWORK",
+        );
       } finally {
         await reader.cancel().catch(() => {});
       }
-      const raw = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      let raw;
+      try {
+        raw = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if (!raw || typeof raw !== "object" || Array.isArray(raw))
+          throw new Error();
+      } catch {
+        throw new AgentError("MODEL_ENVELOPE");
+      }
       let output: string;
       if (openai) {
         const candidate = raw.choices?.[0];
+        if (
+          candidate?.message?.refusal ||
+          candidate?.finish_reason === "content_filter"
+        )
+          throw new AgentError("MODEL_REFUSAL");
         if (
           candidate?.finish_reason !== "stop" ||
           typeof candidate.message?.content !== "string" ||
@@ -122,6 +143,16 @@ export function createConfiguredModel(
         const candidate = raw.candidates?.[0];
         if (
           raw.promptFeedback?.blockReason ||
+          [
+            "SAFETY",
+            "RECITATION",
+            "BLOCKLIST",
+            "PROHIBITED_CONTENT",
+            "SPII",
+          ].includes(candidate?.finishReason)
+        )
+          throw new AgentError("MODEL_REFUSAL");
+        if (
           candidate?.finishReason !== "STOP" ||
           !Array.isArray(candidate.content?.parts) ||
           candidate.content.parts.some(
@@ -137,7 +168,15 @@ export function createConfiguredModel(
           .map((p: { text: string }) => p.text)
           .join("");
       }
-      return schemas[task].parse(JSON.parse(output));
+      let value: unknown;
+      try {
+        value = JSON.parse(output);
+      } catch {
+        throw new AgentError("MODEL_JSON");
+      }
+      const parsed = schemas[task].safeParse(value);
+      if (!parsed.success) throw new AgentError("MODEL_SCHEMA");
+      return parsed.data;
     },
   };
 }

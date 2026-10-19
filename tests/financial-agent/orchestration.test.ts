@@ -263,6 +263,7 @@ describe("isolated routing and genuine-model protocol (scripted transport in uni
       ),
     );
     await s.agent().turn(s.input);
+    const nextTurn = s.model.generate.mock.calls.length;
     const other = await s.agent().turn({
       ...s.input,
       ctx: fixtureOtherPrincipal,
@@ -270,7 +271,7 @@ describe("isolated routing and genuine-model protocol (scripted transport in uni
       text: "Hello",
     });
     expect(other.kind).toBe("general");
-    const prompts = JSON.stringify(s.model.generate.mock.calls.slice(2));
+    const prompts = JSON.stringify(s.model.generate.mock.calls.slice(nextTurn));
     expect(prompts).not.toContain("ada-okafor-oct");
   });
   it("supports a separately injected empty store", async () => {

@@ -77,6 +77,7 @@ export type AgentReply = {
     toolCalls: number;
     resultBytes: number;
     code?: string;
+    narrationCode?: string;
   };
 };
 export type AgentOptions = {
@@ -261,6 +262,7 @@ export function createFinancialAgent(options: AgentOptions) {
             }
           }
           const presentation = factualPresentation(selected);
+          let narrationCode: string | undefined;
           try {
             if (code || monotonic() + 1000 >= deadline)
               throw new AgentError("NARRATION_BUDGET");
@@ -276,7 +278,13 @@ export function createFinancialAgent(options: AgentOptions) {
             await recheck();
             presentation.explanation = acceptNarration(raw, selected);
             presentation.narration = "ai";
-          } catch {
+          } catch (error) {
+            narrationCode =
+              error instanceof AgentError
+                ? error.code
+                : error instanceof z.ZodError
+                  ? "NARRATION_SCHEMA"
+                  : "NARRATION_UNAVAILABLE";
             // Only narration may fall back. Revoked/stale facts must still fail.
             await recheck();
           }
@@ -289,6 +297,7 @@ export function createFinancialAgent(options: AgentOptions) {
             ids,
             code,
           );
+          if (narrationCode) value.evidence.narrationCode = narrationCode;
           value.presentation = presentation;
           return finish(value);
         }

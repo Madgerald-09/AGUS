@@ -47,6 +47,10 @@ export function narrationContract(facts: Fact[]) {
         r.resultId,
         `(?:The records show|These records show) expenses of ${expense} and income of ${income}\\.`,
       );
+      allow(
+        r.resultId,
+        `Based on the available records, you spent ${expense} and received ${income}\\.`,
+      );
       allow(r.resultId, `Income (?:totals|is|comes to) ${income}\\.`);
       allow(
         r.resultId,
