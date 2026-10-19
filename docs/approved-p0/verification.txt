@@ -1,0 +1,123 @@
+Source candidate: 89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca
+Baseline: 489c90e61f32d71425bb73523caaf4acfa7965f0
+Data: fictional fixtures. Browser routing AND narration: explicit mocked Gemini transport.
+Live narration: UNVERIFIED / MODEL_NOT_CONFIGURED / zero calls / exit 2.
+
+Focused tests total: 300 in 11 files, across the two focused runs below.
+Backend/financial code is unchanged between the focused passing run and the source candidate; subsequent changes concern frontend layout, input lifecycle and browser verification. The final production browser run used this source candidate.
+
+Focused financial/history/security/routing/education/model/payment tests: 299 passed, 10 files
+
+> hackaholics-financial-agent@0.1.0 test
+> vitest run tests/financial-agent/grounded-narration.test.ts tests/financial-agent/presentation.test.tsx tests/financial-agent/security.test.ts tests/financial-agent/renderer.test.ts tests/financial-agent/routing.test.ts tests/financial-agent/education.test.ts tests/financial-agent/model.test.ts tests/financial-integration/chat-history.test.ts tests/financial-integration/conversation.test.ts tests/payments.test.ts tests/login-disclosure.test.ts
+
+
+ RUN  v5.0.4 /workspace/agus-approved-p0
+
+
+ Test Files  10 passed (10)
+      Tests  299 passed (299)
+   Start at  02:57:43
+   Duration  19.04s (tests 86%, import 12%, transform 2%)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Legacy/malformed presentation rendering: 1 passed, 1 file
+
+> hackaholics-financial-agent@0.1.0 test
+> vitest run tests/financial-agent/presentation.test.ts
+
+
+ RUN  v5.0.4 /workspace/agus-approved-p0
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  02:59:21
+   Duration  225ms (import 55%, transform 35%, tests 8%, worker 2%)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Lint: exit 0, no errors/warnings
+
+> hackaholics-financial-agent@0.1.0 lint
+> eslint .
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Typecheck: exit 0
+
+> hackaholics-financial-agent@0.1.0 typecheck
+> tsc --noEmit
+
+
+Production build: exit 0
+
+> hackaholics-financial-agent@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.4.1 (webpack)
+✓ Running next.config.ts took 20ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.7s
+  Running TypeScript ...
+  Finished TypeScript in 2.8s ...
+  Collecting page data using 2 workers ...
+  Generating static pages using 2 workers (0/2) ...
+✓ Generating static pages using 2 workers (2/2) in 249ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/[...path]
+├ ƒ /api/conversation
+├ ƒ /api/conversations
+├ ƒ /api/financial-agent
+└ ƒ /conversation
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+Two-session payment safety browser: exit 0
+PASS: two authenticated browser sessions; unchanged polling; amount, beneficiary, bank/account and reason changes clear acknowledgment/password; stale submit blocked; renewed review submits the acknowledged digest. Fixture mode only.
+PASS: a confirmed 1,000-kobo fee renders as ₦10.00 in the payment card (controlled presentation response).
+
+Approved P0 viewport browser: exit 0
+
+> hackaholics-financial-agent@0.1.0 test:browser:approved-p0
+> node scripts/browser-approved-p0.mjs
+
+PASS 1440x1000
+PASS 1024x768
+PASS 820x1000
+PASS 390x844
+PASS 320x740
+PASS 740x390
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+

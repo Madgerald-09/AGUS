@@ -1,0 +1,12 @@
+{
+  "status": "UNVERIFIED",
+  "commit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+  "provider": "none",
+  "model": "gemini-2.5-flash",
+  "dataMode": "fictional fixtures",
+  "inferenceMode": "genuine configured provider; no mock",
+  "calls": [],
+  "cases": [],
+  "reason": "MODEL_NOT_CONFIGURED",
+  "processExitCode": 2
+}
