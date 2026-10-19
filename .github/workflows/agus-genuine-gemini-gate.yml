@@ -1,0 +1,136 @@
+name: AGUS genuine Gemini acceptance (bounded)
+
+on:
+  push:
+    branches:
+      - validation/agus-genuine-gemini-20261019
+    paths:
+      - .github/workflows/agus-genuine-gemini-gate.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agus-gemini-one-shot-20261019
+  cancel-in-progress: false
+
+jobs:
+  genuine-gemini:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NODE_ENV: test
+      NEXT_TELEMETRY_DISABLED: "1"
+      AI_PROVIDER: gemini
+      AI_MODEL: gemini-3.5-flash-lite
+      PAYMENT_MODE: fixture
+      FINANCIAL_DEMO_ENABLED: "true"
+      PAYSTACK_SECRET_KEY: ""
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      LIVE_TRANSFERS_ENABLED: "false"
+      LIVE_OWNER_AUTHORIZED: "false"
+      LIVE_WEBHOOK_VALIDATED: "false"
+      LIVE_RECONCILIATION_VALIDATED: "false"
+      PAYMENTS_EMERGENCY_DISABLED: "false"
+      DATABASE_URL: pglite://.data/agus-gemini-gate
+      APP_ORIGIN: http://localhost:3000
+    steps:
+      - name: Checkout previously validated AGUS candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact candidate and isolated workflow-only diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor eb38071ee8267d1800f043543f9f994879e10b94 HEAD
+          changed="$(git diff --name-only eb38071ee8267d1800f043543f9f994879e10b94 HEAD)"
+          test "$changed" = ".github/workflows/agus-genuine-gemini-gate.yml"
+          echo "Candidate code matches validated eb38071; only isolated gate was added"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Execute bounded genuine Gemini scenarios
+        shell: bash
+        timeout-minutes: 12
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AI_API_KEY:-}" ]; then
+            echo "::error::Repository secret AGUS_GEMINI_API_KEY is not available in this workflow."
+            exit 2
+          fi
+          echo "## Genuine Gemini — bounded fixture-only acceptance" >> "$GITHUB_STEP_SUMMARY"
+          echo "Model: gemini-3.5-flash-lite; verified candidate: eb38071; no banking provider calls." >> "$GITHUB_STEP_SUMMARY"
+          for scenario in education-no-account general-everyday totals; do
+            case "$scenario" in
+              education-no-account|general-everyday) limit=3 ;;
+              totals) limit=4 ;;
+              *) exit 2 ;;
+            esac
+            echo "Checking $scenario (maximum $limit genuine model calls)..."
+            result="$RUNNER_TEMP/agus-${scenario}.json"
+            status=0
+            node --import=tsx scripts/verify-financial-model.ts \
+              "--scenario=$scenario" "--max-model-calls=$limit" \
+              "--min-interval-ms=5000" --include-responses > "$result" || status=$?
+            node --input-type=module - "$result" "$scenario" "$status" <<'NODE'
+          import fs from "node:fs";
+          const [file, scenario, exitCode] = process.argv.slice(2);
+          let data;
+          try {
+            data = JSON.parse(fs.readFileSync(file, "utf8"));
+          } catch {
+            console.error("Harness result could not be parsed; result content withheld.");
+            process.exit(3);
+          }
+          const cases = Array.isArray(data.cases) ? data.cases.filter(x => x.id === scenario) : [];
+          const selected = cases[0] || {};
+          const result = {
+            scenario,
+            status: data.status || "BLOCKED",
+            caseStatus: selected.status || "UNVERIFIED",
+            acceptanceStatus: selected.acceptanceStatus || "UNVERIFIED",
+            narration: selected.narration || "none",
+            provider: data.provider || "none",
+            model: data.model || "unknown",
+            providerCalls: data.providerCalls ?? 0,
+            kind: selected.kind || null,
+            reason: data.reason || selected.errorClassification || "none",
+            errorClassification: selected.errorClassification || null,
+            grounding: selected.grounding || null,
+            latencyMs: selected.latencyMs || null,
+            exitCode: Number(exitCode),
+          };
+          console.log(JSON.stringify(result));
+          const summary = [
+            `### ${scenario}: ${result.caseStatus}`,
+            `Provider calls: ${result.providerCalls}; kind: ${result.kind}; narration: ${result.narration}; reason: ${result.reason}; harness exit: ${result.exitCode}`,
+          ];
+          if (typeof selected.response === "string") {
+            // All inputs are synthetic or impersonal; never reveal provider credentials or requests.
+            const excerpt = selected.response.replace(/[\r\n]+/g, " ").slice(0, 320);
+            summary.push(`Response excerpt (fictional / impersonal): ${excerpt}`);
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary.join("\n\n") + "\n\n");
+          if (result.status !== "PASS" || result.caseStatus !== "PASS" || Number(exitCode) !== 0) process.exit(2);
+          NODE
+            if [ "$status" -ne 0 ]; then
+              echo "::error::Scenario $scenario blocked. Do not retry automatically."
+              exit "$status"
+            fi
+            if [ "$scenario" != totals ]; then sleep 6; fi
+          done
+      - name: Record safety boundaries
+        if: always()
+        shell: bash
+        run: |
+          echo "No Paystack key, real financial records, live transfers, deployment or OS microphone tests were used." >> "$GITHUB_STEP_SUMMARY"
+          echo "This tests actual Gemini transport and agent harness behavior, not the full logged-in browser UI." >> "$GITHUB_STEP_SUMMARY"
