@@ -1,0 +1,86 @@
+name: AGUS genuine AI production-browser acceptance (one shot)
+
+on:
+  push:
+    branches:
+      - validation/agus-real-gemini-browser-20261019
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agus-real-ai-browser-20261019
+  cancel-in-progress: false
+
+jobs:
+  signed-in-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      PAYMENT_MODE: fixture
+      FINANCIAL_DEMO_ENABLED: "true"
+      PAYSTACK_SECRET_KEY: ""
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      LIVE_TRANSFERS_ENABLED: "false"
+      LIVE_OWNER_AUTHORIZED: "false"
+      LIVE_WEBHOOK_VALIDATED: "false"
+      LIVE_RECONCILIATION_VALIDATED: "false"
+      PAYMENTS_EMERGENCY_DISABLED: "true"
+      AI_PROVIDER: gemini
+      AI_MODEL: gemini-3.5-flash-lite
+      APP_ORIGIN: http://127.0.0.1:3133
+    steps:
+      - name: Checkout exact vetted candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify approved candidate and test-only additions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor eb38071ee8267d1800f043543f9f994879e10b94 HEAD
+          changed="$(git diff --name-only eb38071ee8267d1800f043543f9f994879e10b94 HEAD | sort)"
+          expected="$(printf '%s\n' \
+            '.github/workflows/agus-real-gemini-browser.yml' \
+            'scripts/validation/genuine-gemini-browser.mjs' \
+            'scripts/validation/genuine-gemini-budget.mjs' | sort)"
+          test "$changed" = "$expected"
+          echo "Verified app files identical to AGUS v1.2 eb38071"
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build actual production Next.js application
+        run: npm run build
+      - name: Install headless Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run real-AI signed-in browser acceptance
+        shell: bash
+        timeout-minutes: 17
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AI_API_KEY" ]; then
+            echo "::error::Protected AGUS_GEMINI_API_KEY secret was not available."
+            exit 2
+          fi
+          echo "::add-mask::$AI_API_KEY"
+          node scripts/validation/genuine-gemini-browser.mjs
+      - name: Record verification limitations
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo ""
+            echo "Tested the genuine model from a GitHub-hosted Chromium client against a production Next.js server in an isolated fixture-only environment."
+            echo "No live banking credentials, no real recipient data or transfers, no deployment."
+            echo "Physical microphone, OS dictation, clipboard and speaker behavior still require testing on a real device."
+          } >> "$GITHUB_STEP_SUMMARY"
