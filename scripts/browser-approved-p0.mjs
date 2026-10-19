@@ -1,4 +1,4 @@
-/* global window: readonly, PerformanceObserver: readonly, getComputedStyle: readonly, MutationObserver: readonly, performance: readonly, localStorage: readonly, sessionStorage: readonly */
+/* global window: readonly, PerformanceObserver: readonly, getComputedStyle: readonly, MutationObserver: readonly, performance: readonly, localStorage: readonly, sessionStorage: readonly, KeyboardEvent: readonly */
 /* global document: readonly, innerWidth: readonly, innerHeight: readonly */
 import { URL } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
@@ -247,6 +247,24 @@ try {
     await input.fill("line one");
     await input.press(viewport.width < 768 ? "Enter" : "Shift+Enter");
     assert.equal(await input.inputValue(), "line one\n");
+    const imePosts = posts;
+    await input.evaluate((el) =>
+      el.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          isComposing: true,
+        }),
+      ),
+    );
+    assert.equal(posts, imePosts, "IME composition never submits");
+    await input.fill("x".repeat(4000));
+    await input.press("x");
+    assert.equal((await input.inputValue()).length, 4000);
+    assert.match(
+      await page.locator(".agus-character-count").innerText(),
+      /Message limit reached/,
+    );
     const general = await send(`Hey there from ${viewport.width}px`);
     assert.match(await general.innerText(), /Hey!/);
     assert.equal(await general.locator(".agus-totals").count(), 0);
@@ -428,6 +446,58 @@ try {
         "delayed completion preserves reader scroll and selected evidence focus",
       );
     }
+    const rendered = await page.evaluate(() => {
+      const root = document.querySelector(".agus-workspace");
+      const visible = (el) => {
+        const r = el.getBoundingClientRect();
+        return (
+          r.width > 0 &&
+          r.height > 0 &&
+          getComputedStyle(el).visibility !== "hidden" &&
+          !el.closest(".agus-sr-only")
+        );
+      };
+      return {
+        small: [...root.querySelectorAll("*")]
+          .filter(
+            (el) =>
+              visible(el) &&
+              [...el.childNodes].some(
+                (n) => n.nodeType === 3 && n.textContent.trim(),
+              ) &&
+              parseFloat(getComputedStyle(el).fontSize) < 13,
+          )
+          .map((el) => el.className),
+        targets: [
+          ...root.querySelectorAll("button,summary,textarea,select,input,a"),
+        ]
+          .filter(
+            (el) =>
+              visible(el) &&
+              !el.matches(".agus-skip") &&
+              (el.getBoundingClientRect().width < 44 ||
+                el.getBoundingClientRect().height < 44),
+          )
+          .map((el) => el.className),
+        color: [...root.querySelectorAll("*")].filter(visible).flatMap((el) =>
+          ["color", "backgroundColor", "borderTopColor", "outlineColor"]
+            .filter((key) => {
+              const c = getComputedStyle(el)
+                [key].match(/[\d.]+/g)
+                ?.map(Number);
+              return c?.length >= 3 && (c[0] !== c[1] || c[1] !== c[2]);
+            })
+            .map((key) => `${el.className}:${key}`),
+        ),
+        canvas: getComputedStyle(root).backgroundColor,
+      };
+    });
+    assert.deepEqual(rendered, {
+      small: [],
+      targets: [],
+      color: [],
+      canvas: "rgb(0, 0, 0)",
+    });
     const access = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
@@ -471,6 +541,11 @@ try {
           results: [{ isFinal: true, 0: { transcript: "transcribed text" } }],
         });
       });
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".composer textarea")?.value ===
+          "Typed text\ntranscribed text",
+      );
       assert.equal(
         await paymentInput.inputValue(),
         "Typed text\ntranscribed text",
