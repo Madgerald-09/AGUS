@@ -1,0 +1,23 @@
+{
+  "name": "AGUS v1.2 private fixture preview",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "postCreateCommand": "npm ci --no-audit --no-fund",
+  "postStartCommand": "bash .devcontainer/start-preview.sh",
+  "forwardPorts": [
+    3000
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "AGUS v1.2 private preview",
+      "onAutoForward": "openBrowser",
+      "protocol": "https"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
