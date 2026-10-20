@@ -75,7 +75,7 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base);
-  assert.equal(await page.title(), "Agus · Your financial workspace");
+  assert.equal(await page.title(), "agus. · Your money, and what's next.");
   await page.getByLabel("Operator password", { exact: true }).fill(password);
   await page
     .getByRole("button", { name: "Show password", exact: true })
@@ -372,9 +372,7 @@ try {
     await page.locator(".unfinished").waitFor();
     await layoutCheck(`${viewport.name}-restored`);
     const followUp = page.locator(".message.assistant").last();
-    await followUp
-      .getByText(/Some outcomes are unresolved/)
-      .waitFor();
+    await followUp.getByText(/Some outcomes are unresolved/).waitFor();
     await followUp.evaluate((el) =>
       el.scrollIntoView({ block: "start", behavior: "instant" }),
     );

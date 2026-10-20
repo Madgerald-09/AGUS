@@ -6,9 +6,9 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 export const metadata: Metadata = {
-  title: "Agus · Your financial workspace",
+  title: "agus. · Your money, and what's next.",
   description:
-    "Hackaholics 7.0 financial workflow prototype. Prepare, review, approve and track Nigerian transfers.",
+    "Your money, and what's next. A financial conversation workspace with clearly labeled fictional demo data.",
 };
 export default function RootLayout({
   children,

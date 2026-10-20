@@ -502,11 +502,50 @@ async function uncertain(
     return b;
   });
 }
+/** A rejection receipt is written only after this invocation has ended before
+ * the one-use claim. A concurrent/replayed invocation checks the same receipt
+ * inside its claim transaction, so it cannot execute after rejection. */
 export async function executeBatch(
   actor: string,
   batchId: string,
   nonce: string,
   api: PaymentProvider = provider(),
+  attemptId?: string,
+) {
+  try {
+    return await executeBatchAttempt(actor, batchId, nonce, api, attemptId);
+  } catch (error) {
+    if (attemptId)
+      await mutate((s) => {
+        const batch = findBatch(s, batchId, actor);
+        if (
+          !batch.approval?.consumedAt &&
+          !s.audit.some(
+            (e) =>
+              e.actor === actor &&
+              e.batchId === batchId &&
+              e.action === "batch.execution_rejected" &&
+              (e.details as { attemptId?: string })?.attemptId === attemptId,
+          )
+        )
+          audit(
+            s,
+            actor,
+            "batch.execution_rejected",
+            { attemptId, nonce },
+            batchId,
+          );
+      });
+    throw error;
+  }
+}
+
+async function executeBatchAttempt(
+  actor: string,
+  batchId: string,
+  nonce: string,
+  api: PaymentProvider,
+  attemptId?: string,
 ) {
   const before = findBatch(await readState(), batchId, actor);
   executionGate(before.mode, (await readState()).emergencyDisabled);
@@ -524,6 +563,20 @@ export async function executeBatch(
       )
     )
       throw new AppError("Beneficiary allowlist changed", 403);
+    if (
+      attemptId &&
+      s.audit.some(
+        (e) =>
+          e.actor === actor &&
+          e.batchId === batchId &&
+          e.action === "batch.execution_rejected" &&
+          (e.details as { attemptId?: string })?.attemptId === attemptId,
+      )
+    )
+      throw new AppError(
+        "Execution attempt was rejected. Review the saved payment before a new explicit submission.",
+        409,
+      );
     const a = b.approval;
     if (
       !a ||

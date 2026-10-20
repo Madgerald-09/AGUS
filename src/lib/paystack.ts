@@ -292,6 +292,7 @@ export const fixtureBanks = [
   { name: "Access Bank", code: "044" },
   { name: "Guaranty Trust Bank", code: "058" },
   { name: "United Bank for Africa", code: "033" },
+  { name: "OPay (demo institution)", code: "999992" },
 ];
 export const fixtureBeneficiaries = [
   { name: "Ada Okafor", bankCode: "035", accountNumber: "0000000001" },

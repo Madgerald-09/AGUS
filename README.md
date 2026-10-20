@@ -4,6 +4,20 @@ Agus is a monochrome, chat-first Next.js financial workflow prototype: prepare p
 
 **Default: fixtures. No real money moves. No live transfer was attempted or verified during implementation.** Real transfers can only come from an eligible, funded, authorized Paystack business account; this is not a way to debit arbitrary personal accounts.
 
+## Integrated AGUS v1.2 candidate
+
+The consolidated candidate preserves the approved v1.2 conversation UI, original artwork, financial tools, saved chats and the existing payment workspace. See [the integration report](docs/integration/candidate/README.md) for ancestry, validation evidence and limitations.
+
+For this experience, follow the local setup below and set `FINANCIAL_DEMO_ENABLED=true` in `.env.local`, keeping `PAYMENT_MODE=fixture` and all live transfer flags false. Configure `AI_PROVIDER`, `AI_MODEL` and a legitimate server-side `AI_API_KEY` privately for natural conversation and grounded financial narration. With `AI_PROVIDER=none`, the conversation reports that a model is unavailable; only the payment workspace has the limited demonstration parser. The fixture financial accounts are fictional and scoped to the authenticated shared operator.
+
+```sh
+npm run test:integration          # Focused conversation/tools/history/payment suite
+npm run build
+npm run test:browser:integration  # Desktop/mobile production journeys; mocked AI
+```
+
+The browser integration command starts its own isolated fixture-only production server and writes sanitized results to `/tmp/agus-browser-integration.json` (override with `INTEGRATION_REPORT`). It requires Chromium at `/usr/bin/chromium` or `CHROMIUM_PATH`. It does not use your model or payment credentials.
+
 ## Run locally / in Codex Cloud
 
 Node 22.16+ (Node 24 recommended), npm, writable project storage. No bank, model or database-server credentials needed for fixture mode.

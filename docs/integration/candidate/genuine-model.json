@@ -1,0 +1,11 @@
+{
+  "status": "UNVERIFIED",
+  "commit": "f4e3e3bf71f39bba1de62e3b8a564968086e44da",
+  "provider": "none",
+  "model": "gemini-2.5-flash",
+  "dataMode": "fictional fixtures",
+  "inferenceMode": "genuine configured provider; no mock",
+  "calls": [],
+  "cases": [],
+  "reason": "MODEL_NOT_CONFIGURED"
+}

@@ -1,0 +1,619 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "passed": true,
+    "checks": [
+      "transient per-chat drafts; prompt protection; Back/Forward; touch Return/desktop newline",
+      "exact totals; AI stage mocked and accepted; evidence; unique transaction choice; one modal; plans preview",
+      "unknown after server save reconciled with zero extra POSTs; definite rejection retains input",
+      "delayed completion preserves reader scroll and selected evidence focus",
+      "fixture approval and submission are separate; unresolved recipient remains processing",
+      "existing Gerald browser voice fixture appends without auto-send, preserves typed multiline, handles error and discards late transcript after return",
+      "reload clears account; explicit editable payment handoff; no approval/execution; originating chat return",
+      "expired response clears private content, retains current unsent text and permits sign-in without auto-send",
+      "late authenticated turn cannot repopulate signed-out workspace"
+    ],
+    "browser": "154.0.8037.57",
+    "motion": "normal; 390px also reduced",
+    "data": "fictional fixtures",
+    "inference": "mocked Gemini routing and narration; not live inference",
+    "approvals": 1,
+    "executions": 1,
+    "metrics": {
+      "lcp": 196,
+      "cls": 0,
+      "interactions": [
+        {
+          "name": "keydown",
+          "duration": 32
+        },
+        {
+          "name": "keyup",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 32
+        },
+        {
+          "name": "pointerup",
+          "duration": 32
+        },
+        {
+          "name": "click",
+          "duration": 32
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        }
+      ],
+      "feedbackMs": null
+    },
+    "sourceCommit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+    "productionBuild": true
+  },
+  {
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "passed": true,
+    "checks": [
+      "transient per-chat drafts; prompt protection; Back/Forward; touch Return/desktop newline",
+      "exact totals; AI stage mocked and accepted; evidence; unique transaction choice; one modal; plans preview",
+      "unknown after server save reconciled with zero extra POSTs; definite rejection retains input",
+      "reload clears account; explicit editable payment handoff; no approval/execution; originating chat return"
+    ],
+    "browser": "154.0.8037.57",
+    "motion": "normal; 390px also reduced",
+    "data": "fictional fixtures",
+    "inference": "mocked Gemini routing and narration; not live inference",
+    "approvals": 0,
+    "executions": 0,
+    "metrics": {
+      "lcp": 160,
+      "cls": 0,
+      "interactions": [
+        {
+          "name": "keydown",
+          "duration": 24
+        },
+        {
+          "name": "keyup",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        }
+      ],
+      "feedbackMs": null
+    },
+    "sourceCommit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+    "productionBuild": true
+  },
+  {
+    "viewport": {
+      "width": 820,
+      "height": 1000
+    },
+    "passed": true,
+    "checks": [
+      "transient per-chat drafts; prompt protection; Back/Forward; touch Return/desktop newline",
+      "exact totals; AI stage mocked and accepted; evidence; unique transaction choice; one modal; plans preview",
+      "unknown after server save reconciled with zero extra POSTs; definite rejection retains input",
+      "reload clears account; explicit editable payment handoff; no approval/execution; originating chat return"
+    ],
+    "browser": "154.0.8037.57",
+    "motion": "normal; 390px also reduced",
+    "data": "fictional fixtures",
+    "inference": "mocked Gemini routing and narration; not live inference",
+    "approvals": 0,
+    "executions": 0,
+    "metrics": {
+      "lcp": 160,
+      "cls": 0,
+      "interactions": [
+        {
+          "name": "keydown",
+          "duration": 24
+        },
+        {
+          "name": "keyup",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        }
+      ],
+      "feedbackMs": null
+    },
+    "sourceCommit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+    "productionBuild": true
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "passed": true,
+    "checks": [
+      "transient per-chat drafts; prompt protection; Back/Forward; touch Return/desktop newline",
+      "exact totals; AI stage mocked and accepted; evidence; unique transaction choice; one modal; plans preview",
+      "unknown after server save reconciled with zero extra POSTs; definite rejection retains input",
+      "delayed completion preserves reader scroll and selected evidence focus",
+      "fixture approval and submission are separate; unresolved recipient remains processing",
+      "existing Gerald browser voice fixture appends without auto-send, preserves typed multiline, handles error and discards late transcript after return",
+      "reload clears account; explicit editable payment handoff; no approval/execution; originating chat return",
+      "reduced motion; 320x420 visual viewport simulation; CSS 200% zoom/reflow"
+    ],
+    "browser": "154.0.8037.57",
+    "motion": "normal; 390px also reduced",
+    "data": "fictional fixtures",
+    "inference": "mocked Gemini routing and narration; not live inference",
+    "approvals": 1,
+    "executions": 1,
+    "metrics": {
+      "lcp": 176,
+      "cls": 0.0016056525327431193,
+      "interactions": [
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 24
+        },
+        {
+          "name": "pointerup",
+          "duration": 24
+        },
+        {
+          "name": "click",
+          "duration": 24
+        },
+        {
+          "name": "pointerdown",
+          "duration": 32
+        },
+        {
+          "name": "pointerup",
+          "duration": 32
+        },
+        {
+          "name": "click",
+          "duration": 32
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "keydown",
+          "duration": 16
+        },
+        {
+          "name": "keyup",
+          "duration": 16
+        }
+      ],
+      "feedbackMs": 8.399999999906868
+    },
+    "sourceCommit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+    "productionBuild": true
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 740
+    },
+    "passed": true,
+    "checks": [
+      "transient per-chat drafts; prompt protection; Back/Forward; touch Return/desktop newline",
+      "exact totals; AI stage mocked and accepted; evidence; unique transaction choice; one modal; plans preview",
+      "unknown after server save reconciled with zero extra POSTs; definite rejection retains input",
+      "reload clears account; explicit editable payment handoff; no approval/execution; originating chat return"
+    ],
+    "browser": "154.0.8037.57",
+    "motion": "normal; 390px also reduced",
+    "data": "fictional fixtures",
+    "inference": "mocked Gemini routing and narration; not live inference",
+    "approvals": 0,
+    "executions": 0,
+    "metrics": {
+      "lcp": 144,
+      "cls": 0.011064280496712929,
+      "interactions": [
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        }
+      ],
+      "feedbackMs": 6.699999999953434
+    },
+    "sourceCommit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+    "productionBuild": true
+  },
+  {
+    "viewport": {
+      "width": 740,
+      "height": 390
+    },
+    "passed": true,
+    "checks": [
+      "transient per-chat drafts; prompt protection; Back/Forward; touch Return/desktop newline",
+      "exact totals; AI stage mocked and accepted; evidence; unique transaction choice; one modal; plans preview",
+      "unknown after server save reconciled with zero extra POSTs; definite rejection retains input",
+      "reload clears account; explicit editable payment handoff; no approval/execution; originating chat return"
+    ],
+    "browser": "154.0.8037.57",
+    "motion": "normal; 390px also reduced",
+    "data": "fictional fixtures",
+    "inference": "mocked Gemini routing and narration; not live inference",
+    "approvals": 0,
+    "executions": 0,
+    "metrics": {
+      "lcp": 140,
+      "cls": 0,
+      "interactions": [
+        {
+          "name": "pointerdown",
+          "duration": 32
+        },
+        {
+          "name": "pointerup",
+          "duration": 32
+        },
+        {
+          "name": "click",
+          "duration": 32
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        },
+        {
+          "name": "pointerdown",
+          "duration": 16
+        },
+        {
+          "name": "pointerup",
+          "duration": 16
+        },
+        {
+          "name": "click",
+          "duration": 16
+        }
+      ],
+      "feedbackMs": 5.599999999860302
+    },
+    "sourceCommit": "89dddbe6ac0a1fcf5b0e062d6c691d5e446560ca",
+    "productionBuild": true
+  }
+]

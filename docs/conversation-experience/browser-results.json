@@ -1,0 +1,114 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "passed": true,
+    "checks": [
+      "welcome",
+      "keyboard Enter and Shift+Enter",
+      "dialog Escape and focus restoration",
+      "authenticated server history",
+      "reload",
+      "new chat and switching",
+      "education",
+      "deterministic financial totals",
+      "source attribution",
+      "clarification choices",
+      "plan preview",
+      "recoverable error",
+      "safe payment draft handoff",
+      "sign out clears visible history",
+      "late authenticated responses cannot restore signed-out history",
+      "no overflow",
+      "composer visible"
+    ],
+    "inference": "mocked Gemini transport",
+    "payments": "fictional fixture; no approval/execution invoked"
+  },
+  {
+    "viewport": {
+      "width": 820,
+      "height": 1000
+    },
+    "passed": true,
+    "checks": [
+      "welcome",
+      "keyboard Enter and Shift+Enter",
+      "dialog Escape and focus restoration",
+      "authenticated server history",
+      "reload",
+      "new chat and switching",
+      "education",
+      "deterministic financial totals",
+      "source attribution",
+      "clarification choices",
+      "plan preview",
+      "recoverable error",
+      "safe payment draft handoff",
+      "sign out clears visible history",
+      "late authenticated responses cannot restore signed-out history",
+      "no overflow",
+      "composer visible"
+    ],
+    "inference": "mocked Gemini transport",
+    "payments": "fictional fixture; no approval/execution invoked"
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "passed": true,
+    "checks": [
+      "welcome",
+      "keyboard Enter and Shift+Enter",
+      "dialog Escape and focus restoration",
+      "authenticated server history",
+      "reload",
+      "new chat and switching",
+      "education",
+      "deterministic financial totals",
+      "source attribution",
+      "clarification choices",
+      "plan preview",
+      "recoverable error",
+      "safe payment draft handoff",
+      "sign out clears visible history",
+      "late authenticated responses cannot restore signed-out history",
+      "no overflow",
+      "composer visible"
+    ],
+    "inference": "mocked Gemini transport",
+    "payments": "fictional fixture; no approval/execution invoked"
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 740
+    },
+    "passed": true,
+    "checks": [
+      "welcome",
+      "keyboard Enter and Shift+Enter",
+      "dialog Escape and focus restoration",
+      "authenticated server history",
+      "reload",
+      "new chat and switching",
+      "education",
+      "deterministic financial totals",
+      "source attribution",
+      "clarification choices",
+      "plan preview",
+      "recoverable error",
+      "safe payment draft handoff",
+      "sign out clears visible history",
+      "late authenticated responses cannot restore signed-out history",
+      "no overflow",
+      "composer visible"
+    ],
+    "inference": "mocked Gemini transport",
+    "payments": "fictional fixture; no approval/execution invoked"
+  }
+]

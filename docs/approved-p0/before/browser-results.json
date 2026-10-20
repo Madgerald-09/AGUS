@@ -1,0 +1,34 @@
+{
+  "commit": "489c90e61f32d71425bb73523caaf4acfa7965f0",
+  "browser": "Chromium 154.0.8037.57",
+  "dataMode": "fictional October 2026 fixtures",
+  "inferenceMode": "mocked Gemini transport",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "width": 820,
+      "height": 1000
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 320,
+      "height": 740
+    }
+  ],
+  "passed": true,
+  "captureLogs": [
+    "PASS 1440px workspace\nPASS 820px workspace\nPASS 390px workspace\nPASS 320px workspace\n",
+    "PASS 1024px workspace\n"
+  ],
+  "note": "New captures from the baseline production build, before source implementation. Same October spending fixture. Original baseline verifier was used before its locators were superseded."
+}
