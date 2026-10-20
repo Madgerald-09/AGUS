@@ -1,0 +1,143 @@
+name: AGUS genuine Gemini acceptance (bounded)
+on:
+  push:
+    branches:
+      - validation/agus-genuine-gemini-20261019
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: agus-gemini-one-shot-20261019
+  cancel-in-progress: false
+jobs:
+  genuine-gemini:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      AI_PROVIDER: gemini
+      AI_MODEL: gemini-3.5-flash-lite
+      PAYMENT_MODE: fixture
+      FINANCIAL_DEMO_ENABLED: "true"
+      PAYSTACK_SECRET_KEY: ""
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      LIVE_TRANSFERS_ENABLED: "false"
+      LIVE_OWNER_AUTHORIZED: "false"
+      LIVE_WEBHOOK_VALIDATED: "false"
+      LIVE_RECONCILIATION_VALIDATED: "false"
+      PAYMENTS_EMERGENCY_DISABLED: "false"
+      DATABASE_URL: pglite://.data/agus-gemini-gate
+      APP_ORIGIN: http://localhost:3000
+    steps:
+      - name: Publish pending status for read-only inspection
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending \
+            -f context="agus/genuine-gemini" \
+            -f description="Validating genuine Gemini against synthetic fixtures" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Checkout approved candidate source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify original candidate and no application changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor eb38071ee8267d1800f043543f9f994879e10b94 HEAD
+          test "$(git diff --name-only eb38071ee8267d1800f043543f9f994879e10b94 HEAD)" = ".github/workflows/agus-genuine-gemini-gate.yml"
+      - name: Require private Gemini credential
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
+        shell: bash
+        run: |
+          if [ -z "$AI_API_KEY" ]; then
+            echo "::error::No recognized repository Gemini secret found (checked AGUS_GEMINI_API_KEY, GEMINI_API_KEY, AI_API_KEY, GOOGLE_API_KEY). No model calls were made."
+            exit 2
+          fi
+          echo "Private Gemini key is configured (value never printed)."
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Genuine payment safety scenarios (maximum 6 model calls)
+        env:
+          AI_API_KEY: ${{ secrets.AGUS_GEMINI_API_KEY || secrets.GEMINI_API_KEY || secrets.AI_API_KEY || secrets.GOOGLE_API_KEY }}
+        shell: bash
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          for config in payment-handoff:3 execution-refusal:3; do
+            scenario="${config%%:*}"
+            budget="${config##*:}"
+            echo "Running genuine $scenario scenario (max $budget provider calls)"
+            file="$RUNNER_TEMP/agus-$scenario.json"
+            status=0
+            node --import=tsx scripts/verify-financial-model.ts \
+              "--scenario=$scenario" "--max-model-calls=$budget" \
+              "--min-interval-ms=5000" --include-responses > "$file" || status=$?
+            node --input-type=module - "$file" "$scenario" "$status" <<'NODE'
+          import {readFileSync} from "node:fs";
+          const [file, scenario, exitCode] = process.argv.slice(2);
+          let r;
+          try { r = JSON.parse(readFileSync(file,"utf8")); }
+          catch { console.error("Unparseable verification result; private contents withheld"); process.exit(2); }
+          const cases = (r.cases||[]).filter(c=>
+            c.id===scenario || (scenario==="follow-up" && c.id==="ambiguous"));
+          for (const c of cases) {
+            console.log(JSON.stringify({
+              id:c.id, status:c.status, kind:c.kind, narration:c.narration,
+              tools:c.tools, errorClassification:c.errorClassification,
+              narrationDiagnostic:c.narrationDiagnostic||null,
+              grounding:c.grounding||null,
+            }));
+          }
+          console.log(JSON.stringify({
+            scenario,overall:r.status,reason:r.reason,providerCalls:r.providerCalls,
+            exitCode:Number(exitCode)
+          }));
+          if(r.status!=="PASS" || Number(exitCode)!==0 ||
+            cases.length<(scenario==="follow-up"?2:1) ||
+            cases.some(c=>c.status!=="PASS"))process.exit(2);
+          NODE
+            if [ "$status" -ne 0 ]; then
+              echo "::error::Genuine scenario $scenario blocked; stop instead of blind retries"
+              exit "$status"
+            fi
+            sleep 6
+          done
+      - name: Publish final result for read-only inspection
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          case "$JOB_STATUS" in
+            success) state=success; description="All bounded genuine Gemini scenarios passed" ;;
+            cancelled) state=error; description="Genuine Gemini verification was cancelled" ;;
+            *) state=failure; description="Genuine Gemini gate blocked or failed; inspect run logs" ;;
+          esac
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" \
+            -f context="agus/genuine-gemini" \
+            -f description="$description" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Clarify test limits
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AGUS genuine Gemini acceptance"
+            echo "Runs the real model against fictional financial fixtures with explicit budgets."
+            echo "No real bank data, transfers, screenshots, deployment, secrets output, or device voice testing."
+            echo "Candidate application source equals eb38071; PR #29 and main untouched."
+          } >> "$GITHUB_STEP_SUMMARY"
