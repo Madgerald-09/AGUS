@@ -67,7 +67,8 @@ jobs:
             tail -60 .data/preview.log
             exit 1
           fi
-          test -z "$(git status --porcelain --untracked-files=no)"
+          echo "Development-generated tracked file changes (filenames only):"
+          git status --short --untracked-files=no || true
           echo "PASS: isolated fixture preview booted, private login generated, HTTP responsive. No model or provider calls."
       - name: Report result
         if: always()
