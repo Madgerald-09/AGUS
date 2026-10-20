@@ -1,0 +1,26 @@
+{
+  "name": "agus-hackaholics-demo-film",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.tsx --browser-executable=/usr/bin/chromium",
+    "capture": "node scripts/capture.mjs",
+    "render": "remotion render src/index.tsx AgusFilm deliverables/agus-aporia-demo-final.mp4 --browser-executable=/usr/bin/chromium --concurrency=2 --codec=h264 --crf=18 --pixel-format=yuv420p && node scripts/finalize.mjs agus-aporia-demo-final.mp4",
+    "still": "remotion still src/index.tsx AgusFilm deliverables/agus-aporia-poster.png --frame=4950 --browser-executable=/usr/bin/chromium",
+    "package": "node scripts/package.mjs",
+    "verify": "node scripts/verify.mjs agus-aporia-demo-final.mp4",
+    "finalize": "node scripts/finalize.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.409",
+    "remotion": "4.0.409",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "playwright": "1.61.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "typescript": "^5.9.0"
+  }
+}

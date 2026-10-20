@@ -1,0 +1,84 @@
+1
+00:00:00,000 --> 00:00:15,000
+Agus — Your financial workspace.
+Fixture demonstration · No live AI · No real money moved.
+
+2
+00:00:15,000 --> 00:00:25,000
+Ask. Review. Stay in control.
+Bring questions, payment preparation and saved outcomes into one workspace.
+
+3
+00:00:25,000 --> 00:00:38,000
+“How much did I spend on food?”
+A focused question. A calculated answer with its source made clear.
+
+4
+00:00:38,000 --> 00:00:50,000
+See the bigger picture.
+Ask for income and expenses. The figures come from the saved sample ledger.
+
+5
+00:00:50,000 --> 00:01:00,000
+“Explain that.”
+Understand where an answer comes from before acting on it.
+
+6
+00:01:00,000 --> 00:01:11,000
+Confidence starts with honesty.
+Agus says when it cannot see your bank balance. An answer needs a source.
+
+7
+00:01:11,000 --> 00:01:25,000
+Start with what you know.
+“Prepare 500 to Ada at Wema.” Missing account details stay empty for review.
+
+8
+00:01:25,000 --> 00:01:39,000
+One draft. Two recipients.
+Choose labelled fictional recipients. Add a second payment and check every field.
+
+9
+00:01:39,000 --> 00:01:50,000
+Saved is not submitted.
+The draft is now a payment job. Verification and your authorization still come next.
+
+10
+00:01:50,000 --> 00:02:02,000
+Review the details that matter.
+Names. Accounts. Amounts. Fee reserves. Fixture names are labelled explicitly.
+
+11
+00:02:02,000 --> 00:02:15,000
+Your review. Your approval.
+Acknowledge the details and approve with the operator password. Submission remains separate.
+
+12
+00:02:15,000 --> 00:02:31,000
+Every recipient. An explicit outcome.
+Submit the simulation, then check status. One succeeds; the other remains processing.
+
+13
+00:02:31,000 --> 00:02:44,000
+“What is still pending?”
+Unresolved stays unresolved. Check the existing payment before taking further action.
+
+14
+00:02:44,000 --> 00:02:55,000
+Come back. Keep context.
+Reload the workspace. The conversation and payment status are still there.
+
+15
+00:02:55,000 --> 00:03:07,000
+A record you can return to.
+Activity brings saved transfers, references and individual outcomes together.
+
+16
+00:03:07,000 --> 00:03:16,000
+Questions to understanding. Details to action.
+A connected workflow around the financial decisions you need to make.
+
+17
+00:03:16,000 --> 00:03:30,000
+Agus. Understand the source. Review the details. Stay in control.
+Fixture demonstration · No live AI · No real money moved.
