@@ -1,0 +1,114 @@
+name: Verify AGUS Render fixture deployment
+on:
+  push:
+    branches:
+      - deploy/agus-render-fixture-20261020
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: verify-agus-render-free-fixture
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: agusfixture
+          POSTGRES_USER: agusfixture
+          POSTGRES_PASSWORD: testpasswordonly
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agusfixture -d agusfixture"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://agusfixture:testpasswordonly@localhost:5432/agusfixture
+      AGUS_OPERATOR_PASSWORD: preview-fixture-test-password-2026
+      RENDER_EXTERNAL_URL: https://example.onrender.com
+      PORT: "3000"
+      PAYMENT_MODE: fixture
+      LIVE_TRANSFERS_ENABLED: "false"
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      AI_API_KEY: ""
+    steps:
+      - name: Report pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending -f context="agus/render-deployment-fixture" \
+            -f description="Checking Render fixture startup with PostgreSQL" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm original AGUS source and isolated deployment changes
+        run: |
+          git merge-base --is-ancestor 5fc0eac18b8120eaa3457f855d4f153c4264350e HEAD
+          test "$(git diff --name-only 5fc0eac18b8120eaa3457f855d4f153c4264350e HEAD | grep -vc -e '^render.yaml$' -e '^scripts/render-preview-start.mjs$' -e '^.github/workflows/agus-render-deploy-check.yml$' || true)" = 0
+      - name: Install Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build production
+        run: npm run build
+      - name: Check deployment script syntax
+        run: node --check scripts/render-preview-start.mjs
+      - name: Start production AGUS with persistent-style PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/render-preview-start.mjs > /tmp/agus-render-preview.log 2>&1 &
+          app_pid=$!
+          echo "$app_pid" > /tmp/agus-render-preview.pid
+          ok=0
+          for i in $(seq 1 55); do
+            status="$(curl --max-time 3 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/ || true)"
+            if [[ "$status" =~ ^(200|301|302|303|307|308|401)$ ]]; then ok=1; break; fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Preview did not start; sanitized server logs follow."
+            tail -65 /tmp/agus-render-preview.log
+            exit 2
+          fi
+          echo "PASS: production AGUS is HTTP responsive using real PostgreSQL, simulated finance and no Gemini key."
+      - name: Verify deployment remains disabled for live payments
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'PAYMENT_MODE = "fixture"' scripts/render-preview-start.mjs
+          grep -q 'LIVE_TRANSFERS_ENABLED = "false"' scripts/render-preview-start.mjs
+          grep -q 'PAYSTACK_SECRET_KEY = ""' scripts/render-preview-start.mjs
+          grep -q 'AGUS_OPERATOR_PASSWORD' scripts/render-preview-start.mjs
+          echo "PASS: preview explicitly disables Paystack and live payments."
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" = success ]; then state=success; description="PostgreSQL-backed Render fixture preview passed";
+          else state=failure; description="Render deployment preview needs correction"; fi
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" -f context="agus/render-deployment-fixture" \
+            -f description="$description" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
