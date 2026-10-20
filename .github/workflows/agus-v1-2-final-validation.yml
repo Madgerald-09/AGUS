@@ -1,0 +1,115 @@
+name: AGUS v1.2 final merged candidate validation
+
+on:
+  push:
+    branches:
+      - validation/agus-v1-2-final-20261020
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: agus-v1-2-final-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: test
+      PAYMENT_MODE: fixture
+      FINANCIAL_DEMO_ENABLED: "true"
+      AI_PROVIDER: none
+      AI_API_KEY: ""
+      PAYSTACK_SECRET_KEY: ""
+      PAYSTACK_TRANSFERS_ENABLED: "false"
+      LIVE_TRANSFERS_ENABLED: "false"
+      LIVE_OWNER_AUTHORIZED: "false"
+      LIVE_WEBHOOK_VALIDATED: "false"
+      LIVE_RECONCILIATION_VALIDATED: "false"
+      APP_ORIGIN: http://localhost:3000
+      DATABASE_URL: pglite://.data/agus-validation
+    steps:
+      - name: Report validation pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending -f context="agus/final-candidate-fixtures" \
+            -f description="Running all merged-candidate fixture checks" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Checkout consolidated candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for the exact ancestor commit verification below
+      - name: Verify exact parent commit
+        shell: bash
+        run: |
+          git merge-base --is-ancestor 5fc0eac18b8120eaa3457f855d4f153c4264350e HEAD
+          echo "Isolated validation of AGUS v1.2 candidate 5fc0eac"
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Full test suite
+        run: npm test
+      - name: Focused integration regressions
+        run: npm run test:integration
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: ESLint
+        run: npm run lint
+      - name: Production build
+        env:
+          NODE_ENV: production
+        run: npm run build
+      - name: Install isolated browser dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Browser chat-payment and voice journeys
+        env:
+          NODE_ENV: production
+        run: npm run test:browser
+      - name: Integrated browser journeys
+        env:
+          NODE_ENV: production
+        run: npm run test:browser:integration
+      - name: HTTP smoke
+        env:
+          NODE_ENV: production
+        run: npm run test:http
+      - name: Report final validation status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            state=success
+            description="AGUS merged candidate full fixture CI passed"
+          else
+            state=failure
+            description="AGUS merged candidate fixture CI needs review"
+          fi
+          gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state="$state" -f context="agus/final-candidate-fixtures" \
+            -f description="$description" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Report scope
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AGUS v1.2 merged candidate final validation"
+            echo "Runs on a temporary branch derived from 5fc0eac18b8120eaa3457f855d4f153c4264350e."
+            echo "Fixture financial records only; AI disabled; no provider secrets; live transfers disabled."
+            echo "No deployment, no integration into main, and no genuine model/provider/device verification."
+          } >> "$GITHUB_STEP_SUMMARY"
