@@ -1,0 +1,55 @@
+# AGUS Hackaholics — temporary 100%-fixture Render Free demo.
+# This blueprint creates two free resources: a web service and a PostgreSQL DB.
+# The free DB expires 30 days after creation. Never connect real bank data.
+services:
+  - type: web
+    name: agus-hackaholics-fixture
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: deploy/agus-render-fixture-20261020
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    startCommand: node scripts/render-preview-start.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: APP_ORIGIN
+        fromService:
+          type: web
+          name: agus-hackaholics-fixture
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agus-hackaholics-fixture-db
+          property: connectionString
+      - key: AGUS_OPERATOR_PASSWORD
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: PAYMENT_MODE
+        value: fixture
+      - key: FINANCIAL_DEMO_ENABLED
+        value: "true"
+      - key: LIVE_TRANSFERS_ENABLED
+        value: "false"
+      - key: LIVE_OWNER_AUTHORIZED
+        value: "false"
+      - key: LIVE_WEBHOOK_VALIDATED
+        value: "false"
+      - key: LIVE_RECONCILIATION_VALIDATED
+        value: "false"
+      - key: PAYSTACK_TRANSFERS_ENABLED
+        value: "false"
+      - key: PAYMENTS_EMERGENCY_DISABLED
+        value: "false"
+databases:
+  - name: agus-hackaholics-fixture-db
+    plan: free
+    region: frankfurt
+    databaseName: agusfixture
+    postgresMajorVersion: "17"
