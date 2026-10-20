@@ -192,7 +192,14 @@ try {
       "## AGUS genuine-model production browser acceptance",
       "Verdict: " + result.verdict,
       "Actual Gemini API request starts: " + result.apiCalls + " / 18 maximum.",
-      "Scenario metadata: " + JSON.stringify(result.apiResponses.map(({ excerpt, ...rest }) => rest)),
+      "Scenario metadata: " +
+        JSON.stringify(
+          result.apiResponses.map((response) =>
+            Object.fromEntries(
+              Object.entries(response).filter(([key]) => key !== "excerpt"),
+            ),
+          ),
+        ),
       "Checks: " + result.checks.join("; "),
       "No live banking, no transfer approval or execution, no credential disclosure.",
       "Physical microphone and OS speech/clipboard still require device tests.",
